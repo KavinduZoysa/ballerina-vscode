@@ -27,6 +27,7 @@ import { mapWithConcurrency } from '../utils/concurrency';
 import { getSystemPrompt, getUserPrompt } from './prompts';
 import { FollowupSituation, startFollowupSuggestions } from './followups';
 import { prepareAgentsMdForTurn } from './agents-md';
+import { resolveChatStoreKey } from './chatStoreKey';
 // TODO(auto-memory): temporarily disabled for this release.
 // import { executeAutoDream, isMemoryEnabled } from '../memory/autoDream';
 import { GenerationType } from '../utils/libs/libraries';
@@ -252,20 +253,9 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
     /** A turn can reach both the finish and abort paths; suggestions must be scheduled once. */
     private _followupsScheduled = false;
 
-    /**
-     * Store key for every `chatStateStorage` call, mirroring the precedence in
-     * `AICommandExecutor.run()`. Prefers `chatStorage.projectRootPath` — the key
-     * `addGeneration` and `getChatHistoryForLLM` use — because a caller may scope
-     * `executionContext` to a sub-package (the migration wizard passes the package path
-     * with `workspacePath: undefined`). Deriving the key from `executionContext` instead
-     * would address a different store than the one holding the generation, and every
-     * write would silently no-op on a missing generation ID.
-     */
+    /** Store key for every `chatStateStorage` call — see `resolveChatStoreKey` for why. */
     private get chatStoreKey(): string {
-        return this.config.chatStorage?.projectRootPath
-            || this.config.executionContext.workspacePath
-            || this.config.executionContext.projectPath
-            || '';
+        return resolveChatStoreKey(this.config.chatStorage, this.config.executionContext);
     }
 
     constructor(config: AICommandConfig<GenerateAgentCodeRequest>) {

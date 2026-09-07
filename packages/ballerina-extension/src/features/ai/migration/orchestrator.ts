@@ -49,6 +49,22 @@ import {
 } from "./types";
 
 // ===========================================================================
+// Chat rendering helpers
+// ===========================================================================
+
+/**
+ * Escapes text that is interpolated into a chat content block.
+ *
+ * The chat renderer runs `rehypeRaw`, so raw markup in an error message is parsed as HTML
+ * rather than shown — an agent error mentioning, say, `<html>` would silently vanish from
+ * the block. Only the three markup-significant characters are escaped; quotes are left
+ * alone because the text never lands in an attribute.
+ */
+function escapeChatText(text: string): string {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// ===========================================================================
 // Active Session – in-memory state for the current window session
 // ===========================================================================
 
@@ -518,7 +534,7 @@ function emitFinalReport(
     if (failed.length > 0) {
         report += `### Failed packages\n\n`;
         for (const f of failed) {
-            report += `- \`${f.packagePath}\`: ${f.error}\n`;
+            report += `- \`${f.packagePath}\`: ${escapeChatText(f.error ?? "unknown error")}\n`;
         }
         report += `\n`;
     }
@@ -730,7 +746,7 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
 
             recordingHandler({
                 type: "content_block",
-                content: `\n\n**${stage.name} — Failed** ❌\n\n${reason}\n\n`,
+                content: `\n\n**${stage.name} — Failed** ❌\n\n${escapeChatText(reason)}\n\n`,
             });
 
             if (transcriptWriter) {
@@ -895,7 +911,7 @@ export async function runMigrationAgent(): Promise<void> {
                 } catch (pkgError) {
                     if (_userAbortedMigration) { throw pkgError; }
                     const errMsg = pkgError instanceof Error ? pkgError.message : String(pkgError);
-                    const safeErrMsg = errMsg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    const safeErrMsg = escapeChatText(errMsg);
                     console.error(`[MigrationEnhancement] Package ${pkgRelPath} failed:`, pkgError);
                     debugLogger.logError(`Package ${pkgRelPath}`, pkgError);
                     eventHandler({ type: "content_block", content: `\n\n<errormsg>Package \`${pkgRelPath}\` failed: ${safeErrMsg}. Continuing to next package.</errormsg>\n\n` });
@@ -924,7 +940,7 @@ export async function runMigrationAgent(): Promise<void> {
                     } catch (wsError) {
                         if (!_migrationAbortController.signal.aborted) {
                             const errMsg = wsError instanceof Error ? wsError.message : String(wsError);
-                            const safeErrMsg = errMsg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                            const safeErrMsg = escapeChatText(errMsg);
                             debugLogger.logError("workspace validation", wsError);
                             eventHandler({ type: "content_block", content: `\n\n<errormsg>Workspace validation failed: ${safeErrMsg}</errormsg>\n\n` });
                         }
@@ -980,20 +996,28 @@ export async function runMigrationAgent(): Promise<void> {
             }
         }
     } catch (error) {
+        // A user abort and a stage failure both leave the run resumable, so the summary — which
+        // becomes the resume preamble — has to be written either way. Only the abort path used to
+        // reach here, because a failing stage aborted the shared controller.
+        const partialToml = readEnhanceToml(projectRoot);
+        if (partialToml) {
+            const summary = partialToml.multiProject
+                ? transcriptWriter.generateSummary(partialToml, [])
+                : transcriptWriter.generateSinglePackageSummary(partialToml, true);
+            transcriptWriter.writeSummary(summary);
+        }
+
         if (_userAbortedMigration) {
             console.log("[MigrationEnhancement] Migration agent was aborted by user.");
             debugLogger.logMilestone("Run aborted by user (outer catch)");
-            // Write summary on abort for resume context
-            const abortToml = readEnhanceToml(projectRoot);
-            if (abortToml) {
-                const summary = abortToml.multiProject
-                    ? transcriptWriter.generateSummary(abortToml, [])
-                    : transcriptWriter.generateSinglePackageSummary(abortToml, true);
-                transcriptWriter.writeSummary(summary);
-            }
         } else {
             console.error("[MigrationEnhancement] Migration agent error:", error);
             debugLogger.logError("run", error);
+            // Mirrors the wizard flow: without a terminal event the panel keeps showing progress.
+            eventHandler({
+                type: "error",
+                content: `An error occurred during AI enhancement: ${escapeChatText(getErrorMessage(error))}`,
+            });
         }
     } finally {
         _migrationAbortController = undefined;
@@ -1492,7 +1516,7 @@ export async function runWizardMigrationEnhancement(): Promise<void> {
                 } catch (pkgError) {
                     if (_userAbortedMigration) { throw pkgError; }
                     const errMsg = pkgError instanceof Error ? pkgError.message : String(pkgError);
-                    const safeErrMsg = errMsg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    const safeErrMsg = escapeChatText(errMsg);
                     console.error(`[MigrationEnhancement] Package ${pkgRelPath} failed:`, pkgError);
                     debugLogger.logError(`Package ${pkgRelPath}`, pkgError);
                     eventHandler({ type: "content_block", content: `\n\n<errormsg>Package \`${pkgRelPath}\` failed: ${safeErrMsg}. Continuing to next package.</errormsg>\n\n` });
@@ -1526,7 +1550,7 @@ export async function runWizardMigrationEnhancement(): Promise<void> {
                     } catch (wsError) {
                         if (!_migrationAbortController.signal.aborted) {
                             const errMsg = wsError instanceof Error ? wsError.message : String(wsError);
-                            const safeErrMsg = errMsg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                            const safeErrMsg = escapeChatText(errMsg);
                             debugLogger.logError("workspace validation (wizard)", wsError);
                             eventHandler({ type: "content_block", content: `\n\n<errormsg>Workspace validation failed: ${safeErrMsg}</errormsg>\n\n` });
                         }
@@ -1626,10 +1650,12 @@ export async function runWizardMigrationEnhancement(): Promise<void> {
                 });
             }
         } else {
-            const errorMessage = error instanceof Error ? error.message : String(error);
             console.error("[MigrationEnhancement] Wizard migration agent error:", error);
             debugLogger.logError("wizard run", error);
-            eventHandler({ type: "error", content: `An error occurred during AI enhancement: ${errorMessage}` });
+            eventHandler({
+                type: "error",
+                content: `An error occurred during AI enhancement: ${escapeChatText(getErrorMessage(error))}`,
+            });
         }
     } finally {
         _runningFromAIChat = false;
