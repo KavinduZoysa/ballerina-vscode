@@ -186,9 +186,9 @@ supplies a fresh id per conversation, which is the behaviour the doc line descri
 ### Toolkits
 
 Reach for a toolkit instead of separate `@ai:AgentTool` functions when the tools need to share
-state across calls — the same client connection, session, or cache — not merely because they
-relate to the same task. A toolkit bundles many tools behind one entry in the `tools` array. List
-it there directly, mixed with plain function tools — no wrapping, no spreading:
+state across calls — a session or cache — not merely because they relate to the same task. A
+toolkit bundles many tools behind one entry in the `tools` array. List it there directly, mixed
+with plain function tools — no wrapping, no spreading:
 
 ```ballerina
 tools = [<toolkitVar>, <toolName>]
@@ -211,6 +211,7 @@ isolated class <Toolkit> {
             *mcp:StreamableHttpClientTransportConfig config) returns ai:Error? {
         do {
             self.mcpClient = check new mcp:StreamableHttpClient(serverUrl, config);
+            // Exposes every tool the server has — no supported way here to select only specific ones (known gap).
             self.tools = check ai:getPermittedMcpToolConfigs(self.mcpClient, info, self.callTool).cloneReadOnly();
         } on fail error e {
             return error ai:Error("Failed to initialize MCP toolkit", e);
