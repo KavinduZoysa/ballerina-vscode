@@ -415,10 +415,71 @@ code and is not part of the public API surface — never write a call to it.
 | `maxIter` | `int` | `16` |
 | `eventTimeout` | `Duration?` | `()` |
 
-For an activity that needs no extra configuration, pass the bare `@workflow:Activity` function, as
-the example above does; `ActivityDecl` is the with-configuration form. `ActivityDecl`, `ToolDecl`
-and `PeerDecl`, and the entries of `humanTasks`, are not described here — check their resolved
-shapes before writing a literal for one.
+For a capability that needs no extra configuration, pass the bare value — an `@workflow:Activity`
+function in `activities` (as the example above does), or an `@ai:AgentTool` function,
+`ai:ToolConfig` or `ai:BaseToolKit` in `tools`. The `*Decl` records below are the
+with-configuration forms.
+
+`humanTasks` maps a task name to a `HumanTaskDefinition`; that record's own field list is not part
+of the durable-agent documentation, so check its resolved shape before writing a literal for one.
+
+#### `ActivityDecl`
+
+An activity capability, with optional gating and retry config.
+
+| Field | Type | Default |
+|---|---|---|
+| `activity` | `function` | required — the `@workflow:Activity` function |
+| `name` | `string` | optional — the function name |
+| `description` | `string` | optional — the function's doc comment |
+| `bindings` | `map<anydata\|object {}>` | optional |
+| `requiresApproval` | `boolean` | `false` |
+| `userRoles` | `string\|string[]` | optional |
+| `retryPolicy` | `AutoRetry\|ReviewTaskDefinition\|NoAutomaticRetry` | `NoAutomaticRetry` |
+
+`name` and `description` are what the model sees; they default to the function's own name and doc
+comment. `bindings` are fixed arguments partially applied to the activity (a connection, say),
+hidden from the model — only the remaining data parameters appear in the tool's schema, and a client
+object is bound by referencing its module-level `final` variable. `retryPolicy` behaves as it does
+for `ctx->callActivity`.
+
+#### `ToolDecl`
+
+An AI tool capability, with optional gating config.
+
+| Field | Type | Default |
+|---|---|---|
+| `tool` | `ai:BaseToolKit\|ai:ToolConfig\|ai:FunctionTool` | required |
+| `requiresApproval` | `boolean` | `false` |
+| `userRoles` | `string\|string[]` | optional |
+
+#### `PeerDecl`
+
+A peer durable agent advertised to this agent's model as a delegable tool. The framework runs the
+peer as a Temporal child workflow.
+
+| Field | Type | Default |
+|---|---|---|
+| `agent` | `DurableAgent` | required — the peer agent |
+| `name` | `string` | required — tool name, unique across all capabilities |
+| `description` | `string` | optional — what the peer does, for the model |
+| `'wait` | `boolean` | `true` |
+| `callbackChannel` | `string` | optional |
+| `requiresApproval` | `boolean` | `false` |
+| `userRoles` | `string\|string[]` | optional |
+
+`'wait` is written with a leading quote because `wait` is a keyword. Left `true`, the delegation
+blocks durably for the peer's result; set to `false`, the peer runs async and replies on
+`callbackChannel`, which is **required** in that case and must name a channel declared in `events`.
+
+**Do not write `'wait` in a `PeerDecl` literal.** Against `ballerina/workflow` 0.9.0 the compiler
+plugin emits invalid code for it — the build fails with `action invocation as an expression not
+allowed here` and `invalid token ':'`, reported at a line past the end of your own file because the
+fault is in generated code. Every other field of `PeerDecl`, `callbackChannel` included, is fine.
+Omit `'wait` and take its `true` default until that is fixed.
+
+On all three, `requiresApproval = true` gates every call with a `PRE_RUN` review activity, and
+`userRoles` says who may decide those reviews.
 
 An event channel is one `EventConfig`, keyed in `events` by the channel name:
 
