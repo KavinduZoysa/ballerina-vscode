@@ -31,6 +31,7 @@ export const window = {
     showErrorMessage: (_message?: string, ..._items: string[]) => Promise.resolve(undefined),
     showInformationMessage: (_message?: string, ..._items: string[]) => Promise.resolve(undefined),
     showWarningMessage: (_message?: string, ..._items: string[]) => Promise.resolve(undefined),
+    showQuickPick: (_items?: readonly string[], _options?: unknown) => Promise.resolve(undefined),
     withProgress: <T>(_options: unknown, task: (progress: { report(_v: unknown): void }) => Thenable<T>) =>
         task({ report() {} }),
     createOutputChannel: () => ({ appendLine() {}, append() {}, show() {}, clear() {}, dispose() {} }),
