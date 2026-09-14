@@ -23,8 +23,6 @@ import {
     findDevantScope,
     AvailableNode,
     isSamePath,
-    EVENT_TYPE,
-    MACHINE_VIEW,
 } from "@wso2/ballerina-core";
 import { Uri, window, WorkspaceEdit } from "vscode";
 import * as vscode from "vscode";
@@ -83,7 +81,7 @@ import {
     RegisterDevantMarketplaceServiceReq,
     ReplaceDevantTempConfigValuesReq,
 } from "@wso2/ballerina-core/lib/rpc-types/platform-ext/interfaces";
-import { openView, StateMachine } from "../../stateMachine";
+import { StateMachine } from "../../stateMachine";
 import { CaptureBindingPattern, ModulePart, ModuleVarDecl, STKindChecker } from "@wso2/syntax-tree";
 import { DeleteBiDevantConnectionReq } from "./types";
 import { platformExtStore } from "./platform-store";
@@ -102,6 +100,7 @@ import {
 } from "./platform-utils";
 import { debounce } from "lodash";
 import { BiDiagramRpcManager } from "../bi-diagram/rpc-manager";
+import { promptToAddConstruct } from "../../features/devant/add-construct-prompt";
 import { updateSourceCode, WI_EXTENSION_ID } from "../../utils";
 
 export class PlatformExtRpcManager implements PlatformExtAPI {
@@ -533,16 +532,7 @@ export class PlatformExtRpcManager implements PlatformExtAPI {
         }
 
         if (scopes.length === 0) {
-            window
-                .showInformationMessage(
-                    "Please add a construct and try again to deploy your integration",
-                    "Add Construct"
-                )
-                .then((resp) => {
-                    if (resp === "Add Construct") {
-                        openView(EVENT_TYPE.OPEN_VIEW, { view: MACHINE_VIEW.BIComponentView });
-                    }
-                });
+            promptToAddConstruct();
             return;
         }
 
