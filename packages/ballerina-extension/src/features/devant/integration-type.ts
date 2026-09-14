@@ -19,9 +19,6 @@
 import { AUTOMATION_WITH_LISTENER_WARNING, resolveIntegrationType } from "@wso2/wso2-platform-core";
 import { window } from "vscode";
 
-const DEFAULT_PLACE_HOLDER =
-    "You have multiple artifact types within this project. Select the artifact type to be deployed";
-
 /**
  * Picks the integration type to deploy from the scopes a package offers, prompting only when
  * {@link resolveIntegrationType} cannot settle on one. Returns undefined when there is nothing to
@@ -32,7 +29,7 @@ const DEFAULT_PLACE_HOLDER =
  */
 export async function selectIntegrationType<T extends string>(
     integrationTypes: T[],
-    placeHolder: string = DEFAULT_PLACE_HOLDER,
+    placeHolder: string,
 ): Promise<T | undefined> {
     if (!integrationTypes?.length) {
         return undefined;
