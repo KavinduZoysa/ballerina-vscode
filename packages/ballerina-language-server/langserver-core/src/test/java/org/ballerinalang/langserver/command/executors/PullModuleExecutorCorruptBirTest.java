@@ -35,9 +35,9 @@ import java.util.Optional;
 /**
  * L1 tests for {@link PullModuleExecutor#detectCorruptBirCache(Throwable, Project)}, the parser that
  * turns a compiler failure into a {@code projectService/corruptBirCache} notification payload. The
- * compiler's BIR reader throws with a fixed signature ("... invalid magic number ...") when a cached
- * BIR is corrupt/incompatible; these tests pin the detection contract so it survives refactors of the
- * surrounding pull flow and flags any drift in the error-message shape it depends on.
+ * compiler wraps any failed cached-BIR read with "... from its BIR due to: ..."; detection keys on that
+ * wrapper (covering every read failure, not just "invalid magic number"). These tests pin the detection
+ * contract so it survives refactors of the surrounding pull flow and flags drift in the message shape.
  */
 public class PullModuleExecutorCorruptBirTest {
 
@@ -50,8 +50,6 @@ public class PullModuleExecutorCorruptBirTest {
         Throwable throwable = new RuntimeException("Pull modules failed",
                 new IllegalStateException(CORRUPT_WITH_COORDINATES));
 
-        // No dependency graph resolves the module here, so the package name falls back to the module
-        // name — which is correct for a default module (package name == module name).
         Optional<CorruptBirCacheParams> result = PullModuleExecutor.detectCorruptBirCache(throwable, null);
 
         Assert.assertTrue(result.isPresent(), "Corrupt-BIR cause should be detected in the cause chain");
@@ -116,14 +114,29 @@ public class PullModuleExecutorCorruptBirTest {
         Assert.assertEquals(params.getModuleName(), "ai.observe");
     }
 
-    @Test(description = "A corrupt-BIR message without parseable coordinates is detected with null coordinates")
-    public void testCorruptBirWithoutCoordinates() {
-        Throwable throwable = new RuntimeException(
-                "failed to read the cached BIR: invalid magic number [99, 111, 114, 114]");
+    @Test(description = "Any BIR-read failure reason is detected, not just 'invalid magic number'")
+    public void testNonMagicNumberBirFailureDetected() {
+        String message = "failed to load the module 'ballerina/ai:1.14.1' from its BIR due to: "
+                + "unexpected end of file";
+        Throwable throwable = new RuntimeException("Pull modules failed", new IllegalStateException(message));
 
         Optional<CorruptBirCacheParams> result = PullModuleExecutor.detectCorruptBirCache(throwable, null);
 
-        Assert.assertTrue(result.isPresent(), "Corrupt-BIR failure should be detected even without coordinates");
+        Assert.assertTrue(result.isPresent(), "A non-magic-number BIR read failure should be detected");
+        CorruptBirCacheParams params = result.get();
+        Assert.assertEquals(params.getOrg(), "ballerina");
+        Assert.assertEquals(params.getPackageName(), "ai");
+        Assert.assertEquals(params.getVersion(), "1.14.1");
+    }
+
+    @Test(description = "A BIR-read failure whose coordinates can't be parsed is detected with null coordinates")
+    public void testBirFailureWithoutCoordinates() {
+        // Has the wrapper but no 'org/pkg:version' to parse.
+        Throwable throwable = new RuntimeException("failed to load a module from its BIR due to: read error");
+
+        Optional<CorruptBirCacheParams> result = PullModuleExecutor.detectCorruptBirCache(throwable, null);
+
+        Assert.assertTrue(result.isPresent(), "BIR failure should be detected even without coordinates");
         CorruptBirCacheParams params = result.get();
         Assert.assertNull(params.getOrg());
         Assert.assertNull(params.getPackageName());
@@ -139,13 +152,14 @@ public class PullModuleExecutorCorruptBirTest {
         Assert.assertTrue(result.isEmpty(), "A generic failure must not be reported as corrupt BIR");
     }
 
-    @Test(description = "An 'invalid magic number' error unrelated to BIR is not treated as corrupt BIR")
-    public void testInvalidMagicNumberWithoutBir() {
+    @Test(description = "A failure without the BIR-load wrapper is not treated as corrupt BIR")
+    public void testFailureWithoutBirWrapper() {
+        // "invalid magic number" alone (e.g. from a class file) lacks the "from its BIR" wrapper.
         Throwable throwable = new RuntimeException("invalid magic number in class file");
 
         Optional<CorruptBirCacheParams> result = PullModuleExecutor.detectCorruptBirCache(throwable, null);
 
-        Assert.assertTrue(result.isEmpty(), "The BIR marker is required, not just 'invalid magic number'");
+        Assert.assertTrue(result.isEmpty(), "The BIR-load wrapper is required to key on the condition");
     }
 
     @Test(description = "Null and empty-chain throwables are handled without error")

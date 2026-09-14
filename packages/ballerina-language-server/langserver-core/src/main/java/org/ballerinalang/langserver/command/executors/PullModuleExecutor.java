@@ -307,6 +307,11 @@ public class PullModuleExecutor implements LSCommandExecutor {
                             params.setDistVersion(RepoUtils.getBallerinaShortVersion());
                             params.setReposPath(RepoUtils.createAndGetHomeReposPath()
                                     .resolve(ProjectConstants.REPOSITORIES_DIR).toString());
+                            if (CommonUtil.BALLERINA_HOME != null) {
+                                params.setDistCachePath(Path.of(CommonUtil.BALLERINA_HOME)
+                                        .resolve(ProjectConstants.DIST_CACHE_DIRECTORY)
+                                        .resolve(ProjectConstants.REPO_CACHE_DIR_NAME).toString());
+                            }
                             // Ship the stack trace so the client can prefill a "Send Report" GitHub issue.
                             params.setStackTrace(stackTraceToString(t));
                             languageClient.corruptBirCache(params);
@@ -346,24 +351,24 @@ public class PullModuleExecutor implements LSCommandExecutor {
                 });
     }
 
-    // The compiler's BIR reader throws with this signature when a cached BIR is corrupt/incompatible,
-    // e.g. "failed to load the module 'ballerina/ai:1.14.1' from its BIR due to: invalid magic number [...]".
+    // The compiler wraps any failure to read a cached BIR with this marker.
+    private static final String BIR_LOAD_FAILURE_MARKER = "from its BIR";
     private static final Pattern CORRUPT_BIR_MODULE_PATTERN = Pattern.compile(
             "failed to load the module\\s+'([^'/:]+)/([^'/:]+):([^'/:\\s]+)'", Pattern.CASE_INSENSITIVE);
 
     /**
-     * Detects a corrupt/incompatible cached-BIR failure anywhere in the throwable's cause chain and,
-     * when found, returns the coordinates of the affected package (best-effort; coordinates may be
-     * {@code null} if they cannot be parsed from the message).
+     * Detects a cached-BIR read failure anywhere in the throwable's cause chain and, when found, returns
+     * the coordinates of the affected package (best-effort; coordinates may be {@code null} if they
+     * cannot be parsed from the message).
      *
      * @param throwable the completion throwable to inspect
      * @param project   the project whose resolution maps the failing module to its package
-     * @return the corrupt-BIR parameters, or empty if this is not a corrupt-BIR failure
+     * @return the corrupt-BIR parameters, or empty if this is not a BIR-load failure
      */
     static Optional<CorruptBirCacheParams> detectCorruptBirCache(Throwable throwable, Project project) {
         for (Throwable cause = throwable; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
             String message = cause.getMessage();
-            if (message == null || !message.contains("invalid magic number") || !message.contains("BIR")) {
+            if (message == null || !message.contains(BIR_LOAD_FAILURE_MARKER)) {
                 continue;
             }
             Matcher matcher = CORRUPT_BIR_MODULE_PATTERN.matcher(message);

@@ -28,6 +28,7 @@ public class CorruptBirCacheParams {
     private String distVersion;
     private String projectUri;
     private String reposPath;
+    private String distCachePath;
     private String stackTrace;
 
     public CorruptBirCacheParams(String org, String packageName, String version) {
@@ -78,6 +79,14 @@ public class CorruptBirCacheParams {
 
     public void setReposPath(String reposPath) {
         this.reposPath = reposPath;
+    }
+
+    public String getDistCachePath() {
+        return distCachePath;
+    }
+
+    public void setDistCachePath(String distCachePath) {
+        this.distCachePath = distCachePath;
     }
 
     public String getStackTrace() {

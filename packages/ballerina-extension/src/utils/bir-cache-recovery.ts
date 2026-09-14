@@ -40,6 +40,8 @@ export interface CorruptBirCachePayload extends Partial<CorruptPackage> {
     distVersion?: string;
     projectUri?: string;
     reposPath?: string;
+    // The active distribution's own (unversioned) BIR cache root, <ballerina.home>/repo/cache.
+    distCachePath?: string;
     // Full failure stack trace, prefilled into the "Send Report" GitHub issue for diagnosis.
     stackTrace?: string;
 }
@@ -162,6 +164,18 @@ export async function clearAllBirCaches(options: ClearOptions = {}): Promise<str
     return removed;
 }
 
+/**
+ * Clears a single package's compiled BIR cache under the active distribution's own cache root
+ * (<ballerina.home>/repo/cache/<org>/<packageName>/<version>).
+ */
+export async function clearPackageDistCache(pkg: CorruptPackage, distCacheRoot: string): Promise<string[]> {
+    const target = path.join(distCacheRoot, pkg.org, pkg.packageName, pkg.version);
+    if (isWithin(distCacheRoot, target) && (await removeIfExists(target, distCacheRoot))) {
+        return [target];
+    }
+    return [];
+}
+
 let promptShown = false; // don't stack a prompt per repeated notification
 
 // Keep the prefilled body comfortably under the practical GitHub issue URL length limit (~8k chars
@@ -193,10 +207,49 @@ export function buildCorruptBirIssueUrl(
     return `${PRODUCT_INTEGRATOR_ISSUES_URL}/new?${query}`;
 }
 
+/** The decision derived from a corrupt-BIR payload: what to clear and what to tell the user. */
+export interface CorruptBirClearPlan {
+    target: CorruptPackage | null;
+    distVersion?: string;
+    reposDir?: string;
+    distCacheRoot?: string;
+    coordinate?: string;
+    message: string;
+}
+
+/**
+ * Pure decision behind {@link promptClearCorruptBirCache}: turns a notification payload into the
+ * targeted-vs-whole-cache clear plan and the message to show.
+ */
+export function planCorruptBirClear(payload: CorruptBirCachePayload | null | undefined): CorruptBirClearPlan {
+    const distVersion = isSafeSegment(payload?.distVersion) ? payload.distVersion : undefined;
+    const reposDir =
+        typeof payload?.reposPath === "string" && payload.reposPath.length > 0 ? payload.reposPath : undefined;
+    const distCacheRoot =
+        typeof payload?.distCachePath === "string" && payload.distCachePath.length > 0
+            ? payload.distCachePath
+            : undefined;
+    const target = isValidPackage(payload)
+        ? { org: payload.org, packageName: payload.packageName, version: payload.version }
+        : null;
+    // Prefer the failing module name for display (that is what the user saw fail); fall back to the
+    // package coordinate. The clear itself always targets the package cache dir.
+    const displayName = isSafeSegment(payload?.moduleName) ? payload.moduleName : target?.packageName;
+    const coordinate = target ? `${target.org}/${displayName}:${target.version}` : undefined;
+    const message = coordinate
+        ? `The cache for module '${coordinate}' is corrupted, and the project will stay unresponsive ` +
+          `until it's resolved.\n` +
+          `Try clearing the module's cache and reloading the window, or report an issue if the problem persists.`
+        : `A module cache is corrupted, and the project will stay unresponsive until it's resolved.\n` +
+          `Try clearing the module's cache and reloading the window, or report an issue if the problem persists.`;
+    return { target, distVersion, reposDir, distCacheRoot, coordinate, message };
+}
+
 /**
  * Surfaces the corrupt-BIR condition and, on confirmation, clears the affected package's compiled
  * cache under the active distribution's cache directory (or all packages in that cache when the
- * package can't be identified) and reloads the window.
+ * package can't be identified) and reloads the window. The pure decision lives in
+ * {@link planCorruptBirClear}; this function is just the I/O around it.
  */
 export async function promptClearCorruptBirCache(payload: CorruptBirCachePayload | null | undefined): Promise<void> {
     if (promptShown) {
@@ -204,49 +257,30 @@ export async function promptClearCorruptBirCache(payload: CorruptBirCachePayload
     }
     promptShown = true;
     try {
-        const distVersion = isSafeSegment(payload?.distVersion) ? payload.distVersion : undefined;
-        // The LS resolves this against $BALLERINA_HOME_DIR; prefer it over the client's home guess.
-        const reposDir =
-            typeof payload?.reposPath === "string" && payload.reposPath.length > 0 ? payload.reposPath : undefined;
-        const target = isValidPackage(payload)
-            ? { org: payload.org, packageName: payload.packageName, version: payload.version }
-            : null;
-        // Prefer the failing module name for display (that is what the user saw fail); fall back to
-        // the package coordinate. The clear itself always targets the package cache dir.
-        const displayName = isSafeSegment(payload?.moduleName) ? payload.moduleName : target?.packageName;
-        const coordinate = target ? `${target.org}/${displayName}:${target.version}` : undefined;
+        const { target, distVersion, reposDir, distCacheRoot, coordinate, message } = planCorruptBirClear(payload);
         const clearAction = "Clear cache & reload";
         const reportAction = "Report an Issue";
-        const message = coordinate
-            ? `The cache for module '${coordinate}' is corrupted.\n` +
-              `The project will stay unresponsive until this is resolved.\n` +
-              `Clearing removes the module's cache (or all module caches for this distribution if it ` +
-              `can't be located) and reloads the window to recover.`
-            : `A module cache is corrupted.\n` +
-              `The project will stay unresponsive until this is resolved.\n` +
-              `Clearing removes the module cache and reloads the window to recover.`;
 
-        // VS Code dismisses a notification whenever an action button is clicked; there is no way to
-        // keep it open. So "Report an Issue" just opens the prefilled issue and lets it close.
-        const choice = await window.showErrorMessage(message, clearAction, reportAction);
-        if (choice === reportAction) {
-            openExternalUrl(buildCorruptBirIssueUrl(payload, coordinate));
-            return;
+        for (;;) {
+            const choice = await window.showErrorMessage(message, clearAction, reportAction);
+            if (choice === reportAction) {
+                openExternalUrl(buildCorruptBirIssueUrl(payload, coordinate));
+                continue; // re-show so the user can still clear
+            }
+            if (choice !== clearAction) {
+                return; // Dismissed
+            }
+            break; // proceed to clear + reload
         }
-        if (choice !== clearAction) {
-            return; // Dismissed
-        }
-        // proceed to clear + reload
 
         try {
-            const removed = target
-                ? await clearPackageBirCache(target, { distVersion, reposDir })
-                : await clearAllBirCaches({ distVersion, reposDir });
-            // The targeted clear matched nothing — the corrupt cache is on disk (that is why the LS
-            // reported it), but the coordinates did not resolve to it, e.g. a submodule where the LS
-            // fell back to the module name instead of the package name. Clear the whole distribution
-            // cache so the user still recovers; the prompt above states this broader scope up front.
-            if (target && removed.length === 0) {
+            if (target) {
+                const removedRepos = await clearPackageBirCache(target, { distVersion, reposDir });
+                const removedDist = distCacheRoot ? await clearPackageDistCache(target, distCacheRoot) : [];
+                if (removedRepos.length === 0 && removedDist.length === 0) {
+                    await clearAllBirCaches({ distVersion, reposDir });
+                }
+            } else {
                 await clearAllBirCaches({ distVersion, reposDir });
             }
         } catch (err) {

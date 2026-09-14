@@ -50,7 +50,9 @@ import {
     isValidPackage,
     resolvePackageCacheDirs,
     clearPackageBirCache,
+    clearPackageDistCache,
     buildCorruptBirIssueUrl,
+    planCorruptBirClear,
 } from "../utils/bir-cache-recovery";
 
 describe("isValidPackage", () => {
@@ -71,6 +73,68 @@ describe("isValidPackage", () => {
         expect(isValidPackage({ org: "..", packageName: "ai", version: "1.0.0" })).toBe(false);
         expect(isValidPackage({ org: "ballerina", packageName: "a/i", version: "1.0.0" })).toBe(false);
         expect(isValidPackage({ org: "ballerina", packageName: "ai", version: "1.0.0/../../etc" })).toBe(false);
+    });
+});
+
+describe("planCorruptBirClear", () => {
+    it("targets the package and displays the module coordinate for a valid payload", () => {
+        const plan = planCorruptBirClear({
+            org: "ballerinax",
+            packageName: "hubspot.crm",
+            version: "4.0.2",
+            moduleName: "hubspot.crm.import",
+            distVersion: "2201.13.4",
+            reposPath: "/home/u/.ballerina/repositories",
+        });
+
+        expect(plan.target).toEqual({ org: "ballerinax", packageName: "hubspot.crm", version: "4.0.2" });
+        expect(plan.distVersion).toBe("2201.13.4");
+        expect(plan.reposDir).toBe("/home/u/.ballerina/repositories");
+        // Display prefers the failing module name over the package name.
+        expect(plan.coordinate).toBe("ballerinax/hubspot.crm.import:4.0.2");
+        expect(plan.message).toContain("hubspot.crm.import:4.0.2");
+    });
+
+    it("falls back to whole-cache (no target) when the package can't be identified", () => {
+        const plan = planCorruptBirClear({ distVersion: "2201.13.4" });
+
+        expect(plan.target).toBeNull();
+        expect(plan.coordinate).toBeUndefined();
+        expect(plan.message).toContain("A module cache is corrupted");
+    });
+
+    it("drops an unsafe distVersion / reposPath rather than trusting them", () => {
+        const plan = planCorruptBirClear({
+            org: "ballerina",
+            packageName: "ai",
+            version: "1.14.1",
+            distVersion: "../evil",
+            reposPath: "",
+        });
+
+        expect(plan.distVersion).toBeUndefined();
+        expect(plan.reposDir).toBeUndefined();
+        expect(plan.target).toEqual({ org: "ballerina", packageName: "ai", version: "1.14.1" });
+    });
+
+    it("carries the distribution cache root when the LS supplies it", () => {
+        const plan = planCorruptBirClear({
+            org: "ballerina",
+            packageName: "ai",
+            version: "1.14.1",
+            distCachePath: "/opt/ballerina/repo/cache",
+        });
+
+        expect(plan.distCacheRoot).toBe("/opt/ballerina/repo/cache");
+    });
+
+    it("drops an empty distribution cache root", () => {
+        expect(planCorruptBirClear({ org: "ballerina", packageName: "ai", version: "1.14.1" }).distCacheRoot)
+            .toBeUndefined();
+        expect(
+            planCorruptBirClear({ org: "ballerina", packageName: "ai", version: "1.14.1", distCachePath: "" })
+                .distCacheRoot
+        ).toBeUndefined();
     });
 });
 
@@ -165,6 +229,62 @@ describe("clearPackageBirCache — symlink containment", () => {
             await expect(fs.stat(sentinel)).resolves.toBeDefined(); // victim outside the root is preserved
         } finally {
             await fs.rm(home, { recursive: true, force: true });
+            await fs.rm(outside, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("clearPackageDistCache", () => {
+    it("removes only the package's dir under the (unversioned) distribution cache root", async () => {
+        const root = await fs.mkdtemp(path.join(os.tmpdir(), "dist-cache-"));
+        try {
+            const pkgDir = path.join(root, "ballerina", "ai", "1.14.1");
+            const otherVersion = path.join(root, "ballerina", "ai", "1.13.0");
+            const otherPkg = path.join(root, "ballerina", "io", "1.6.0");
+            for (const d of [pkgDir, otherVersion, otherPkg]) {
+                await fs.mkdir(path.join(d, "bir"), { recursive: true });
+            }
+
+            const removed = await clearPackageDistCache({ org: "ballerina", packageName: "ai", version: "1.14.1" }, root);
+
+            expect(removed).toEqual([pkgDir]);
+            await expect(fs.stat(pkgDir)).rejects.toBeDefined(); // removed
+            await expect(fs.stat(otherVersion)).resolves.toBeDefined(); // other version kept
+            await expect(fs.stat(otherPkg)).resolves.toBeDefined(); // other package kept
+        } finally {
+            await fs.rm(root, { recursive: true, force: true });
+        }
+    });
+
+    it("returns empty when the package isn't in the distribution cache", async () => {
+        const root = await fs.mkdtemp(path.join(os.tmpdir(), "dist-cache-"));
+        try {
+            expect(await clearPackageDistCache({ org: "ballerina", packageName: "ai", version: "1.14.1" }, root))
+                .toEqual([]);
+        } finally {
+            await fs.rm(root, { recursive: true, force: true });
+        }
+    });
+
+    it("does not delete through a symlinked segment that escapes the distribution cache root", async () => {
+        const root = await fs.mkdtemp(path.join(os.tmpdir(), "dist-cache-root-"));
+        const outside = await fs.mkdtemp(path.join(os.tmpdir(), "dist-cache-outside-"));
+        try {
+            const victim = path.join(outside, "ai", "1.14.1");
+            await fs.mkdir(victim, { recursive: true });
+            const sentinel = path.join(victim, "sentinel.txt");
+            await fs.writeFile(sentinel, "keep");
+
+            // <root>/ballerina -> outside, so <root>/ballerina/ai/1.14.1 resolves out of the root.
+            await fs.mkdir(root, { recursive: true });
+            await fs.symlink(outside, path.join(root, "ballerina"), "dir");
+
+            const removed = await clearPackageDistCache({ org: "ballerina", packageName: "ai", version: "1.14.1" }, root);
+
+            expect(removed).toEqual([]);
+            await expect(fs.stat(sentinel)).resolves.toBeDefined();
+        } finally {
+            await fs.rm(root, { recursive: true, force: true });
             await fs.rm(outside, { recursive: true, force: true });
         }
     });

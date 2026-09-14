@@ -662,7 +662,9 @@ export class ExtendedLangClient extends LanguageClient implements ExtendedLangCl
         // A corrupt/incompatible cached BIR makes the project load empty. The LS
         // reports the affected module here; offer to clear just that module's cache and reload.
         this.onNotification(EXTENDED_APIS.CORRUPT_BIR_CACHE, (res: CorruptBirCachePayload) => {
-            void promptClearCorruptBirCache(res);
+            promptClearCorruptBirCache(res).catch((error) => {
+                console.error("CORRUPT_BIR_CACHE handler failed:", error);
+            });
         });
     }
 
