@@ -26,7 +26,7 @@
 
 import { DevantScopes } from '@wso2/wso2-platform-core';
 import { window } from 'vscode';
-import { selectIntegrationType } from '../features/devant/integration-type';
+import { confirmListenerAlongside, selectIntegrationType } from '../features/devant/integration-type';
 
 const PROMPT = 'Select the artifact type to be deployed';
 const pick = (scopes: DevantScopes[]) => selectIntegrationType(scopes, PROMPT);
@@ -133,5 +133,62 @@ describe('selectIntegrationType', () => {
             pick([DevantScopes.AUTOMATION, DevantScopes.EVENT_INTEGRATION]),
         ).resolves.toBeUndefined();
         expect(warningCalls).toHaveLength(1);
+    });
+});
+
+// An entry point that prompts rather than auto-picking still has to warn, because the listener runs
+// alongside the automation no matter how the type was decided.
+describe('confirmListenerAlongside', () => {
+    it('warns when an automation was chosen with a listener present', async () => {
+        answerWarningWith('Continue');
+
+        await expect(
+            confirmListenerAlongside(
+                [DevantScopes.AUTOMATION, DevantScopes.EVENT_INTEGRATION],
+                DevantScopes.AUTOMATION,
+            ),
+        ).resolves.toBe(true);
+        expect(warningCalls).toHaveLength(1);
+    });
+
+    it('reports false when the user backs out of the warning', async () => {
+        await expect(
+            confirmListenerAlongside(
+                [DevantScopes.AUTOMATION, DevantScopes.EVENT_INTEGRATION],
+                DevantScopes.AUTOMATION,
+            ),
+        ).resolves.toBe(false);
+        expect(warningCalls).toHaveLength(1);
+    });
+
+    it('stays silent when the listener itself was the chosen type', async () => {
+        await expect(
+            confirmListenerAlongside(
+                [DevantScopes.AUTOMATION, DevantScopes.EVENT_INTEGRATION],
+                DevantScopes.EVENT_INTEGRATION,
+            ),
+        ).resolves.toBe(true);
+        expect(warningCalls).toHaveLength(0);
+    });
+
+    it.each([
+        ['an automation with no listener', [DevantScopes.AUTOMATION], DevantScopes.AUTOMATION],
+        ['a lone workflow', [DevantScopes.WORKFLOW], DevantScopes.WORKFLOW],
+    ])('stays silent for %s', async (_case, scopes, chosen) => {
+        await expect(confirmListenerAlongside(scopes, chosen)).resolves.toBe(true);
+        expect(warningCalls).toHaveLength(0);
+    });
+
+    // Parity boundary, not correctness: with a service scope in the mix resolveIntegrationType
+    // returns `ask` rather than `autoPickWithWarning`, so no entry point warns here. Tracked
+    // separately — closing it needs LISTENER_SCOPES exported from wso2-platform-core.
+    it('does not warn for automation chosen alongside a service and a listener', async () => {
+        await expect(
+            confirmListenerAlongside(
+                [DevantScopes.INTEGRATION_AS_API, DevantScopes.AUTOMATION, DevantScopes.EVENT_INTEGRATION],
+                DevantScopes.AUTOMATION,
+            ),
+        ).resolves.toBe(true);
+        expect(warningCalls).toHaveLength(0);
     });
 });

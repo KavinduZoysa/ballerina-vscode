@@ -20,6 +20,32 @@ import { AUTOMATION_WITH_LISTENER_WARNING, resolveIntegrationType } from "@wso2/
 import { window } from "vscode";
 
 /**
+ * Warns when `chosen` will be deployed with a listener running alongside it, and reports whether
+ * the user wants to go ahead. Returns true untouched for every other combination.
+ *
+ * The consequence it warns about follows from what gets deployed, not from how it was decided, so
+ * an entry point that prompts for the type still has to call this — {@link selectIntegrationType}
+ * only covers the combinations it settles on its own.
+ *
+ * Note this warns for exactly the combination {@link resolveIntegrationType} flags, which means
+ * automation with no service scope present. Automation picked out of a wider set (say alongside an
+ * HTTP service) will not warn, matching every other deploy entry point.
+ */
+export async function confirmListenerAlongside<T extends string>(scopes: T[], chosen: T): Promise<boolean> {
+    const resolution = resolveIntegrationType(scopes);
+    if (resolution.kind !== "autoPickWithWarning" || chosen !== resolution.scope) {
+        return true;
+    }
+
+    const choice = await window.showWarningMessage(
+        AUTOMATION_WITH_LISTENER_WARNING,
+        { modal: true },
+        "Continue",
+    );
+    return choice === "Continue";
+}
+
+/**
  * Picks the integration type to deploy from the scopes a package offers, prompting only when
  * {@link resolveIntegrationType} cannot settle on one. Returns undefined when there is nothing to
  * deploy or the user dismissed the prompt, so callers can bail out without dispatching.
@@ -42,15 +68,8 @@ export async function selectIntegrationType<T extends string>(
     }
 
     if (resolution.kind === "autoPickWithWarning") {
-        const choice = await window.showWarningMessage(
-            AUTOMATION_WITH_LISTENER_WARNING,
-            { modal: true },
-            "Continue",
-        );
-        if (choice !== "Continue") {
-            return undefined;
-        }
-        return resolution.scope as T;
+        const scope = resolution.scope as T;
+        return (await confirmListenerAlongside(integrationTypes, scope)) ? scope : undefined;
     }
 
     const selectedScope = await window.showQuickPick(resolution.choices, { placeHolder });

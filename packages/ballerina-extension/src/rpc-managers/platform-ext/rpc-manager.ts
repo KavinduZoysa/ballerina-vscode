@@ -101,6 +101,7 @@ import {
 import { debounce } from "lodash";
 import { BiDiagramRpcManager } from "../bi-diagram/rpc-manager";
 import { promptToAddConstruct } from "../../features/devant/add-construct-prompt";
+import { confirmListenerAlongside } from "../../features/devant/integration-type";
 import { updateSourceCode, WI_EXTENSION_ID } from "../../utils";
 
 export class PlatformExtRpcManager implements PlatformExtAPI {
@@ -549,6 +550,10 @@ export class PlatformExtRpcManager implements PlatformExtAPI {
                 return;
             }
             integrationType = selectedScope as DevantScopes;
+        }
+
+        if (!(await confirmListenerAlongside(scopes, integrationType))) {
+            return;
         }
 
         const deployementParams: ICreateNewIntegrationCmdParams = {
