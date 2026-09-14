@@ -537,6 +537,11 @@ export class PlatformExtRpcManager implements PlatformExtAPI {
             return;
         }
 
+        // Deliberately asks whenever there is more than one scope, rather than going through
+        // selectIntegrationType like the other two deploy entry points. Auto-picking would decide
+        // the component's classification for the user, and this panel is the surface where they
+        // expect to choose it. The listener warning is orthogonal to that choice, so it is applied
+        // below either way. Aligning the three is tracked separately as a product decision.
         let integrationType: DevantScopes;
 
         if (scopes.length === 1) {

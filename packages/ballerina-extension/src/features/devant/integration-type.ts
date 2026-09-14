@@ -19,6 +19,16 @@
 import { AUTOMATION_WITH_LISTENER_WARNING, resolveIntegrationType } from "@wso2/wso2-platform-core";
 import { window } from "vscode";
 
+/** Shows the listener warning. Reports whether the user chose to go ahead. */
+async function warnListenerRunsAlongside(): Promise<boolean> {
+    const choice = await window.showWarningMessage(
+        AUTOMATION_WITH_LISTENER_WARNING,
+        { modal: true },
+        "Continue",
+    );
+    return choice === "Continue";
+}
+
 /**
  * Warns when `chosen` will be deployed with a listener running alongside it, and reports whether
  * the user wants to go ahead. Returns true untouched for every other combination.
@@ -37,12 +47,7 @@ export async function confirmListenerAlongside<T extends string>(scopes: T[], ch
         return true;
     }
 
-    const choice = await window.showWarningMessage(
-        AUTOMATION_WITH_LISTENER_WARNING,
-        { modal: true },
-        "Continue",
-    );
-    return choice === "Continue";
+    return warnListenerRunsAlongside();
 }
 
 /**
@@ -68,8 +73,7 @@ export async function selectIntegrationType<T extends string>(
     }
 
     if (resolution.kind === "autoPickWithWarning") {
-        const scope = resolution.scope as T;
-        return (await confirmListenerAlongside(integrationTypes, scope)) ? scope : undefined;
+        return (await warnListenerRunsAlongside()) ? (resolution.scope as T) : undefined;
     }
 
     const selectedScope = await window.showQuickPick(resolution.choices, { placeHolder });
