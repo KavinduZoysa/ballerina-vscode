@@ -19,6 +19,7 @@
 import { EVENT_TYPE, MACHINE_VIEW } from "@wso2/ballerina-core";
 import { window } from "vscode";
 import { openView } from "../../stateMachine";
+import { log } from "../../utils/logger";
 
 /**
  * Tells the user the package holds nothing deployable, and offers to open the construct view.
@@ -29,14 +30,20 @@ import { openView } from "../../stateMachine";
  * so its unit tests — unloadable under jest.
  */
 export function promptToAddConstruct(): void {
+    // Deliberately not awaited: the caller has already given up on deploying and returns, rather
+    // than hanging on the user dismissing a notification. Rejection is handled through `then`'s
+    // second argument because `showInformationMessage` returns a Thenable, which has no `catch`.
     window
         .showInformationMessage(
             "Please add a construct and try again to deploy your integration",
             "Add Construct"
         )
-        .then((resp) => {
-            if (resp === "Add Construct") {
-                openView(EVENT_TYPE.OPEN_VIEW, { view: MACHINE_VIEW.BIComponentView });
-            }
-        });
+        .then(
+            (resp) => {
+                if (resp === "Add Construct") {
+                    openView(EVENT_TYPE.OPEN_VIEW, { view: MACHINE_VIEW.BIComponentView });
+                }
+            },
+            (err) => log(`Failed to show the add-construct prompt: ${err}`),
+        );
 }

@@ -25,7 +25,7 @@
  */
 
 import { DevantScopes } from '@wso2/wso2-platform-core';
-import { window } from 'vscode';
+import { window } from './__mocks__/vscode';
 import { confirmListenerAlongside, selectIntegrationType } from '../features/devant/integration-type';
 
 const PROMPT = 'Select the artifact type to be deployed';
@@ -39,18 +39,18 @@ let warningCalls: string[];
 
 /** Replaces the quick pick with one that records the call and answers with `answer`. */
 function answerQuickPickWith(answer: string | undefined) {
-    window.showQuickPick = ((items: readonly string[], options?: { placeHolder?: string }) => {
+    window.showQuickPick = (items: readonly string[], options?: { placeHolder?: string }) => {
         quickPickCalls.push({ items: [...items], placeHolder: options?.placeHolder });
         return Promise.resolve(answer);
-    }) as typeof window.showQuickPick;
+    };
 }
 
 /** Replaces the warning modal with one that records the message and answers with `answer`. */
 function answerWarningWith(answer: string | undefined) {
-    window.showWarningMessage = ((message: string) => {
+    window.showWarningMessage = (message: string) => {
         warningCalls.push(message);
         return Promise.resolve(answer);
-    }) as typeof window.showWarningMessage;
+    };
 }
 
 beforeEach(() => {
