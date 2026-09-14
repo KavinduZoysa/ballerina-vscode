@@ -16,10 +16,12 @@
  */
 
 import groovy.json.JsonSlurper
+import javax.inject.Inject
+import org.gradle.process.ExecOperations
 
 plugins {
     id "com.github.spotbugs-base" version "${spotbugsPluginVersion}"
-    id "com.github.johnrengelman.shadow" version "${shadowJarPluginVersion}"
+    id "com.gradleup.shadow" version "${shadowJarPluginVersion}"
     id "de.undercouch.download" version "${downloadPluginVersion}"
     id "org.cyclonedx.bom" version "${cyclonedxBomPluginVersion}"
     id "java"
@@ -133,6 +135,8 @@ subprojects {
 // sync.
 ext.ballerinaTestHomeDir = file("$buildDir/ballerina_dependencies/home")
 
+def execOps = objects.newInstance(InjectedExecOps).execOps
+
 task resolveBallerinaDependencies {
     description 'Resolves Ballerina dependencies by executing bal build in build-config/ballerina_dependencies'
     group 'build'
@@ -173,7 +177,7 @@ task resolveBallerinaDependencies {
 
             // Execute bal build in the copied directory
             def errOutput = new ByteArrayOutputStream()
-            def result = exec {
+            def result = execOps.exec {
                 ignoreExitValue = true
                 workingDir targetDir
                 environment "BALLERINA_HOME_DIR", ballerinaTestHomeDir.absolutePath
@@ -561,3 +565,9 @@ build.dependsOn resolveBallerinaDependencies
 build.doNotTrackState("build needs to run every time")
 publishToMavenLocal.dependsOn build
 publish.dependsOn build
+
+// Gradle 9 removed Project.exec(); ExecOperations has to be injected instead.
+interface InjectedExecOps {
+    @Inject
+    ExecOperations getExecOps()
+}

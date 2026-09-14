@@ -18,7 +18,7 @@
 
 plugins {
     id 'java'
-    id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'com.gradleup.shadow' version "${shadowJarPluginVersion}"
 }
 
 repositories {
@@ -40,6 +40,16 @@ sourceSets {
 dependencies {
     implementation "org.ballerinalang:ballerina-lang:${ballerinaLangVersion}"
     implementation "org.ballerinalang:ballerina-runtime:${ballerinaLangVersion}"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21 // bal pack loads these classes on the distribution's JRE 21
 }
 
 def ballerinaSourceDir = "${projectDir}/src/main/ballerina"
