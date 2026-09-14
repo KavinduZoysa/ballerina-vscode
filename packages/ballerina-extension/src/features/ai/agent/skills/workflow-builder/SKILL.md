@@ -415,13 +415,12 @@ code and is not part of the public API surface — never write a call to it.
 | `maxIter` | `int` | `16` |
 | `eventTimeout` | `Duration?` | `()` |
 
+**Capability names share one namespace** across `activities`, `tools`, `events`, `humanTasks` and
+`peers`. A name claimed twice is rejected when the agent registers, so the program fails at startup.
+
 For a capability that needs no extra configuration, pass the bare value — an `@workflow:Activity`
 function in `activities` (as the example above does), or an `@ai:AgentTool` function,
-`ai:ToolConfig` or `ai:BaseToolKit` in `tools`. The `*Decl` records below are the
-with-configuration forms.
-
-`humanTasks` maps a task name to a `HumanTaskDefinition`; that record's own field list is not part
-of the durable-agent documentation, so check its resolved shape before writing a literal for one.
+`ai:ToolConfig` or `ai:BaseToolKit` in `tools`. The records below are the with-configuration forms.
 
 #### `ActivityDecl`
 
@@ -452,6 +451,23 @@ An AI tool capability, with optional gating config.
 | `tool` | `ai:BaseToolKit\|ai:ToolConfig\|ai:FunctionTool` | required |
 | `requiresApproval` | `boolean` | `false` |
 | `userRoles` | `string\|string[]` | optional |
+
+#### `HumanTaskDefinition`
+
+The values of `humanTasks`, keyed by task name — `humanTasks: {signoff: {userRoles: ["manager"]}}`.
+
+| Field | Type | Default |
+|---|---|---|
+| `userRoles` | `string\|string[]` | required |
+| `title` | `string?` | `()` |
+| `description` | `string?` | `()` |
+| `timeout` | `Duration?` | `()` |
+| `taskInputType` | `typedesc<map<json>>` | `JsonObject` |
+| `resultType` | `typedesc<anydata>` | `anydata` |
+
+The first four are included from `*ReviewTaskDefinition`, and the record is open. Input supplied to
+the task is checked against `taskInputType` before the task is created. `resultType` is how an agent
+declares the answer's shape; a workflow states that as `awaitHumanTask`'s `T` instead.
 
 #### `PeerDecl`
 
