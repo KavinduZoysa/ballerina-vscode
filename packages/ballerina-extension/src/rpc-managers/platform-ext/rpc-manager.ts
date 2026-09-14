@@ -23,6 +23,8 @@ import {
     findDevantScope,
     AvailableNode,
     isSamePath,
+    EVENT_TYPE,
+    MACHINE_VIEW,
 } from "@wso2/ballerina-core";
 import { Uri, window, WorkspaceEdit } from "vscode";
 import * as vscode from "vscode";
@@ -81,7 +83,7 @@ import {
     RegisterDevantMarketplaceServiceReq,
     ReplaceDevantTempConfigValuesReq,
 } from "@wso2/ballerina-core/lib/rpc-types/platform-ext/interfaces";
-import { StateMachine } from "../../stateMachine";
+import { openView, StateMachine } from "../../stateMachine";
 import { CaptureBindingPattern, ModulePart, ModuleVarDecl, STKindChecker } from "@wso2/syntax-tree";
 import { DeleteBiDevantConnectionReq } from "./types";
 import { platformExtStore } from "./platform-store";
@@ -530,11 +532,25 @@ export class PlatformExtRpcManager implements PlatformExtAPI {
             scopes.push(DevantScopes.AUTOMATION);
         }
 
+        if (scopes.length === 0) {
+            window
+                .showInformationMessage(
+                    "Please add a construct and try again to deploy your integration",
+                    "Add Construct"
+                )
+                .then((resp) => {
+                    if (resp === "Add Construct") {
+                        openView(EVENT_TYPE.OPEN_VIEW, { view: MACHINE_VIEW.BIComponentView });
+                    }
+                });
+            return;
+        }
+
         let integrationType: DevantScopes;
 
         if (scopes.length === 1) {
             integrationType = scopes[0];
-        } else if (scopes?.length > 1) {
+        } else {
             const selectedScope = await window.showQuickPick(scopes, {
                 placeHolder:
                     "You have multiple artifact types within this project. Select the artifact type to be deployed",
