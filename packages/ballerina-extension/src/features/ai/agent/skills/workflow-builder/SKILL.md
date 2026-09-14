@@ -371,11 +371,93 @@ for connection details rather than inventing keys for those modes; only `IN_MEMO
 for durability across restarts, at which point use `LOCAL` and pick a `taskQueue` name from the
 workflow's purpose.
 
-## Out of scope: `workflow:DurableAgent`
+## Durable agents — `workflow:DurableAgent`
 
-`workflow:DurableAgent` is a separate, more complex construct for building a long-running agentic
-process out of activities, tools, events and human tasks together — it is not what this skill
-covers. If the user's request is really "an AI agent that also needs to durably survive restarts
-and pause for human approval over days," say that `ballerina/workflow`'s `DurableAgent` may be the
-right building block, but do not improvise its declaration shape from this skill — treat it as a
-distinct, unverified feature and ask before generating it.
+A durable AI agent declared as an object. Its capabilities — activities, tools, event channels,
+human tasks — are fixed in the constructor, and the compiler plugin generates the Temporal
+registration for them at module init.
+
+```ballerina
+final workflow:DurableAgent <agentName> = check new ({
+    systemPrompt: {role: "<role>", instructions: "<instructions>"},
+    model: <modelProvider>,
+    activities: [<activityName>, <activityName>],
+    events: {<channelName>: {request: <RequestType>, response: <ResponseType>, cardinality: workflow:MULTI_EVENT}}
+});
+```
+
+Three declaration rules:
+
+- **Assign it to a module-level `final` variable — this is compiler-enforced.** Never a local
+  variable, never a non-`final` one.
+- **The module-level variable name is the agent's stable identity**, so renaming the variable
+  renames the agent.
+- **`check new ({...})`** — `init` takes `*DurableAgentConfig` as an included record, so the whole
+  configuration is a single mapping argument, and the constructor returns an error on an invalid
+  config.
+
+`bindAgentName` exists on the object but is called by the compiler-plugin-generated module-init
+code and is not part of the public API surface — never write a call to it.
+
+### `DurableAgentConfig`
+
+| Field | Type | Default |
+|---|---|---|
+| `systemPrompt` | `ai:SystemPrompt` | required |
+| `model` | `ai:ModelProvider` | required |
+| `inputType` | `typedesc<json>?` | `json` |
+| `resultType` | `typedesc<anydata>?` | `()` |
+| `activities` | `(ActivityDecl\|function)[]` | `[]` |
+| `tools` | `(ToolDecl\|ai:ToolConfig\|ai:BaseToolKit\|function)[]` | `[]` |
+| `events` | `map<EventConfig>` | `{}` |
+| `humanTasks` | `map<HumanTaskDefinition>` | `{}` |
+| `peers` | `PeerDecl[]` | `[]` |
+| `maxIter` | `int` | `16` |
+| `eventTimeout` | `Duration?` | `()` |
+
+For an activity that needs no extra configuration, pass the bare `@workflow:Activity` function, as
+the example above does; `ActivityDecl` is the with-configuration form. `ActivityDecl`, `ToolDecl`
+and `PeerDecl`, and the entries of `humanTasks`, are not described here — check their resolved
+shapes before writing a literal for one.
+
+An event channel is one `EventConfig`, keyed in `events` by the channel name:
+
+| Field | Type | Default |
+|---|---|---|
+| `request` | `typedesc<anydata>` | required |
+| `response` | `typedesc<anydata>?` | `()` |
+| `cardinality` | `EventCardinality` | `MULTI_EVENT` |
+
+A `response` type declares a **duplex** channel, whose turn answers are read back with
+`getDataResult` / `waitForDataResult`; a nil `response` declares a **one-way** channel — data flows
+in and nothing is read back. `cardinality` is `workflow:MULTI_EVENT` (re-armed per turn) or
+`workflow:SINGLE_EVENT` (consumed once).
+
+### Driving the agent
+
+Every one of these is a plain method, **not** a remote method — call them with `.`, never `->`.
+
+```ballerina
+string instanceId = check <agentName>.run(<query>, <input>);
+string token = check <agentName>.sendData(instanceId, "<channelName>", <data>);
+<Result> result = check <agentName>.waitForResult(instanceId);
+<Response> reply = check <agentName>.waitForDataResult(instanceId, token);
+```
+
+- **`run(string query, json input = ())` returns the new instance ID — always the ID, never the
+  result.** A durable agent may suspend for days on a human task, so no caller thread is blocked.
+  `query` is the user turn appended to the agent's system prompt; `input` is an optional structured
+  JSON payload that must match the agent's declared `inputType`. Outside a workflow this is a
+  top-level start; inside a `@workflow:Workflow` the agent runs as a Temporal child workflow.
+- **`sendData(instanceId, eventName, data)` returns a correlation token**, not the answer — hold it
+  to read that turn's response. `eventName` must be a channel declared in the agent's `events`,
+  `data` is validated against that channel's declared `request` type, and `instanceId` must be one
+  this same agent's `run` returned.
+- **Non-blocking reads: `getResult` / `getDataResult`.** They do not wait: while the instance — or
+  that specific turn — is still in progress, they return a `workflow:AgentBusyError`. Use them only
+  when the caller genuinely wants to poll and check back later.
+- **Durable waits: `waitForResult` / `waitForDataResult`.** Inside a workflow these suspend the
+  caller durably, holding no thread; from a service they block but are resumable — if the caller
+  crashes, calling again after restart resumes the wait, because the result lives in history.
+
+Prefer the waiting forms unless the user specifically asks to poll.
