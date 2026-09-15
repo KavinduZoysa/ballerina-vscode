@@ -29,7 +29,8 @@ import {
     exchangeStsToCopilotToken,
     storeAuthCredentials,
     getAuthCredentials,
-    getPlatformExtensionAPI
+    getPlatformExtensionAPI,
+    getPlatformRegion
 } from '../../utils/ai/auth';
 import * as vscode from 'vscode';
 import { notifyAiPromptUpdated } from '../../RPCLayer';
@@ -493,13 +494,7 @@ const completeSsoSignIn = async (): Promise<void> => {
         throw new Error('Failed to get STS token from platform extension');
     }
     const secrets = await exchangeStsToCopilotToken(stsToken);
-    let region: string | undefined;
-    try {
-        const api = await getPlatformExtensionAPI();
-        region = api?.getAuthState()?.region?.trim().toLowerCase();
-    } catch {
-        /* region persistence is best-effort; sign-in still completes */
-    }
+    const region = await getPlatformRegion();
     await storeAuthCredentials({
         loginMethod: LoginMethod.BI_INTEL,
         secrets: { ...secrets, ...(region && { region }) }

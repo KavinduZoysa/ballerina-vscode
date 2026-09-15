@@ -108,6 +108,7 @@ export async function fetchWithAuth(input: string | URL | Request, options: Requ
 
                 try {
                     // Tiered refresh: STS token re-exchange via platform extension
+                    const urlBeforeRefresh = BACKEND_URL;
                     const newToken = await getRefreshedAccessToken();
                     if (newToken) {
                         console.log("Token refreshed via STS exchange");
@@ -115,6 +116,10 @@ export async function fetchWithAuth(input: string | URL | Request, options: Requ
                             ...options.headers,
                             'Authorization': `Bearer ${newToken}`,
                         };
+                        // If BACKEND_URL changed during refresh (region resolved), repoint the request.
+                        if (typeof input === 'string' && BACKEND_URL !== urlBeforeRefresh) {
+                            input = input.replace(urlBeforeRefresh, BACKEND_URL);
+                        }
                         response = await fetch(input, options);
 
                         // If still 401 after refresh, logout

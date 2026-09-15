@@ -34,7 +34,8 @@ import {
     isDevantUserLoggedIn,
     getPlatformStsToken,
     exchangeStsToCopilotToken,
-    getPlatformExtensionAPI
+    getPlatformRegion,
+    getAuthCredentials
 } from '../../utils/ai/auth';
 import { getBedrockRegionalPrefix } from '../../features/ai/utils/ai-client';
 import { setBackendRegion } from '../../features/ai/utils';
@@ -49,16 +50,19 @@ export const checkToken = async (): Promise<AuthCredentials | undefined> => {
             // Clean up any legacy tokens on initialization
             await cleanupLegacyTokens();
 
+            // Set region from stored credentials before getAccessToken() so any token
+            // refresh triggered by expiry goes to the correct regional endpoint.
+            const storedCreds = await getAuthCredentials();
+            if (storedCreds?.loginMethod === LoginMethod.BI_INTEL) {
+                const { region } = storedCreds.secrets as BIIntelSecrets;
+                if (region) {
+                    setBackendRegion(region);
+                }
+            }
+
             // First check if we have stored credentials
             const credentials = await getAccessToken();
             if (credentials) {
-                // Warm restart: restore the backend region so we don't hit US when the user is EU
-                if (credentials.loginMethod === LoginMethod.BI_INTEL) {
-                    const { region } = credentials.secrets as BIIntelSecrets;
-                    if (region) {
-                        setBackendRegion(region);
-                    }
-                }
                 resolve(credentials);
                 return;
             }
@@ -73,13 +77,7 @@ export const checkToken = async (): Promise<AuthCredentials | undefined> => {
                         const stsToken = await getPlatformStsToken();
                         if (stsToken) {
                             const secrets = await exchangeStsToCopilotToken(stsToken);
-                            let region: string | undefined;
-                            try {
-                                const api = await getPlatformExtensionAPI();
-                                region = api?.getAuthState()?.region?.trim().toLowerCase();
-                            } catch {
-                                /* region persistence is best-effort */
-                            }
+                            const region = await getPlatformRegion();
                             const newCredentials: AuthCredentials = {
                                 loginMethod: LoginMethod.BI_INTEL,
                                 secrets: { ...secrets, ...(region && { region }) }

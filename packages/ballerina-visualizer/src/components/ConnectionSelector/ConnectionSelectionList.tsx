@@ -37,7 +37,7 @@ export function ConnectionSelectionList(props: ConnectionSelectionListProps): JS
     const projectPath = useRef<string>("");
     const aiModuleOrg = useRef<string>("");
     const searchConfig = useRef<ConnectionSearchConfig>();
-    const progressTimeoutRef = useRef<number | null>(null);
+    const progressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         initPanel();

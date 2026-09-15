@@ -20,7 +20,7 @@ import { BallerinaRpcClient } from "@wso2/ballerina-rpc-client";
 
 interface DebouncedOperation {
     count: number;
-    timeoutId: number | null;
+    timeoutId: ReturnType<typeof setTimeout> | null;
     isProcessing: boolean;
 }
 

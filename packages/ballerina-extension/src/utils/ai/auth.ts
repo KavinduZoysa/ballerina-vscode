@@ -45,6 +45,19 @@ export const getPlatformExtensionAPI = async (): Promise<IWso2PlatformExtensionA
     return platformExt.exports?.cloudAPIs as IWso2PlatformExtensionAPI;
 };
 
+/**
+ * Reads the user's region from the platform extension. Returns undefined when the
+ * extension is unavailable or throws — region persistence is always best-effort.
+ */
+export const getPlatformRegion = async (): Promise<string | undefined> => {
+    try {
+        const api = await getPlatformExtensionAPI();
+        return api?.getAuthState()?.region?.trim().toLowerCase();
+    } catch {
+        return undefined;
+    }
+};
+
 //TODO: What if user doesnt have github copilot.
 //TODO: Where does auth git get triggered
 export async function loginGithubCopilot() {
@@ -409,13 +422,7 @@ export const getRefreshedAccessToken = async (): Promise<string> => {
                 const newSecrets = await refreshTokenViaStsExchange();
 
                 // Update stored credentials, persisting region so warm restarts restore it
-                let region: string | undefined;
-                try {
-                    const api = await getPlatformExtensionAPI();
-                    region = api?.getAuthState()?.region?.trim().toLowerCase();
-                } catch {
-                    /* region persistence is best-effort */
-                }
+                const region = await getPlatformRegion();
                 const updatedCredentials: AuthCredentials = {
                     loginMethod: LoginMethod.BI_INTEL,
                     secrets: { ...newSecrets, ...(region && { region }) }

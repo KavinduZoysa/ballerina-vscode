@@ -29,8 +29,9 @@ import {
     isDevantUserLoggedIn,
     getPlatformStsToken,
     exchangeStsToCopilotToken,
-    storeAuthCredentials, 
-    NO_AUTH_CREDENTIALS_FOUND
+    storeAuthCredentials,
+    NO_AUTH_CREDENTIALS_FOUND,
+    getPlatformRegion
 } from '../../utils/ai/auth';
 import { AIStateMachine } from '../../views/ai-panel/aiMachine';
 import { AIMachineEventType } from '@wso2/ballerina-core/lib/state-machine-types';
@@ -71,7 +72,7 @@ export const setBackendRegion = (region: string): boolean => {
     }
     const normalized = region?.trim().toLowerCase();
     const key = devantEnv ? `${normalized}-${devantEnv}` : normalized;
-    const regionalUrl = COPILOT_ROOT_URLS.get(key) || (devantEnv ? COPILOT_ROOT_URLS.get(normalized) : undefined);
+    const regionalUrl = COPILOT_ROOT_URLS.get(key);
     if (!regionalUrl) {
         console.error(`No backend URL configured for region '${normalized}'`);
         return false;
@@ -201,9 +202,10 @@ export async function getTokenForDefaultModel() {
             const stsToken = await getPlatformStsToken();
             if (stsToken) {
                 const secrets = await exchangeStsToCopilotToken(stsToken);
+                const region = await getPlatformRegion();
                 const newCredentials: AuthCredentials = {
                     loginMethod: LoginMethod.BI_INTEL,
-                    secrets
+                    secrets: { ...secrets, ...(region && { region }) }
                 };
                 await storeAuthCredentials(newCredentials);
                 return secrets.accessToken;

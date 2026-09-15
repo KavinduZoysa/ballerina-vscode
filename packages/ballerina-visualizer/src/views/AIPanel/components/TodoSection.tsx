@@ -191,7 +191,7 @@ const TodoSection: React.FC<TodoSectionProps> = ({
     const [isExpanded, setIsExpanded] = useState(initialExpanded);
     const inProgressRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const scrollTimeoutRef = useRef<number | null>(null);
+    const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const inProgressTask = tasks.find(t => t.status === "in_progress");
     const hasInProgress = !!inProgressTask;
