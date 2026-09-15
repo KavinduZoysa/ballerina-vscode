@@ -43,3 +43,7 @@ jar {
 test {
     useTestNG()
 }
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21 // must stay loadable on the distribution's JRE 21
+}
