@@ -111,30 +111,11 @@ export function autoDistribute(engine: DiagramEngine) {
     // Separate listeners into connected and unconnected
     const connectedListeners: ListenerNodeModel[] = [];
     const unconnectedListeners: ListenerNodeModel[] = [];
-
     listenerNodes.forEach((node) => {
         const listenerNode = node as ListenerNodeModel;
-        const attachedServices = listenerNode.node.attachedServices;
-
-        // Find the attached service nodes
-        const serviceNodes = entryNodes.filter((n) => attachedServices.includes(n.getID()));
-
-        if (serviceNodes.length > 0) {
-            // Center the listener on the average of its services' own in-port Y (see
-            // getPortAnchorY: their vertical center, since createNodesLink always attaches to a
-            // service's generic "in" port) - not their box top. A listener with exactly one
-            // service then lands on a dead-straight line instead of being offset by however far
-            // short of its center a tall service's top happens to sit.
-            const avgCenterY =
-                serviceNodes.reduce((sum, n) => {
-                    const entryNode = n as EntryNodeModel;
-                    return sum + getPortAnchorY(entryNode, entryNode.getInPort());
-                }, 0) / serviceNodes.length;
-            const listenerHeight = listenerNode.height || LISTENER_NODE_HEIGHT;
-            listenerNode.setPosition(listenerX, avgCenterY - listenerHeight / 2);
+        if (listenerNode.node.attachedServices.some((id) => entryNodes.some((n) => n.getID() === id))) {
             connectedListeners.push(listenerNode);
         } else {
-            // No attached services - will position later
             unconnectedListeners.push(listenerNode);
         }
     });
@@ -145,14 +126,27 @@ export function autoDistribute(engine: DiagramEngine) {
         entryNode.setPosition(entryX, entryNode.getY());
     });
 
-    // Every real link in the model, used below to find what actually feeds into a workflow or
-    // connection node - see positionColumnByIncomingLinks.
+    // Every real link in the model, used below to find what actually feeds into or out of a node
+    // - see positionConnectedListener/positionColumnByIncomingLinks/refineNodesByAllLinks.
     const links = model.getLinks().filter((linkModel): linkModel is NodeLinkModel => linkModel instanceof NodeLinkModel);
 
-    // Position workflow and connection nodes near whatever actually links into them, each
-    // column resolved only once every column to its left has its final position (workflows read
-    // entry-node anchors; connections can be reached from either entry nodes or workflows).
+    // Round 1: position everything downstream of entry nodes from their current (creation-order)
+    // Y, exactly as before this round existed.
+    connectedListeners.forEach((listenerNode) => positionConnectedListener(listenerNode, entryNodes as NodeModel[], listenerX));
     positionColumnByIncomingLinks(workflowNodes as NodeModel[], links, workflowX, ENTRY_NODE_HEIGHT);
+    positionColumnByIncomingLinks(connectionNodes as NodeModel[], links, connectionX, CON_NODE_HEIGHT);
+
+    // Round 2: entry and workflow nodes sit *between* two neighbors (a listener/entry node on one
+    // side, a workflow/connection on the other) that round 1 only let pull on whichever side comes
+    // later in the pass - a service could move to match its listener, but never the reverse, so a
+    // listener sitting above a tall service's real center could only ever "win" one direction.
+    // Refining both middle columns against everything now real on both sides - without reordering
+    // either (their sequence still reflects the source file, not link geometry) - lets a plain,
+    // unbranched chain settle dead straight end to end, and gives a branching one the smallest
+    // total disturbance instead of always favoring whichever neighbor happened to move first.
+    refineNodesByAllLinks(entryNodes as NodeModel[], links);
+    refineNodesByAllLinks(workflowNodes as NodeModel[], links);
+    connectedListeners.forEach((listenerNode) => positionConnectedListener(listenerNode, entryNodes as NodeModel[], listenerX));
     positionColumnByIncomingLinks(connectionNodes as NodeModel[], links, connectionX, CON_NODE_HEIGHT);
 
     // Position unconnected listeners below all other nodes
@@ -191,28 +185,168 @@ export function autoDistribute(engine: DiagramEngine) {
  * `attachedServices`/`attachedFunctions` lists - is what makes this correct even when a link
  * attaches to a *specific* row port rather than a node's generic one (e.g. a single function
  * calling `workflow:run`, or a GraphQL group's own port): the position that matters is wherever
- * that particular link actually leaves its source, not the source node's center.
+ * that particular link actually leaves its source, not the source node's center. The same goes
+ * for where it *arrives*: a workflow with both a generic trigger (from automation, landing at its
+ * center) and a specific event port (from another workflow's output, landing well below center)
+ * has two incoming links that don't agree on what "this node's center" should even mean unless
+ * each is first translated through its own arrival row's offset - averaging their raw source
+ * anchors without that would silently target neither row correctly.
  *
- * Nodes with nothing pointing at them keep their existing center exactly (`desiredCenter` reduces
- * to `node.getY() + height/2`, so `y = desiredCenter - height/2` reduces to `node.getY()`) unless
- * stacking pushes them down to clear an earlier node in the same column.
+ * Nodes with nothing pointing at them keep their existing center exactly. Siblings that end up
+ * wanting the same (or too-close) center - e.g. two connections both fed solely by the same
+ * automation node - settle symmetrically around that shared center rather than one keeping it
+ * outright and the other being shoved aside; see `resolveMinGapPositions`.
  */
 function positionColumnByIncomingLinks(nodes: NodeModel[], links: NodeLinkModel[], x: number, defaultHeight: number) {
-    const withDesiredCenter = nodes.map((node) => {
+    const items = nodes.map((node) => {
         const incomingLinks = links.filter((link) => link.targetNode === node && link.sourceNode && link.sourceNode !== node);
+        if (incomingLinks.length === 0) {
+            return { item: node, desiredCenter: node.getY() + (node.height || defaultHeight) / 2, height: node.height || defaultHeight };
+        }
+        const nodeBox = getNodeBoundingBox(node);
+        const currentCenter = (nodeBox.top + nodeBox.bottom) / 2;
         const desiredCenter =
-            incomingLinks.length > 0
-                ? incomingLinks.reduce((sum, link) => sum + getPortAnchorY(link.sourceNode, link.getSourcePort()), 0) / incomingLinks.length
-                : node.getY() + (node.height || defaultHeight) / 2;
-        return { node, desiredCenter };
+            incomingLinks.reduce((sum, link) => {
+                // How far this link's own arrival row sits from the node's current center - 0 for
+                // the generic in port, some real row offset for a specific event/function port.
+                const rowOffset = getPortAnchorY(node, link.getTargetPort(), nodeBox) - currentCenter;
+                // The center that would put *this* row exactly on the sender's anchor.
+                return sum + (getPortAnchorY(link.sourceNode, link.getSourcePort()) - rowOffset);
+            }, 0) / incomingLinks.length;
+        return { item: node, desiredCenter, height: node.height || defaultHeight };
     });
-    withDesiredCenter.sort((a, b) => a.desiredCenter - b.desiredCenter);
-    let bottom = -Infinity;
-    withDesiredCenter.forEach(({ node, desiredCenter }) => {
-        const height = node.height || defaultHeight;
-        const y = Math.max(desiredCenter - height / 2, bottom + NODE_GAP_Y / 2);
-        node.setPosition(x, y);
-        bottom = y + height;
+    // Free to reorder: a workflow/connection's vertical sequence carries no meaning of its own,
+    // so sorting by desired center first is what lets crossing-minimization actually happen (two
+    // nodes trying to swap places to both go straight, rather than being forced to keep whichever
+    // order they happened to be created in).
+    items.sort((a, b) => a.desiredCenter - b.desiredCenter);
+    const finalCenters = resolveMinGapPositions(items, NODE_GAP_Y / 2);
+    items.forEach(({ item: node, height }) => {
+        node.setPosition(x, finalCenters.get(node)! - height / 2);
+    });
+}
+
+/**
+ * Resolves final centers for `items` (each already carrying its own independently-desired center
+ * and real height), processed in the given order, so that adjacent items end up at least `gap`
+ * apart - via isotonic regression (the "pool adjacent violators" algorithm): whenever two
+ * neighbors' desired centers are too close to fit `gap` between them, they merge into one block
+ * sharing their (weighted) average desired center, which may then also violate distance from ITS
+ * neighbor and merge further, repeating until every remaining block boundary is compliant. A
+ * block's members are then packed tightly (own heights + gap) around that shared center, in the
+ * same relative order they were given in.
+ *
+ * This is what makes colliding siblings settle SYMMETRICALLY around a shared desired center (two
+ * items both wanting center 100, needing 50 between them, land at 75 and 125) instead of a naive
+ * "stack downward from the first one" pass, which would leave the first exactly at 100 and push
+ * the second down to 150 - silently favoring whichever item happens to come first in `items`.
+ * Callers decide what "first" means: sorted by desired center (allowing reorder) or left in
+ * existing order (preserving it) - this function only ever merges adjacent entries, never reorders.
+ */
+function resolveMinGapPositions<T>(items: Array<{ item: T; desiredCenter: number; height: number }>, gap: number): Map<T, number> {
+    interface Block { sumDesired: number; count: number; members: Array<{ item: T; height: number }>; totalHeight: number; }
+    const blocks: Block[] = [];
+    items.forEach(({ item, desiredCenter, height }) => {
+        blocks.push({ sumDesired: desiredCenter, count: 1, members: [{ item, height }], totalHeight: height });
+        while (blocks.length >= 2) {
+            const curr = blocks[blocks.length - 1];
+            const prev = blocks[blocks.length - 2];
+            const minDistance = prev.totalHeight / 2 + gap + curr.totalHeight / 2;
+            if (curr.sumDesired / curr.count - prev.sumDesired / prev.count >= minDistance) {
+                break;
+            }
+            prev.sumDesired += curr.sumDesired;
+            prev.count += curr.count;
+            prev.totalHeight += curr.totalHeight + gap;
+            prev.members.push(...curr.members);
+            blocks.pop();
+        }
+    });
+
+    const result = new Map<T, number>();
+    blocks.forEach((block) => {
+        const blockCenter = block.sumDesired / block.count;
+        let cursor = blockCenter - block.totalHeight / 2;
+        block.members.forEach(({ item, height }) => {
+            result.set(item, cursor + height / 2);
+            cursor += height + gap;
+        });
+    });
+    return result;
+}
+
+/**
+ * Centers `listenerNode` on the average real in-port Y of its attached services (see
+ * getPortAnchorY: their vertical center, since createNodesLink always attaches to a service's
+ * generic "in" port) - not their box top. A listener with exactly one service then lands on a
+ * dead-straight line instead of being offset by however far short of its center a tall service's
+ * top happens to sit. No-ops if none of `entryNodes` match an attached service ID.
+ */
+function positionConnectedListener(listenerNode: ListenerNodeModel, entryNodes: NodeModel[], listenerX: number): void {
+    const attachedServices = listenerNode.node.attachedServices;
+    const serviceNodes = entryNodes.filter((n) => attachedServices.includes(n.getID()));
+    if (serviceNodes.length === 0) {
+        return;
+    }
+    const avgCenterY =
+        serviceNodes.reduce((sum, n) => {
+            const entryNode = n as EntryNodeModel;
+            return sum + getPortAnchorY(entryNode, entryNode.getInPort());
+        }, 0) / serviceNodes.length;
+    const listenerHeight = listenerNode.height || LISTENER_NODE_HEIGHT;
+    listenerNode.setPosition(listenerX, avgCenterY - listenerHeight / 2);
+}
+
+/**
+ * Nudges every node in `nodes` toward the combined pull of *every* link touching it - both the
+ * ones feeding into it and the ones it sends out - without changing their relative order (unlike
+ * `positionColumnByIncomingLinks`, which is free to reorder since a workflow/connection's vertical
+ * sequence carries no meaning of its own; an entry or workflow node's sequence mirrors its order
+ * in the source file, which reordering would make confusing for no benefit).
+ *
+ * A node linked from only one side (e.g. a service with no listener, or a connection with several
+ * senders that already settled the service's other neighbor) is exactly
+ * `positionColumnByIncomingLinks`'s one-sided average. What this adds is the *other* direction: a
+ * link leaving from a specific row (say, a function two rows down) contributes the node-center
+ * that would put *that row*, not the node's top or center, on the target's anchor - so a node
+ * pulled from both sides settles wherever best serves both, not just whichever neighbor happened
+ * to already have a real position when it was this node's turn.
+ */
+function refineNodesByAllLinks(nodes: NodeModel[], links: NodeLinkModel[]): void {
+    const items = nodes.map((node) => {
+        const neighborLinks = links.filter(
+            (link) =>
+                (link.sourceNode === node && link.targetNode && link.targetNode !== node) ||
+                (link.targetNode === node && link.sourceNode && link.sourceNode !== node)
+        );
+        const height = node.height || ENTRY_NODE_HEIGHT;
+        if (neighborLinks.length === 0) {
+            return { item: node, desiredCenter: node.getY() + height / 2, height };
+        }
+        const nodeBox = getNodeBoundingBox(node);
+        const currentCenter = (nodeBox.top + nodeBox.bottom) / 2;
+        const desiredCenter =
+            neighborLinks.reduce((sum, link) => {
+                const isSource = link.sourceNode === node;
+                const ownPort = isSource ? link.getSourcePort() : link.getTargetPort();
+                const otherNode = isSource ? link.targetNode : link.sourceNode;
+                const otherPort = isSource ? link.getTargetPort() : link.getSourcePort();
+                // How far this link's own row sits from the node's current center - 0 for a
+                // generic in/out port, some real row offset for a specific function/event port.
+                const rowOffset = getPortAnchorY(node, ownPort, nodeBox) - currentCenter;
+                // The center that would put *this* row exactly on the other end's anchor.
+                return sum + (getPortAnchorY(otherNode, otherPort) - rowOffset);
+            }, 0) / neighborLinks.length;
+        return { item: node, desiredCenter, height };
+    });
+
+    // Kept in the nodes' EXISTING vertical order (not re-sorted by desiredCenter), so a node
+    // never leapfrogs another - only its own Y shifts, same as autoDistribute already keeps
+    // entry/workflow nodes in source-file order today.
+    items.sort((a, b) => a.item.getY() - b.item.getY());
+    const finalCenters = resolveMinGapPositions(items, NODE_GAP_Y / 2);
+    items.forEach(({ item: node, height }) => {
+        node.setPosition(node.getX(), finalCenters.get(node)! - height / 2);
     });
 }
 

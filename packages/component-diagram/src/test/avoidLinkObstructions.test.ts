@@ -26,6 +26,7 @@ import {
     calculateWorkflowNodeHeight,
     createNodesLink,
     createPortNodeLink,
+    createPortsLink,
     generateEngine,
     getLinkAnchors,
     getNodeBoundingBox,
@@ -419,6 +420,171 @@ describe("autoDistribute positioning workflows and connections", () => {
         expect(Math.abs(connectionA.getY() - connectionB.getY())).toBeGreaterThanOrEqual(
             CON_NODE_HEIGHT + NODE_GAP_Y / 2
         );
+    });
+});
+
+describe("autoDistribute refining entry/workflow nodes toward both neighbors", () => {
+    test("settles two far-apart services toward their shared workflow, instead of leaving them frozen at their listener's Y", () => {
+        // Two services, each with their own listener, both feeding the SAME workflow - far enough
+        // apart (0 vs 800) that centering the workflow between them (round 1) doesn't help their
+        // own listeners' links, which stay bent unless the services themselves are free to move
+        // toward the workflow too. Every node here uses a plain generic port (no row offset), so
+        // the exact settle point can be hand-computed and pinned precisely.
+        const listenerA = new ListenerNodeModel(makeListener("listener-a", ["service-a"]));
+        const listenerB = new ListenerNodeModel(makeListener("listener-b", ["service-b"]));
+
+        const serviceA = new EntryNodeModel(makeService("service-a", [makeResourceFunction("get", "f")]), "service");
+        serviceA.height = 64;
+        serviceA.setPosition(ENTRY_X, 0); // center 32
+
+        const serviceB = new EntryNodeModel(makeService("service-b", [makeResourceFunction("get", "f")]), "service");
+        serviceB.height = 64;
+        serviceB.setPosition(ENTRY_X, 800); // center 832
+
+        const workflow = new EntryNodeModel(makeWorkflow("workflow-1"), "workflow");
+        workflow.height = 64;
+
+        const linkListenerA = createNodesLink(listenerA, serviceA) as NodeLinkModel;
+        const linkListenerB = createNodesLink(listenerB, serviceB) as NodeLinkModel;
+        const linkAWorkflow = createNodesLink(serviceA, workflow) as NodeLinkModel;
+        const linkBWorkflow = createNodesLink(serviceB, workflow) as NodeLinkModel;
+
+        const engine = generateEngine();
+        const model = new DiagramModel();
+        model.addAll(
+            listenerA, listenerB, serviceA, serviceB, workflow,
+            linkListenerA, linkListenerB, linkAWorkflow, linkBWorkflow
+        );
+        engine.setModel(model);
+
+        autoDistribute(engine);
+
+        // Round 1 would center the workflow at the (32+832)/2=432 midpoint and leave both services
+        // frozen at 32/832. Round 2 lets each service settle halfway between its own listener (still
+        // matching its original position at that point) and the workflow: serviceA -> (32+432)/2=232,
+        // serviceB -> (832+432)/2=632 - and the workflow, re-averaging those two new centers,
+        // stays exactly at 432 by symmetry.
+        expect(serviceA.getY() + serviceA.height / 2).toBeCloseTo(232);
+        expect(serviceB.getY() + serviceB.height / 2).toBeCloseTo(632);
+        expect(workflow.getY() + workflow.height / 2).toBeCloseTo(432);
+
+        // Each listener re-syncs to its service's FINAL (moved) center, not its original one.
+        expect(listenerA.getY() + LISTENER_NODE_HEIGHT / 2).toBeCloseTo(232);
+        expect(listenerB.getY() + LISTENER_NODE_HEIGHT / 2).toBeCloseTo(632);
+    });
+
+    test("leaves a plain 1:1:1 chain exactly as round 1 already settled it - nothing left to refine", () => {
+        const listener = new ListenerNodeModel(makeListener("listener-1", ["service-1"]));
+        const service = new EntryNodeModel(makeService("service-1", [makeResourceFunction("get", "f")]), "service");
+        service.height = 219;
+        service.setPosition(ENTRY_X, 500);
+
+        const connection = new ConnectionNodeModel(makeConnection("connection-1"));
+        const linkListener = createNodesLink(listener, service) as NodeLinkModel;
+        const linkConnection = createNodesLink(service, connection) as NodeLinkModel;
+
+        const engine = generateEngine();
+        const model = new DiagramModel();
+        model.addAll(listener, service, connection, linkListener, linkConnection);
+        engine.setModel(model);
+
+        autoDistribute(engine);
+
+        // The service itself never had anywhere better to go - both its neighbors already agree
+        // with its own original center by construction - so round 2 must leave it exactly there.
+        expect(service.getY()).toBe(500);
+        const listenerAnchors = getLinkAnchors(linkListener);
+        const connectionAnchors = getLinkAnchors(linkConnection);
+        expect(listenerAnchors.source.y).toBeCloseTo(listenerAnchors.target.y);
+        expect(connectionAnchors.source.y).toBeCloseTo(connectionAnchors.target.y);
+    });
+
+    test("spreads two connections fed solely by the same sender SYMMETRICALLY around it, not one straight and one shoved aside", () => {
+        // Regression for a real escalation: an automation linking to two connections it's the
+        // ONLY sender for. Both connections start out wanting the exact same center (automation's
+        // own), so a naive "sort then stack downward" pass would leave the first one exactly on
+        // automation (a dead-straight line) and shove the second one a full gap further away (a
+        // much more bent one) - purely because of which happened to sort first, not because either
+        // link is any more "important". They should land equally spaced on either side instead.
+        const automationNode = new EntryNodeModel(makeAutomation("automation-1"), "automation");
+        automationNode.height = 64;
+        automationNode.setPosition(ENTRY_X, 0); // center 32
+
+        const connectionA = new ConnectionNodeModel(makeConnection("connection-a"));
+        const connectionB = new ConnectionNodeModel(makeConnection("connection-b"));
+        const linkA = createNodesLink(automationNode, connectionA) as NodeLinkModel;
+        const linkB = createNodesLink(automationNode, connectionB) as NodeLinkModel;
+
+        const engine = generateEngine();
+        const model = new DiagramModel();
+        model.addAll(automationNode, connectionA, connectionB, linkA, linkB);
+        engine.setModel(model);
+
+        autoDistribute(engine);
+
+        const centerA = connectionA.getY() + CON_NODE_HEIGHT / 2;
+        const centerB = connectionB.getY() + CON_NODE_HEIGHT / 2;
+        const automationCenter = automationNode.getY() + automationNode.height / 2;
+
+        // Automation itself doesn't need to move - both connections already average back to
+        // exactly its own center.
+        expect(automationCenter).toBeCloseTo(32);
+        // The two connections are equally far from automation on either side...
+        expect(Math.abs(centerA - automationCenter)).toBeCloseTo(Math.abs(centerB - automationCenter));
+        // ...far enough apart to actually clear each other...
+        expect(Math.abs(centerA - centerB)).toBeGreaterThanOrEqual(CON_NODE_HEIGHT + NODE_GAP_Y / 2);
+        // ...and neither one sits exactly on automation - the old bug's tell-tale sign.
+        expect(centerA).not.toBeCloseTo(automationCenter);
+        expect(centerB).not.toBeCloseTo(automationCenter);
+    });
+
+    test("weighs a workflow's generic-port sender and its event-port sender by where each link actually lands, not both at the node's center", () => {
+        // Regression for a real escalation: a workflow triggered generically by automation (its
+        // "in" port, at the node's center) that ALSO has a data-event port fed by another service,
+        // well below center. positionColumnByIncomingLinks previously averaged only where each
+        // incoming link left its SENDER, silently assuming every one of them arrives at the
+        // workflow's generic center - biasing the workflow's own settled position (and, once
+        // automation/the service settle near enough to collide with each other and compromise
+        // symmetrically around it - see "spreads two connections..." above - biasing that
+        // compromise too, since neither sender can do better than the workflow it's centering on).
+        //
+        // These exact numbers come from actually running this fixture (not hand algebra through a
+        // multi-round symmetric-collision resolution): with the fix, workflowA settles at 516; with
+        // the row-offset dropped (reverting to a plain average of `getPortAnchorY(sender, ...)` with
+        // no correction for the target's own port), it settles at 532 instead - a real, verified 16px
+        // difference this test would catch, even though neither sender's link ever becomes perfectly
+        // straight here (automation and the service sit close enough to collide with each other,
+        // so - as already covered above - they settle symmetrically around workflowA rather than
+        // exactly on it, for a reason unrelated to this fix).
+        const event = { name: "dataReady", attachedServices: [], attachedFunctions: [] };
+        const workflowData: CDWorkflow = { ...makeWorkflow("workflow-a"), events: [event] };
+        const workflowA = new EntryNodeModel(workflowData, "workflow");
+        workflowA.height = calculateWorkflowNodeHeight(1);
+
+        const automationNode = new EntryNodeModel(makeAutomation("automation-1"), "automation");
+        automationNode.height = 64;
+        automationNode.setPosition(ENTRY_X, 0);
+
+        const serviceNode = new EntryNodeModel(makeService("service-1", [makeResourceFunction("get", "f")]), "service");
+        serviceNode.height = 64;
+        serviceNode.setPosition(ENTRY_X, 1000);
+
+        const linkAutomation = createNodesLink(automationNode, workflowA) as NodeLinkModel;
+        const eventPort = workflowA.getEventPort(event);
+        const linkService = createPortsLink(serviceNode.getOutPort(), eventPort) as NodeLinkModel;
+        linkService.setSourceNode(serviceNode);
+        linkService.setTargetNode(workflowA);
+
+        const engine = generateEngine();
+        const model = new DiagramModel();
+        model.addAll(automationNode, serviceNode, workflowA, linkAutomation, linkService);
+        engine.setModel(model);
+
+        autoDistribute(engine);
+
+        expect(workflowA.getY() + workflowA.height / 2).toBeCloseTo(516);
+        expect(automationNode.getY() + 32).toBeCloseTo(475);
+        expect(serviceNode.getY() + 32).toBeCloseTo(589);
     });
 });
 
