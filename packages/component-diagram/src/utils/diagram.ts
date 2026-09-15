@@ -40,6 +40,8 @@ import {
     LISTENER_NODE_HEIGHT,
     CON_NODE_WIDTH,
     CON_NODE_HEIGHT,
+    NODE_BORDER_WIDTH,
+    NODE_PADDING,
 } from "../resources/constants";
 import { ListenerNodeModel } from "../components/nodes/ListenerNode";
 import { ConnectionNodeModel } from "../components/nodes/ConnectionNode";
@@ -118,9 +120,18 @@ export function autoDistribute(engine: DiagramEngine) {
         const serviceNodes = entryNodes.filter((n) => attachedServices.includes(n.getID()));
 
         if (serviceNodes.length > 0) {
-            // Has attached services - position at average Y of services
-            const avgY = serviceNodes.reduce((sum, n) => sum + n.getY(), 0) / serviceNodes.length;
-            listenerNode.setPosition(listenerX, avgY);
+            // Center the listener on the average of its services' own in-port Y (see
+            // getPortAnchorY: their vertical center, since createNodesLink always attaches to a
+            // service's generic "in" port) - not their box top. A listener with exactly one
+            // service then lands on a dead-straight line instead of being offset by however far
+            // short of its center a tall service's top happens to sit.
+            const avgCenterY =
+                serviceNodes.reduce((sum, n) => {
+                    const entryNode = n as EntryNodeModel;
+                    return sum + getPortAnchorY(entryNode, entryNode.getInPort());
+                }, 0) / serviceNodes.length;
+            const listenerHeight = listenerNode.height || LISTENER_NODE_HEIGHT;
+            listenerNode.setPosition(listenerX, avgCenterY - listenerHeight / 2);
             connectedListeners.push(listenerNode);
         } else {
             // No attached services - will position later
@@ -203,11 +214,30 @@ export const LINK_DETOUR_MARGIN = 16;
  * `calculateGraphQLNodeHeight`/`computeGraphQLPortOffsets` further down, since `GraphQLServiceWidget`
  * renders its function and "show more" rows with these exact same styled components (see the
  * comment above `GQL_BASE_HEIGHT`), not a GraphQL-specific size of its own.
+ *
+ * These are real rendered pixel measurements, not a "content + padding" guess. `Box` and
+ * `StyledServiceBox` (see styles.ts) are declared `box-sizing: border-box`, so a row's declared
+ * 40px height already includes its own border - it does not add on top of it. Confirmed against
+ * the real production webview DOM (not jsdom, which never lays out real pixel sizes).
  */
-const ROW_PADDING = 8;
-const ENTRY_HEADER_HEIGHT = 64 + ROW_PADDING;
-const ENTRY_ROW_HEIGHT = 40 + ROW_PADDING;
-const ENTRY_VIEW_ALL_BUTTON_HEIGHT = 40;
+const ROW_PADDING = 8; // gap between stacked rows - `Box`'s own `gap: 8px`, already exact
+// `Box`'s own border + padding: the inset between a node's outer edge and its first/last row,
+// counted once at the top and once at the bottom. Border-box sizing doesn't apply here since Box
+// has no explicit width/height of its own (it's sized by its content), so this is added on top
+// regardless.
+const BOX_INSET = NODE_BORDER_WIDTH + NODE_PADDING; // 1.5 + 8 = 9.5
+// ServiceBox's real rendered height - matches its own CSS declaration exactly (no border of its
+// own either way).
+const ENTRY_HEADER_CONTENT_HEIGHT = ENTRY_NODE_HEIGHT - NODE_PADDING; // 56
+// A row's (StyledServiceBox's) real rendered height: border-box, so its declared 40px is already
+// the full height - its border is included, not added on top.
+const ENTRY_ROW_CONTENT_HEIGHT = 40;
+// Offset from a node's own top edge to the top of its first row: the node's own top inset, then
+// the header, then the gap before row 0.
+const ENTRY_HEADER_HEIGHT = BOX_INSET + ENTRY_HEADER_CONTENT_HEIGHT + ROW_PADDING; // 9.5+56+8=73.5
+// Distance from one row's top to the next row's top (a row's own height plus the gap after it).
+const ENTRY_ROW_HEIGHT = ROW_PADDING + ENTRY_ROW_CONTENT_HEIGHT; // 8+40=48
+const ENTRY_VIEW_ALL_BUTTON_HEIGHT = 40; // ViewAllButton carries no border at rest - unchanged.
 
 export interface BoundingBox {
     left: number;
@@ -283,7 +313,7 @@ export function getPortAnchorY(node: NodeModel, port: PortModel | null | undefin
         if (eventIndex === -1) {
             return center; // workflow nodes have no other row-level ports
         }
-        return box.top + ENTRY_HEADER_HEIGHT + eventIndex * ENTRY_ROW_HEIGHT + ENTRY_ROW_HEIGHT / 2;
+        return box.top + ENTRY_HEADER_HEIGHT + eventIndex * ENTRY_ROW_HEIGHT + ENTRY_ROW_CONTENT_HEIGHT / 2;
     }
 
     const service = node.node as CDService;
@@ -323,7 +353,7 @@ export function getPortAnchorY(node: NodeModel, port: PortModel | null | undefin
                 : -1;
         return rowIndex === -1
             ? center
-            : box.top + ENTRY_HEADER_HEIGHT + rowIndex * ENTRY_ROW_HEIGHT + ENTRY_ROW_HEIGHT / 2;
+            : box.top + ENTRY_HEADER_HEIGHT + rowIndex * ENTRY_ROW_HEIGHT + ENTRY_ROW_CONTENT_HEIGHT / 2;
     }
 
     if (port === node.getViewAllResourcesPort()) {
@@ -339,7 +369,7 @@ export function getPortAnchorY(node: NodeModel, port: PortModel | null | undefin
     // the node's out-ports - after the leading generic "out" port - is exactly its row index.
     const rowIndex = node.getOutPorts().indexOf(port as NodePortModel) - 1;
     if (rowIndex >= 0) {
-        return box.top + ENTRY_HEADER_HEIGHT + rowIndex * ENTRY_ROW_HEIGHT + ENTRY_ROW_HEIGHT / 2;
+        return box.top + ENTRY_HEADER_HEIGHT + rowIndex * ENTRY_ROW_HEIGHT + ENTRY_ROW_CONTENT_HEIGHT / 2;
     }
 
     return center;
@@ -1187,17 +1217,25 @@ export const getModelId = (nodeId: string) => {
 
 // calculate entry node height based on number of functions
 export const calculateEntryNodeHeight = (numFunctions: number, isExpanded: boolean) => {
+    // Every case is Box's own top+bottom inset, its header, then N rows - optionally followed by
+    // one more "row" (the view-all button, plus the gap before it) when a button shows. Note this
+    // is not `ENTRY_HEADER_HEIGHT + N*ENTRY_ROW_HEIGHT + ROW_PADDING`: that shape double-counts
+    // Box's bottom inset once inside ENTRY_HEADER_HEIGHT's own gap-to-row-0 term and again here -
+    // harmless while every row was assumed border-less, but not once ENTRY_ROW_HEIGHT accounts for
+    // each row's own border too (see the comment above these constants).
     if (isExpanded) {
-        return ENTRY_HEADER_HEIGHT + numFunctions * ENTRY_ROW_HEIGHT + ROW_PADDING + ENTRY_VIEW_ALL_BUTTON_HEIGHT;
+        return 2 * BOX_INSET + ENTRY_HEADER_CONTENT_HEIGHT + numFunctions * ENTRY_ROW_HEIGHT
+            + ROW_PADDING + ENTRY_VIEW_ALL_BUTTON_HEIGHT;
     }
 
     // Matches GeneralWidget's own visibleFunctions/hasMoreFunctions split: at or under the
     // threshold every row shows with no button, same shape as the isExpanded case above.
     if (numFunctions <= SHOW_ALL_THRESHOLD) {
-        return ENTRY_HEADER_HEIGHT + numFunctions * ENTRY_ROW_HEIGHT + ROW_PADDING;
+        return 2 * BOX_INSET + ENTRY_HEADER_CONTENT_HEIGHT + numFunctions * ENTRY_ROW_HEIGHT;
     }
 
-    return ENTRY_HEADER_HEIGHT + visibleRowCountWhenCollapsed() * ENTRY_ROW_HEIGHT + ROW_PADDING + ENTRY_VIEW_ALL_BUTTON_HEIGHT;
+    return 2 * BOX_INSET + ENTRY_HEADER_CONTENT_HEIGHT + visibleRowCountWhenCollapsed() * ENTRY_ROW_HEIGHT
+        + ROW_PADDING + ENTRY_VIEW_ALL_BUTTON_HEIGHT;
 };
 
 /**
@@ -1295,7 +1333,7 @@ function computeGraphQLPortOffsets(
         if (visibleItems.length > 0) {
             offset += GQL_HEADER_HEIGHT;
             visibleItems.forEach((func, index) => {
-                functionOffsets.set(func, offset + index * ENTRY_ROW_HEIGHT + ENTRY_ROW_HEIGHT / 2);
+                functionOffsets.set(func, offset + index * ENTRY_ROW_HEIGHT + ENTRY_ROW_CONTENT_HEIGHT / 2);
             });
             offset += visibleItems.length * ENTRY_ROW_HEIGHT;
         }
@@ -1327,5 +1365,7 @@ export const getWorkflowEventPortName = (event: CDWorkflowEvent) => {
 
 // calculate workflow node height based on the number of event and human task rows
 export const calculateWorkflowNodeHeight = (numRows: number) => {
-    return ENTRY_HEADER_HEIGHT + numRows * ENTRY_ROW_HEIGHT + (numRows > 0 ? ROW_PADDING : 0);
+    // Same shape as calculateEntryNodeHeight's no-button case (workflows never show a view-all
+    // button) - naturally correct at numRows=0 too, with no special case needed.
+    return 2 * BOX_INSET + ENTRY_HEADER_CONTENT_HEIGHT + numRows * ENTRY_ROW_HEIGHT;
 };

@@ -17,8 +17,9 @@
  */
 
 import { DiagramModel } from "@projectstorm/react-diagrams";
-import { CDAutomation, CDConnection, CDFunction, CDLocation, CDModel, CDResourceFunction, CDService, CDWorkflow } from "@wso2/ballerina-core";
+import { CDAutomation, CDConnection, CDFunction, CDListener, CDLocation, CDModel, CDResourceFunction, CDService, CDWorkflow } from "@wso2/ballerina-core";
 import {
+    autoDistribute,
     avoidLinkObstructions,
     buildDiagramData,
     calculateEntryNodeHeight,
@@ -33,8 +34,9 @@ import {
 } from "../utils/diagram";
 import { EntryNodeModel } from "../components/nodes/EntryNode";
 import { ConnectionNodeModel } from "../components/nodes/ConnectionNode";
+import { ListenerNodeModel } from "../components/nodes/ListenerNode";
 import { NodeLinkModel } from "../components/NodeLink";
-import { CON_NODE_HEIGHT, ENTRY_NODE_WIDTH, NODE_GAP_X } from "../resources/constants";
+import { CON_NODE_HEIGHT, ENTRY_NODE_WIDTH, LISTENER_NODE_HEIGHT, NODE_GAP_X } from "../resources/constants";
 import { GQLState } from "../components/Diagram";
 
 // Reproduces PR #689's 4-column layout (listener | entry | workflow | connection): the entry
@@ -56,6 +58,21 @@ function makeAutomation(uuid: string): CDAutomation {
 
 function makeConnection(uuid: string): CDConnection {
     return { symbol: "conn", location: emptyLocation, scope: "GLOBAL", uuid, enableFlowModel: true, sortText: "" };
+}
+
+function makeListener(uuid: string, attachedServices: string[]): CDListener {
+    return {
+        symbol: "l",
+        location: emptyLocation,
+        attachedServices,
+        kind: "",
+        type: "http:Listener",
+        args: [],
+        uuid,
+        icon: "",
+        enableFlowModel: true,
+        sortText: "",
+    };
 }
 
 function makeWorkflow(uuid: string): CDWorkflow {
@@ -272,12 +289,40 @@ describe("avoidLinkObstructions", () => {
     });
 });
 
+describe("autoDistribute positioning listeners", () => {
+    test("centers a listener with one attached service on that service's real in-port Y, not its box top", () => {
+        // A service much taller than the listener's own fixed height - averaging box tops (the
+        // bug this regresses) would leave the listener well above the service's actual center,
+        // rendering as a needlessly bent link even though nothing sits in the way.
+        const service = new EntryNodeModel(makeService("service-1", [makeResourceFunction("get", "f")]), "service");
+        service.height = 216;
+        service.setPosition(ENTRY_X, 500); // box [500, 716], center 608
+
+        const listener = new ListenerNodeModel(makeListener("listener-1", ["service-1"]));
+        const link = createNodesLink(listener, service) as NodeLinkModel;
+
+        const engine = generateEngine();
+        const model = new DiagramModel();
+        model.addAll(service, listener, link);
+        engine.setModel(model);
+
+        autoDistribute(engine);
+
+        const listenerCenterY = listener.getY() + LISTENER_NODE_HEIGHT / 2;
+        expect(listenerCenterY).toBeCloseTo(service.getY() + service.height / 2);
+
+        // The link itself must render as a straight horizontal line - no vertical offset at all.
+        const anchors = getLinkAnchors(link);
+        expect(anchors.source.y).toBeCloseTo(anchors.target.y);
+    });
+});
+
 describe("calculateEntryNodeHeight", () => {
     test.each([
-        [1, 128],
-        [2, 176],
-        [3, 224], // regression: was 216 (took the preview+button branch meant for > SHOW_ALL_THRESHOLD)
-        [4, 216],
+        [1, 123],
+        [2, 171],
+        [3, 219], // regression: was 216 (took the preview+button branch meant for > SHOW_ALL_THRESHOLD)
+        [4, 219],
     ])("collapsed with %i function(s) is %ipx", (numFunctions, expectedHeight) => {
         expect(calculateEntryNodeHeight(numFunctions, false)).toBe(expectedHeight);
     });
@@ -288,7 +333,7 @@ describe("calculateEntryNodeHeight", () => {
         serviceNode.height = calculateEntryNodeHeight(3, false);
         serviceNode.setPosition(0, 0);
 
-        expect(getNodeBoundingBox(serviceNode).bottom).toBe(224);
+        expect(getNodeBoundingBox(serviceNode).bottom).toBe(219);
     });
 });
 
@@ -297,15 +342,16 @@ describe("getPortAnchorY", () => {
         const func = makeResourceFunction("get", "f");
         const serviceNode = new EntryNodeModel(makeService("service-1", [func]), "service");
         serviceNode.height = calculateEntryNodeHeight(1, false); // 128
-        serviceNode.setPosition(0, 0); // box: [0, 128], center: 64
+        serviceNode.setPosition(0, 0); // box: [0, 123], center: 61.5
 
         const functionPort = serviceNode.getFunctionPort(func);
         const rowAnchorY = getPortAnchorY(serviceNode, functionPort);
 
-        // Header block (72) + half of the first body row (48/2) - see ENTRY_HEADER_HEIGHT /
-        // ENTRY_ROW_HEIGHT in utils/diagram.ts, shared with calculateEntryNodeHeight.
-        expect(rowAnchorY).toBe(96);
-        expect(rowAnchorY).not.toBe(64); // must not fall back to the node's vertical center
+        // Header offset (73.5) + half of the first row's own real height (40/2=20) - see
+        // ENTRY_HEADER_HEIGHT/ENTRY_ROW_CONTENT_HEIGHT in utils/diagram.ts, shared with
+        // calculateEntryNodeHeight.
+        expect(rowAnchorY).toBe(93.5);
+        expect(rowAnchorY).not.toBe(61.5); // must not fall back to the node's vertical center
     });
 
     test("anchors the view-all-resources port right after the rows partitionRegularServiceFunctions actually leaves visible", () => {
@@ -322,17 +368,17 @@ describe("getPortAnchorY", () => {
 
         const viewAllAnchorY = getPortAnchorY(serviceNode, serviceNode.getViewAllResourcesPort());
 
-        // Header (72) + 2 visible rows (48 each) + half the button's own height (40/2).
-        expect(viewAllAnchorY).toBe(188);
+        // Header offset (73.5) + 2 row-to-row steps (48 each) + half the button's own height (40/2).
+        expect(viewAllAnchorY).toBe(189.5);
     });
 
     test("anchors the generic in/out ports at the node's true vertical center", () => {
         const serviceNode = new EntryNodeModel(makeService("service-1", [makeResourceFunction("get", "f")]), "service");
         serviceNode.height = calculateEntryNodeHeight(1, false);
-        serviceNode.setPosition(0, 0); // box: [0, 128], center: 64
+        serviceNode.setPosition(0, 0); // box: [0, 123], center: 61.5
 
-        expect(getPortAnchorY(serviceNode, serviceNode.getInPort())).toBe(64);
-        expect(getPortAnchorY(serviceNode, serviceNode.getOutPort())).toBe(64);
+        expect(getPortAnchorY(serviceNode, serviceNode.getInPort())).toBe(61.5);
+        expect(getPortAnchorY(serviceNode, serviceNode.getOutPort())).toBe(61.5);
     });
 
     test("anchors a workflow event port at its own body row", () => {
@@ -343,7 +389,7 @@ describe("getPortAnchorY", () => {
         workflowNode.setPosition(0, 0); // box top: 0
 
         const eventPort = workflowNode.getEventPort(event);
-        expect(getPortAnchorY(workflowNode, eventPort)).toBe(96); // same row math as a function port
+        expect(getPortAnchorY(workflowNode, eventPort)).toBe(93.5); // same row math as a function port
     });
 
     test("anchors GraphQL function-row and group-header ports at their real row Y, not the node's center", () => {
@@ -363,18 +409,18 @@ describe("getPortAnchorY", () => {
         expect(gqlNode.height).toBe(359); // service header (80) + Query section (61 + 2*48)
         const center = gqlNode.height / 2; // 179.5
 
-        // Query's header (61) then each 48px-tall row, centered in its own row.
-        expect(getPortAnchorY(gqlNode, gqlNode.getFunctionPort(q1))).toBe(165); // 80 + 61 + 24
-        expect(getPortAnchorY(gqlNode, gqlNode.getFunctionPort(q2))).toBe(213); // 80 + 61 + 48 + 24
+        // Query's header (61) then each row centered in its own 40px-tall real row.
+        expect(getPortAnchorY(gqlNode, gqlNode.getFunctionPort(q1))).toBe(161); // 80 + 61 + 20
+        expect(getPortAnchorY(gqlNode, gqlNode.getFunctionPort(q2))).toBe(209); // 80 + 61 + 48 + 20
 
         // Mutation/Subscription are collapsed by default, so each anchors at its own header row -
         // one row apart, and neither at the node's center.
         const mutationAnchor = getPortAnchorY(gqlNode, gqlNode.getGraphQLGroupPort("Mutation"));
         const subscriptionAnchor = getPortAnchorY(gqlNode, gqlNode.getGraphQLGroupPort("Subscription"));
-        expect(mutationAnchor).toBe(267.5); // 80 + 61 + 96 + 61/2
+        expect(mutationAnchor).toBe(267.5); // 80 + 61 + 2*48 + 61/2
         expect(subscriptionAnchor).toBe(328.5); // mutationAnchor's section end (298) + 61/2
 
-        [165, 213, 267.5, 328.5].forEach((anchor) => expect(anchor).not.toBe(center));
+        [161, 209, 267.5, 328.5].forEach((anchor) => expect(anchor).not.toBe(center));
     });
 
     test("doesn't reserve a show-more row for a GraphQL group with exactly SHOW_ALL_THRESHOLD items", () => {
@@ -401,9 +447,9 @@ describe("getPortAnchorY", () => {
         // (unrendered) button row would have added.
         expect(gqlNode.height).toBe(407);
 
-        expect(getPortAnchorY(gqlNode, gqlNode.getFunctionPort(q1))).toBe(165);
-        expect(getPortAnchorY(gqlNode, gqlNode.getFunctionPort(q2))).toBe(213);
-        expect(getPortAnchorY(gqlNode, gqlNode.getFunctionPort(q3))).toBe(261);
+        expect(getPortAnchorY(gqlNode, gqlNode.getFunctionPort(q1))).toBe(161);
+        expect(getPortAnchorY(gqlNode, gqlNode.getFunctionPort(q2))).toBe(209);
+        expect(getPortAnchorY(gqlNode, gqlNode.getFunctionPort(q3))).toBe(257);
 
         // Mutation/Subscription sit right after Query's 3 rows, not 40px further down.
         expect(getPortAnchorY(gqlNode, gqlNode.getGraphQLGroupPort("Mutation"))).toBe(315.5);
@@ -446,8 +492,8 @@ describe("getPortAnchorY", () => {
         aiNode.height = calculateEntryNodeHeight(2, false);
         aiNode.setPosition(0, 0); // box top: 0
 
-        expect(getPortAnchorY(aiNode, aiNode.getFunctionPort(chatFn))).toBe(96); // row 0
-        expect(getPortAnchorY(aiNode, aiNode.getFunctionPort(decisionFn))).toBe(144); // row 1
+        expect(getPortAnchorY(aiNode, aiNode.getFunctionPort(chatFn))).toBe(93.5); // row 0
+        expect(getPortAnchorY(aiNode, aiNode.getFunctionPort(decisionFn))).toBe(141.5); // row 1
     });
 
     test("anchors an ai:Service's decision port at row 0 when chat isn't present", () => {
@@ -456,7 +502,7 @@ describe("getPortAnchorY", () => {
         aiNode.height = calculateEntryNodeHeight(1, false);
         aiNode.setPosition(0, 0);
 
-        expect(getPortAnchorY(aiNode, aiNode.getFunctionPort(decisionFn))).toBe(96); // row 0
+        expect(getPortAnchorY(aiNode, aiNode.getFunctionPort(decisionFn))).toBe(93.5); // row 0
     });
 });
 

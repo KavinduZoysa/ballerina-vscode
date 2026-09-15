@@ -77,13 +77,13 @@ const MenuButton = styled(Button)`
     border-radius: 5px;
 `;
 
-const LeftPortWidget = styled(PortWidget)`
-    margin-top: -3px;
-`;
+// PortWidget itself renders a bare, zero-height div, so its reported link-anchor position is
+// exactly wherever the flex row centers it - no margin nudge here, or "in"/"out" would sit off
+// that center by different amounts (see getPortAnchorY, which assumes dead center for both) and
+// every link's straight leg would render with a small, otherwise-unexplained slope.
+const LeftPortWidget = styled(PortWidget)``;
 
-const RightPortWidget = styled(PortWidget)`
-    margin-bottom: -2px;
-`;
+const RightPortWidget = styled(PortWidget)``;
 
 const StyledText = styled.div`
     font-size: 14px;

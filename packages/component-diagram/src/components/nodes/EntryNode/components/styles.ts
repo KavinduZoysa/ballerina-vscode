@@ -44,13 +44,13 @@ export const Header = styled.div<NodeStyleProp>`
     cursor: ${(props: NodeStyleProp) => props.inactive ? "default" : "pointer"};
 `;
 
-export const TopPortWidget = styled(PortWidget)`
-    margin-top: -3px;
-`;
+// PortWidget itself renders a bare, zero-height div, so its reported link-anchor position is
+// exactly wherever the flex row centers it - no margin nudge here, or "in"/"out" would sit off
+// that center by different amounts (see getPortAnchorY, which assumes dead center for both) and
+// every link's straight leg would render with a small, otherwise-unexplained slope.
+export const TopPortWidget = styled(PortWidget)``;
 
-export const BottomPortWidget = styled(PortWidget)`
-    margin-bottom: -2px;
-`;
+export const BottomPortWidget = styled(PortWidget)``;
 
 export const StyledText = styled.div`
     font-size: 14px;
@@ -106,6 +106,7 @@ export const Description = styled(StyledText)`
 `;
 
 export const Box = styled.div<NodeStyleProp>`
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
@@ -121,6 +122,7 @@ export const Box = styled.div<NodeStyleProp>`
 `;
 
 export const ServiceBox = styled.div<{ readonly?: boolean }>`
+    box-sizing: border-box;
     display: flex;
     flex-direction: row;
     justify-content: flex-start;
