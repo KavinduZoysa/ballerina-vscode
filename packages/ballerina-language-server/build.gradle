@@ -75,13 +75,6 @@ allprojects {
 
 subprojects {
     apply plugin: "java"
-
-    // The LS is launched by the JRE the Ballerina distribution ships (see
-    // findHighestVersionJdk in the extension), so everything it loads must stay Java 21
-    // bytecode. Gradle itself now runs on JDK 25, so without this the output would follow
-    // whatever JDK built it. 'release' also blocks post-21 APIs, unlike sourceCompatibility.
-    // langserver-stdlib needs this independently: bal pack loads its classes via interop
-    // on the distribution's JRE at build time.
     tasks.withType(JavaCompile).configureEach {
         options.release = 21
     }

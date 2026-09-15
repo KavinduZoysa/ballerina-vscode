@@ -51,8 +51,7 @@ runs:
         cache-pnpm: ${{ inputs.enableCache }}
         set-env: ${{ inputs.enableCache }}
 
-    # JDK + Gradle for the ballerina-language-server subproject. The LS targets
-    # Java 25, so the toolchain in gradle/javaProject.gradle needs a JDK 25 here. rush invokes
+    # JDK + Gradle for the ballerina-language-server subproject. rush invokes
     # './gradlew build pack -x test -x check' as part of the LS package's
     # build script, so these must be present before 'rush build' runs.
     - name: Set up JDK 25
