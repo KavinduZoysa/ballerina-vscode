@@ -34,7 +34,7 @@ import {
     isDevantUserLoggedIn,
     getPlatformStsToken,
     exchangeStsToCopilotToken,
-    getPlatformRegion,
+    storeBiIntelCredentials,
     getAuthCredentials
 } from '../../utils/ai/auth';
 import { getBedrockRegionalPrefix } from '../../features/ai/utils/ai-client';
@@ -77,12 +77,7 @@ export const checkToken = async (): Promise<AuthCredentials | undefined> => {
                         const stsToken = await getPlatformStsToken();
                         if (stsToken) {
                             const secrets = await exchangeStsToCopilotToken(stsToken);
-                            const region = await getPlatformRegion();
-                            const newCredentials: AuthCredentials = {
-                                loginMethod: LoginMethod.BI_INTEL,
-                                secrets: { ...secrets, ...(region && { region }) }
-                            };
-                            await storeAuthCredentials(newCredentials);
+                            const newCredentials = await storeBiIntelCredentials(secrets);
                             resolve(newCredentials);
                             return;
                         }

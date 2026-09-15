@@ -30,9 +30,8 @@ import {
     isDevantUserLoggedIn,
     getPlatformStsToken,
     exchangeStsToCopilotToken,
-    storeAuthCredentials,
     NO_AUTH_CREDENTIALS_FOUND,
-    getPlatformRegion
+    storeBiIntelCredentials,
     getAccessToken,
     isNotLoggedInError
 } from '../../utils/ai/auth';
@@ -40,7 +39,7 @@ import { AIStateMachine } from '../../views/ai-panel/aiMachine';
 import { AIMachineEventType } from '@wso2/ballerina-core/lib/state-machine-types';
 import { CONFIG_FILE_NAME, CONFIGURE_DEFAULT_PROVIDER_ACTION, DEFAULT_PROVIDER_ADDED, DEFAULT_PROVIDER_NOT_CONFIGURED_PROMPT, DEFAULT_PROVIDER_TOKEN_REFRESH_FAILED, ERROR_NO_BALLERINA_SOURCES, LLM_API_BASE_PATH, LOGIN_REQUIRED_WARNING_FOR_DEFAULT_MODEL, PROGRESS_BAR_MESSAGE_FROM_WSO2_DEFAULT_EMBEDDING, PROGRESS_BAR_MESSAGE_FROM_WSO2_DEFAULT_MODEL, RUN_CANCELLED_DEFAULT_PROVIDER_NOT_CONFIGURED, SIGN_IN_BI_COPILOT } from './constants';
 import { getCurrentBallerinaProjectFromContext } from '../config-generator/configGenerator';
-import { BallerinaProject, LoginMethod, AuthCredentials, DefaultProviderKind, GET_DEFAULT_MODEL_PROVIDER, GET_DEFAULT_EMBEDDING_PROVIDER } from '@wso2/ballerina-core';
+import { BallerinaProject, LoginMethod, DefaultProviderKind, GET_DEFAULT_MODEL_PROVIDER, GET_DEFAULT_EMBEDDING_PROVIDER } from '@wso2/ballerina-core';
 import { BallerinaExtension } from 'src/core';
 
 const config = workspace.getConfiguration('ballerina');
@@ -205,12 +204,7 @@ export async function getTokenForDefaultModel() {
             const stsToken = await getPlatformStsToken();
             if (stsToken) {
                 const secrets = await exchangeStsToCopilotToken(stsToken);
-                const region = await getPlatformRegion();
-                const newCredentials: AuthCredentials = {
-                    loginMethod: LoginMethod.BI_INTEL,
-                    secrets: { ...secrets, ...(region && { region }) }
-                };
-                await storeAuthCredentials(newCredentials);
+                await storeBiIntelCredentials(secrets);
                 return secrets.accessToken;
             }
         }

@@ -119,7 +119,7 @@ export class PlatformExtRpcManager implements PlatformExtAPI {
         }
         platformExtStore.getState().setState({ isExtInstalled: true });
         const platformExtAPI: IWso2PlatformExtensionAPI = platformExt.exports?.cloudAPIs;
-        await this.waitForExtensionActive(platformExtAPI);            
+        await this.waitForExtensionActive(platformExtAPI);
         PlatformExtRpcManager.platformExtAPI = platformExtAPI;
         return platformExtAPI;
     }
@@ -526,7 +526,7 @@ export class PlatformExtRpcManager implements PlatformExtAPI {
             scopes.push(...Array.from(new Set(svcScopes)));
         }
         if (workflows?.length > 0) {
-            scopes.push(DevantScopes.WORKFLOW);
+            scopes.push("workflow" as DevantScopes);
         }
         if (automation?.length > 0) {
             scopes.push(DevantScopes.AUTOMATION);
