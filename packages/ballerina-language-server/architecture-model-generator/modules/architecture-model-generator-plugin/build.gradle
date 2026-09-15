@@ -39,7 +39,3 @@ compileJava {
         classpath = files()
     }
 }
-
-tasks.withType(JavaCompile).configureEach {
-    options.release = 21 // must stay loadable on the distribution's JRE 21
-}

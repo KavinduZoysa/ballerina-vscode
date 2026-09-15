@@ -42,10 +42,6 @@ dependencies {
     implementation "org.ballerinalang:ballerina-runtime:${ballerinaLangVersion}"
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.release = 21 // bal pack loads these classes on the distribution's JRE 21
-}
-
 def ballerinaSourceDir = "${projectDir}/src/main/ballerina"
 def buildBallerinaDir = "${buildDir}/ballerina-src"
 def jarName = "mock-0.0.0.jar"

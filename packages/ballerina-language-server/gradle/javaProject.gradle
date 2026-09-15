@@ -45,9 +45,6 @@ dependencies {
 
 tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
-    // The LS runs on the JRE the Ballerina distribution ships, so it must stay loadable
-    // on Java 21. 'release' (unlike sourceCompatibility) also blocks post-21 APIs.
-    options.release = 21
 }
 
 jacoco {
