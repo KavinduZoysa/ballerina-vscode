@@ -145,36 +145,15 @@ export function autoDistribute(engine: DiagramEngine) {
         entryNode.setPosition(entryX, entryNode.getY());
     });
 
-    // Position workflow nodes near the entry points that trigger them or send them data,
-    // stacking downwards to avoid overlaps
-    const workflowsWithDesiredY = workflowNodes.map((node) => {
-        const workflowNode = node as EntryNodeModel;
-        const workflow = workflowNode.node as CDWorkflow;
-        const senderIds = new Set([...(workflow.attachedServices ?? []), ...(workflow.attachedFunctions ?? [])]);
-        workflow.events?.forEach((event) => {
-            event.attachedServices?.forEach((uuid) => senderIds.add(uuid));
-            event.attachedFunctions?.forEach((uuid) => senderIds.add(uuid));
-        });
-        const senderNodes = entryNodes.filter((n) => senderIds.has(n.getID()));
-        const desiredY =
-            senderNodes.length > 0
-                ? senderNodes.reduce((sum, n) => sum + n.getY(), 0) / senderNodes.length
-                : node.getY();
-        return { node: workflowNode, desiredY };
-    });
-    workflowsWithDesiredY.sort((a, b) => a.desiredY - b.desiredY);
-    let workflowBottom = -Infinity;
-    workflowsWithDesiredY.forEach(({ node, desiredY }) => {
-        const y = Math.max(desiredY, workflowBottom + NODE_GAP_Y / 2);
-        node.setPosition(workflowX, y);
-        workflowBottom = y + (node.height || ENTRY_NODE_HEIGHT);
-    });
+    // Every real link in the model, used below to find what actually feeds into a workflow or
+    // connection node - see positionColumnByIncomingLinks.
+    const links = model.getLinks().filter((linkModel): linkModel is NodeLinkModel => linkModel instanceof NodeLinkModel);
 
-    // Position connection nodes
-    connectionNodes.forEach((node, index) => {
-        const connectionNode = node as ConnectionNodeModel;
-        connectionNode.setPosition(connectionX, node.getY());
-    });
+    // Position workflow and connection nodes near whatever actually links into them, each
+    // column resolved only once every column to its left has its final position (workflows read
+    // entry-node anchors; connections can be reached from either entry nodes or workflows).
+    positionColumnByIncomingLinks(workflowNodes as NodeModel[], links, workflowX, ENTRY_NODE_HEIGHT);
+    positionColumnByIncomingLinks(connectionNodes as NodeModel[], links, connectionX, CON_NODE_HEIGHT);
 
     // Position unconnected listeners below all other nodes
     if (unconnectedListeners.length > 0) {
@@ -199,6 +178,42 @@ export function autoDistribute(engine: DiagramEngine) {
     avoidLinkObstructions(engine);
 
     engine.repaintCanvas();
+}
+
+/**
+ * Centers every node in `nodes` on the average real anchor Y of whatever links target it (falling
+ * back to its current center when nothing does), then stacks them downward wherever two desired
+ * centers would otherwise overlap - the same technique `autoDistribute` already uses for
+ * listeners, generalized to any column and to fan-in (a node reached by several links lands on
+ * their combined average, same as `avgCenterY` does above for one link per node).
+ *
+ * Reading real anchors off the actual links - rather than, say, a workflow's own
+ * `attachedServices`/`attachedFunctions` lists - is what makes this correct even when a link
+ * attaches to a *specific* row port rather than a node's generic one (e.g. a single function
+ * calling `workflow:run`, or a GraphQL group's own port): the position that matters is wherever
+ * that particular link actually leaves its source, not the source node's center.
+ *
+ * Nodes with nothing pointing at them keep their existing center exactly (`desiredCenter` reduces
+ * to `node.getY() + height/2`, so `y = desiredCenter - height/2` reduces to `node.getY()`) unless
+ * stacking pushes them down to clear an earlier node in the same column.
+ */
+function positionColumnByIncomingLinks(nodes: NodeModel[], links: NodeLinkModel[], x: number, defaultHeight: number) {
+    const withDesiredCenter = nodes.map((node) => {
+        const incomingLinks = links.filter((link) => link.targetNode === node && link.sourceNode && link.sourceNode !== node);
+        const desiredCenter =
+            incomingLinks.length > 0
+                ? incomingLinks.reduce((sum, link) => sum + getPortAnchorY(link.sourceNode, link.getSourcePort()), 0) / incomingLinks.length
+                : node.getY() + (node.height || defaultHeight) / 2;
+        return { node, desiredCenter };
+    });
+    withDesiredCenter.sort((a, b) => a.desiredCenter - b.desiredCenter);
+    let bottom = -Infinity;
+    withDesiredCenter.forEach(({ node, desiredCenter }) => {
+        const height = node.height || defaultHeight;
+        const y = Math.max(desiredCenter - height / 2, bottom + NODE_GAP_Y / 2);
+        node.setPosition(x, y);
+        bottom = y + height;
+    });
 }
 
 /** Minimum clearance kept between a rerouted link and the edge of the node it detours around. */

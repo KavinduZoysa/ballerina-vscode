@@ -36,7 +36,7 @@ import { EntryNodeModel } from "../components/nodes/EntryNode";
 import { ConnectionNodeModel } from "../components/nodes/ConnectionNode";
 import { ListenerNodeModel } from "../components/nodes/ListenerNode";
 import { NodeLinkModel } from "../components/NodeLink";
-import { CON_NODE_HEIGHT, ENTRY_NODE_WIDTH, LISTENER_NODE_HEIGHT, NODE_GAP_X } from "../resources/constants";
+import { CON_NODE_HEIGHT, ENTRY_NODE_WIDTH, LISTENER_NODE_HEIGHT, NODE_GAP_X, NODE_GAP_Y } from "../resources/constants";
 import { GQLState } from "../components/Diagram";
 
 // Reproduces PR #689's 4-column layout (listener | entry | workflow | connection): the entry
@@ -314,6 +314,111 @@ describe("autoDistribute positioning listeners", () => {
         // The link itself must render as a straight horizontal line - no vertical offset at all.
         const anchors = getLinkAnchors(link);
         expect(anchors.source.y).toBeCloseTo(anchors.target.y);
+    });
+});
+
+describe("autoDistribute positioning workflows and connections", () => {
+    test("centers a connection node on its single sender's real anchor Y", () => {
+        const service = new EntryNodeModel(makeService("service-1", [makeResourceFunction("get", "f")]), "service");
+        service.height = 219;
+        service.setPosition(ENTRY_X, 300); // box [300, 519], center 409.5
+
+        const connection = new ConnectionNodeModel(makeConnection("connection-1"));
+        const link = createNodesLink(service, connection) as NodeLinkModel;
+
+        const engine = generateEngine();
+        const model = new DiagramModel();
+        model.addAll(service, connection, link);
+        engine.setModel(model);
+
+        autoDistribute(engine);
+
+        const connectionCenterY = connection.getY() + CON_NODE_HEIGHT / 2;
+        expect(connectionCenterY).toBeCloseTo(service.getY() + service.height / 2);
+
+        const anchors = getLinkAnchors(link);
+        expect(anchors.source.y).toBeCloseTo(anchors.target.y);
+    });
+
+    test("centers a connection reached by two senders on their combined average, not either one alone", () => {
+        const automationNode = new EntryNodeModel(makeAutomation("automation-1"), "automation");
+        automationNode.setPosition(ENTRY_X, 0); // generic out port anchors at its own center
+
+        const service = new EntryNodeModel(makeService("service-1", [makeResourceFunction("get", "f")]), "service");
+        service.height = 219;
+        service.setPosition(ENTRY_X, 300); // box [300, 519], center 409.5
+
+        const connection = new ConnectionNodeModel(makeConnection("connection-1"));
+        const linkA = createNodesLink(automationNode, connection) as NodeLinkModel;
+        const linkB = createNodesLink(service, connection) as NodeLinkModel;
+
+        const engine = generateEngine();
+        const model = new DiagramModel();
+        model.addAll(automationNode, service, connection, linkA, linkB);
+        engine.setModel(model);
+
+        autoDistribute(engine);
+
+        const automationCenter = getPortAnchorY(automationNode, automationNode.getOutPort());
+        const serviceCenter = getPortAnchorY(service, service.getOutPort());
+        const connectionCenterY = connection.getY() + CON_NODE_HEIGHT / 2;
+        expect(connectionCenterY).toBeCloseTo((automationCenter + serviceCenter) / 2);
+        expect(connectionCenterY).not.toBeCloseTo(automationCenter);
+        expect(connectionCenterY).not.toBeCloseTo(serviceCenter);
+    });
+
+    test("positions a workflow at the exact row Y of the specific function that triggers it, not the service's center", () => {
+        // Two functions - only the second (row 1) actually calls workflow:run. Averaging the
+        // service's box top/center (the bug this regresses) would miss this row entirely for a
+        // service where the triggering row sits well off-center.
+        const funcA = makeResourceFunction("get", "a");
+        const funcB = makeResourceFunction("post", "b");
+        const service = new EntryNodeModel(makeService("service-1", [funcA, funcB]), "service");
+        service.height = calculateEntryNodeHeight(2, false);
+        service.setPosition(ENTRY_X, 0);
+
+        const workflow = new EntryNodeModel(makeWorkflow("workflow-1"), "workflow");
+        const funcBPort = service.getFunctionPort(funcB);
+        const link = createPortNodeLink(service, funcBPort, workflow) as NodeLinkModel;
+
+        const engine = generateEngine();
+        const model = new DiagramModel();
+        model.addAll(service, workflow, link);
+        engine.setModel(model);
+
+        autoDistribute(engine);
+
+        const rowBAnchorY = getPortAnchorY(service, funcBPort);
+        const workflowHeight = workflow.height || 64;
+        const workflowCenterY = workflow.getY() + workflowHeight / 2;
+        expect(workflowCenterY).toBeCloseTo(rowBAnchorY);
+
+        const serviceCenterY = service.getY() + service.height / 2;
+        expect(workflowCenterY).not.toBeCloseTo(serviceCenterY);
+    });
+
+    test("keeps two connections whose desired centers would otherwise collide apart, in creation order", () => {
+        const senderA = new EntryNodeModel(makeAutomation("automation-a"), "automation");
+        senderA.setPosition(ENTRY_X, 100);
+
+        const senderB = new EntryNodeModel(makeService("service-b", [makeResourceFunction("get", "f")]), "service");
+        senderB.setPosition(ENTRY_X, 100); // identical center to senderA - both connections want the same Y
+
+        const connectionA = new ConnectionNodeModel(makeConnection("connection-a"));
+        const connectionB = new ConnectionNodeModel(makeConnection("connection-b"));
+        const linkA = createNodesLink(senderA, connectionA) as NodeLinkModel;
+        const linkB = createNodesLink(senderB, connectionB) as NodeLinkModel;
+
+        const engine = generateEngine();
+        const model = new DiagramModel();
+        model.addAll(senderA, senderB, connectionA, connectionB, linkA, linkB);
+        engine.setModel(model);
+
+        autoDistribute(engine);
+
+        expect(Math.abs(connectionA.getY() - connectionB.getY())).toBeGreaterThanOrEqual(
+            CON_NODE_HEIGHT + NODE_GAP_Y / 2
+        );
     });
 });
 

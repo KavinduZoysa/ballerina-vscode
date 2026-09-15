@@ -295,7 +295,7 @@ exports[`Component Diagram - Snapshot Tests renders ai agent complex correctly: 
       >
         <div
           class="node css-7"
-          style="top: 100px; left: 1010px;"
+          style="top: 0px; left: 1010px;"
         >
           <div
             class="css-8"
@@ -1095,7 +1095,7 @@ exports[`Component Diagram - Snapshot Tests renders connections complex correctl
       >
         <div
           class="node css-7"
-          style="top: 100px; left: 1010px;"
+          style="top: 0px; left: 1010px;"
         >
           <div
             class="css-8"
@@ -2038,7 +2038,7 @@ exports[`Component Diagram - Snapshot Tests renders graphql complex correctly: g
       >
         <div
           class="node css-7"
-          style="top: 100px; left: 1010px;"
+          style="top: 0px; left: 1010px;"
         >
           <div
             class="css-8"
@@ -3098,7 +3098,7 @@ exports[`Component Diagram - Snapshot Tests renders multiple connections complex
       >
         <div
           class="node css-7"
-          style="top: 100px; left: 1010px;"
+          style="top: 0px; left: 1010px;"
         >
           <div
             class="css-8"
@@ -5058,13 +5058,13 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
             pointer-events="all"
           >
             <path
-              d="M 400 300 C 685 300 685 82 970 82 C 1130 82 1130 82 1290 82 C 845 82 845 300 400 300"
+              d="M 400 300 C 685 300 685 84 970 84 C 1130 84 1130 84 1290 84 C 845 84 845 300 400 300"
               fill="none"
               stroke="transparent"
               stroke-width="16"
             />
             <path
-              d="M 400 300 C 685 300 685 82 970 82 C 1130 82 1130 82 1290 82 C 845 82 845 300 400 300"
+              d="M 400 300 C 685 300 685 84 970 84 C 1130 84 1130 84 1290 84 C 845 84 845 300 400 300"
               fill="none"
               stroke="var(--vscode-foreground)"
               stroke-opacity="0.7"
@@ -5284,7 +5284,7 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
       >
         <div
           class="node css-7"
-          style="top: 100px; left: 1410px;"
+          style="top: 135.33333333333334px; left: 1410px;"
         >
           <div
             class="css-8"
@@ -5359,7 +5359,7 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
         </div>
         <div
           class="node css-7"
-          style="top: 200px; left: 1410px;"
+          style="top: 249.33333333333334px; left: 1410px;"
         >
           <div
             class="css-8"
@@ -6249,13 +6249,13 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
             pointer-events="all"
           >
             <path
-              d="M 400 300 C 685 300 685 316 970 316 C 1130 316 1130 316 1290 316 C 845 316 845 300 400 300"
+              d="M 400 300 C 400 300 400 300 400 300"
               fill="none"
               stroke="transparent"
               stroke-width="16"
             />
             <path
-              d="M 400 300 C 685 300 685 316 970 316 C 1130 316 1130 316 1290 316 C 845 316 845 300 400 300"
+              d="M 400 300 C 400 300 400 300 400 300"
               fill="none"
               stroke="var(--vscode-foreground)"
               stroke-opacity="0.7"
@@ -6304,13 +6304,13 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
             pointer-events="all"
           >
             <path
-              d="M 400 300 C 685 300 685 82 970 82 C 1130 82 1130 82 1290 82 C 845 82 845 300 400 300"
+              d="M 400 300 C 685 300 685 72.375 970 72.375 C 1130 72.375 1130 72.375 1290 72.375 C 845 72.375 845 300 400 300"
               fill="none"
               stroke="transparent"
               stroke-width="16"
             />
             <path
-              d="M 400 300 C 685 300 685 82 970 82 C 1130 82 1130 82 1290 82 C 845 82 845 300 400 300"
+              d="M 400 300 C 685 300 685 72.375 970 72.375 C 1130 72.375 1130 72.375 1290 72.375 C 845 72.375 845 300 400 300"
               fill="none"
               stroke="var(--vscode-foreground)"
               stroke-opacity="0.7"
@@ -6475,7 +6475,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
       >
         <div
           class="node css-7"
-          style="top: 100px; left: 1410px;"
+          style="top: 80.75px; left: 1410px;"
         >
           <div
             class="css-8"
@@ -6550,7 +6550,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
         </div>
         <div
           class="node css-7"
-          style="top: 200px; left: 1410px;"
+          style="top: 300.5px; left: 1410px;"
         >
           <div
             class="css-8"
@@ -7373,13 +7373,13 @@ exports[`Component Diagram - Snapshot Tests renders workflow overlap correctly: 
             pointer-events="all"
           >
             <path
-              d="M 400 300 C 685 300 685 84 970 84 C 1130 84 1130 84 1290 84 C 845 84 845 300 400 300"
+              d="M 400 300 C 400 300 400 300 400 300"
               fill="none"
               stroke="transparent"
               stroke-width="16"
             />
             <path
-              d="M 400 300 C 685 300 685 84 970 84 C 1130 84 1130 84 1290 84 C 845 84 845 300 400 300"
+              d="M 400 300 C 400 300 400 300 400 300"
               fill="none"
               stroke="var(--vscode-foreground)"
               stroke-opacity="0.7"
@@ -7434,7 +7434,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow overlap correctly: 
       >
         <div
           class="node css-7"
-          style="top: 100px; left: 1410px;"
+          style="top: 114px; left: 1410px;"
         >
           <div
             class="css-8"
@@ -7509,7 +7509,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow overlap correctly: 
         </div>
         <div
           class="node css-7"
-          style="top: 200px; left: 1410px;"
+          style="top: 0px; left: 1410px;"
         >
           <div
             class="css-8"
