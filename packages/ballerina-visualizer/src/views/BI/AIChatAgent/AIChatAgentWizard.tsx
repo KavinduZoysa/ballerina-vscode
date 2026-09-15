@@ -97,7 +97,7 @@ export function AIChatAgentWizard(props: AIChatAgentWizardProps) {
 
     const projectPath = useRef<string>("");
     const aiModuleOrg = useRef<string>("");
-    const progressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const progressTimeoutRef = useRef<number | null>(null);
     const designModelRef = useRef<CDModel>(null);
 
     useEffect(() => {
