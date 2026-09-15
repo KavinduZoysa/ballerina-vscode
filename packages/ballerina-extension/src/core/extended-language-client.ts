@@ -274,6 +274,8 @@ import {
     ServiceInitSourceRequest,
     OpenApiEndpointsRequest,
     OpenApiEndpointsResponse,
+    ConnectorUpgradeAdviceRequest,
+    ConnectorUpgradeAdviceResponse,
     ValidatePropertyRequest,
     ValidatePropertyResponse,
     DeleteSubMappingRequest,
@@ -323,6 +325,7 @@ import { debug, handlePullModuleProgress } from "../utils";
 import { CMP_LS_CLIENT_COMPLETIONS, CMP_LS_CLIENT_DIAGNOSTICS, getMessageObject, sendTelemetryEvent, TM_EVENT_LANG_CLIENT } from "../features/telemetry";
 import { DefinitionParams, InitializeParams, InitializeResult, Location, LocationLink, TextDocumentPositionParams } from 'vscode-languageserver-protocol';
 import { updateProjectArtifacts } from "../utils/project-artifacts";
+import { CorruptBirCachePayload, promptClearCorruptBirCache } from "../utils/bir-cache-recovery";
 import { RPCLayer } from "../../src/RPCLayer";
 import { VisualizerWebview } from "../../src/views/visualizer/webview";
 
@@ -462,6 +465,7 @@ enum EXTENDED_APIS {
     BI_SERVICE_GET_LISTENER_SOURCE = 'serviceDesign/getListenerFromSource',
     BI_SERVICE_GET_SERVICE = 'serviceDesign/getServiceModel',
     BI_SERVICE_GET_SERVICE_INIT = 'serviceDesign/getServiceInitModel',
+    BI_SERVICE_GET_CONNECTOR_UPGRADE_ADVICE = 'serviceDesign/getConnectorUpgradeAdvice',
     BI_SERVICE_CREATE_SERVICE_AND_LISTENER = 'serviceDesign/addServiceAndListener',
     BI_SERVICE_LIST_OPENAPI_ENDPOINTS = 'serviceDesign/listOpenApiEndpoints',
     BI_SERVICE_VALIDATE_PROPERTY = 'serviceDesign/validateProperty',
@@ -514,7 +518,6 @@ enum EXTENDED_APIS {
     BI_IS_WORKFLOW_MGMT_ENABLED = 'workflowManagementService/isWorkflowManagementEnabled',
     BI_ADD_WORKFLOW_MGMT = 'workflowManagementService/addWorkflowManagement',
     BI_DISABLE_WORKFLOW_MGMT = 'workflowManagementService/disableWorkflowManagement',
-    BI_SHOULD_ENABLE_WORKFLOW_MGMT_DEFAULT = 'workflowManagementService/shouldEnableWorkflowManagementByDefault',
     BI_WORKFLOW_ALL_DATA = 'workflowManager/getAllData',
     BI_WORKFLOW_GEN_ACTIVITY = 'workflowManager/genActivity',
     BI_WORKFLOW_ANALYZE_ACTIVITY_ACTION = 'workflowManager/analyzeActivityAction',
@@ -538,7 +541,8 @@ enum EXTENDED_APIS {
     MULE_TO_BI = 'projectService/importMule',
     MIGRATION_TOOL_STATE = 'projectService/stateCallback',
     MIGRATION_TOOL_LOG = 'projectService/logCallback',
-    PUSH_MIGRATED_PROJECT = 'projectService/pushMigratedProject'
+    PUSH_MIGRATED_PROJECT = 'projectService/pushMigratedProject',
+    CORRUPT_BIR_CACHE = 'projectService/corruptBirCache'
 }
 
 enum EXTENDED_APIS_ORG {
@@ -657,6 +661,16 @@ export class ExtendedLangClient extends LanguageClient implements ExtendedLangCl
             } catch (error) {
                 console.error("Error in PUBLISH_ARTIFACTS handler:", error);
             }
+        });
+    }
+
+    registerCorruptBirCache(): void {
+        // A corrupt/incompatible cached BIR makes the project load empty. The LS
+        // reports the affected module here; offer to clear just that module's cache and reload.
+        this.onNotification(EXTENDED_APIS.CORRUPT_BIR_CACHE, (res: CorruptBirCachePayload) => {
+            promptClearCorruptBirCache(res).catch((error) => {
+                console.error("CORRUPT_BIR_CACHE handler failed:", error);
+            });
         });
     }
 
@@ -1101,10 +1115,6 @@ export class ExtendedLangClient extends LanguageClient implements ExtendedLangCl
         return this.sendRequest(EXTENDED_APIS.BI_DISABLE_WORKFLOW_MGMT, params);
     }
 
-    async shouldEnableWorkflowManagementByDefault(params: WorkflowManagementRequest): Promise<WorkflowManagementResponse | NOT_SUPPORTED_TYPE> {
-        return this.sendRequest(EXTENDED_APIS.BI_SHOULD_ENABLE_WORKFLOW_MGMT_DEFAULT, params);
-    }
-
     async getProjectDiagnostics(params: ProjectDiagnosticsRequest): Promise<ProjectDiagnosticsResponse | NOT_SUPPORTED_TYPE> {
         const isSupported = await this.isExtendedServiceSupported(EXTENDED_APIS.RUNNER_DIAGNOSTICS);
         if (!isSupported) {
@@ -1386,6 +1396,11 @@ export class ExtendedLangClient extends LanguageClient implements ExtendedLangCl
 
     async listOpenApiEndpoints(params: OpenApiEndpointsRequest): Promise<OpenApiEndpointsResponse> {
         return this.sendRequest<OpenApiEndpointsResponse>(EXTENDED_APIS.BI_SERVICE_LIST_OPENAPI_ENDPOINTS, params);
+    }
+
+    async getConnectorUpgradeAdvice(params: ConnectorUpgradeAdviceRequest): Promise<ConnectorUpgradeAdviceResponse> {
+        return this.sendRequest<ConnectorUpgradeAdviceResponse>(
+            EXTENDED_APIS.BI_SERVICE_GET_CONNECTOR_UPGRADE_ADVICE, params);
     }
 
     async createServiceAndListener(params: ServiceInitSourceRequest): Promise<SourceEditResponse> {

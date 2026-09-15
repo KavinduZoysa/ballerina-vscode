@@ -89,8 +89,8 @@ export function CreateProjectChooser({
 
     return (
         <CreateFlowShell
-            title="Create"
-            subtitle="A project helps you organize your integrations and libraries."
+            title="Create a Project"
+            subtitle="Organize everything you build with WSO2 Integrator."
             onBack={onBack}
         >
             <ProjectDestinationForm
@@ -105,7 +105,7 @@ export function CreateProjectChooser({
                         isCreateDisabled={!canProceed || workspaceSupportPending}
                     />
                 )}
-                submitLabel="Create Integration"
+                submitLabel="Create"
                 submittingLabel="Creating..."
                 submitErrorPrefix="Failed to create the integration."
                 submitDisabled={ballerinaUnavailable || workspaceSupportPending}

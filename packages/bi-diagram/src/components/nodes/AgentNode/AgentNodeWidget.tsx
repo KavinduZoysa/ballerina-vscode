@@ -27,6 +27,9 @@ import {
     DRAFT_NODE_BORDER_WIDTH,
     LABEL_HEIGHT,
     LABEL_WIDTH,
+    NODE_BORDER_COLOR,
+    NODE_BORDER_ERROR_COLOR,
+    NODE_BORDER_SELECTED_COLOR,
     NODE_BORDER_WIDTH,
     NODE_GAP_X,
     NODE_HEIGHT,
@@ -38,15 +41,16 @@ import { Button, Icon, Item, Menu, MenuItem, Popover, ThemeColors, getAIModuleIc
 import { MoreVertIcon } from "../../../resources/icons";
 import { FlowNode, ToolData } from "../../../utils/types";
 import NodeIcon from "../../NodeIcon";
+import { AIModelIcon } from "../../AIModelIcon";
 import ConnectorIcon from "../../ConnectorIcon";
 import { DiagnosticsPopUp } from "../../DiagnosticsPopUp";
 import { nodeHasError } from "../../../utils/node";
-import { css } from "@emotion/react";
+import { css, Keyframes } from "@emotion/react";
 import { BreakpointMenu } from "../../BreakNodeMenu/BreakNodeMenu";
 import { NodeMetadata, isDefaultModelProviderExpr } from "@wso2/ballerina-core";
-import ReactMarkdown from "react-markdown";
 
-import { flowDashAnimation, sanitizeAgentData, sanitizeId } from "../agentNodeUtils";
+import { flowDashAnimation, isToolTraceActive, releaseBoxHover, sanitizeAgentData, sanitizeId, toolEntryMatchesTools } from "../agentNodeUtils";
+import { MarkdownWithTooltip } from "../AgentMarkdownTooltip";
 import { getAgentNodeContainerHeight } from "../AgentWidget/agentNodeLayout";
 import { useAgentNodeController } from "../AgentWidget/useAgentNodeController";
 import { ApprovalBadge } from "../AgentWidget/ApprovalBadge";
@@ -81,12 +85,12 @@ export namespace NodeStyles {
         border-style: ${(props: NodeStyleProp) => (props.disabled ? "dashed" : "solid")};
         border-color: ${(props: NodeStyleProp) =>
             props.hasError
-                ? ThemeColors.ERROR
+                ? NODE_BORDER_ERROR_COLOR
                 : props.isSelected && !props.disabled
-                    ? ThemeColors.SECONDARY
+                    ? NODE_BORDER_SELECTED_COLOR
                     : props.hovered && !props.disabled && !props.readOnly
-                        ? ThemeColors.SECONDARY
-                        : ThemeColors.OUTLINE_VARIANT};
+                        ? NODE_BORDER_SELECTED_COLOR
+                        : NODE_BORDER_COLOR};
         border-radius: 10px;
         background-color: ${(props: NodeStyleProp) =>
             props?.isActiveBreakpoint ? ThemeColors.DEBUGGER_BREAKPOINT_BACKGROUND : ThemeColors.SURFACE_DIM};
@@ -223,11 +227,23 @@ export namespace NodeStyles {
         height: 100%;
         max-height: calc(100% - 5px);
         padding: 0 4px 4px;
+        -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+        mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
     `;
 
     export const InstructionsPlaceholder = styled(Instructions)`
         opacity: 0.5;
         font-style: italic;
+    `;
+
+    // Full role/instructions/description text shown in the hover tooltip, wrapped and
+    // scrollable since it is not subject to the node box's fixed height.
+    export const TooltipMarkdown = styled(MarkdownContent)`
+        max-width: 280px;
+        max-height: 320px;
+        overflow-y: auto;
+        white-space: normal;
+        line-height: 1.5;
     `;
 
     export const DescriptionBlock = styled.div<{ readOnly: boolean }>`
@@ -294,6 +310,19 @@ export namespace NodeStyles {
         border-radius: 5px;
     `;
 
+    export const MemoryStoreButton = styled(Button)`
+        margin-right: 4px;
+        & > vscode-button::part(control) {
+            padding: 4px;
+            border-radius: 4px;
+            border: 1px solid transparent;
+            transition: border-color 0.4s ease-out;
+        }
+        & > vscode-button:hover::part(control) {
+            border-color: ${ThemeColors.SECONDARY};
+        }
+    `;
+
     export const MemoryButton = styled.div<{ readOnly: boolean }>`
         display: flex;
         align-items: center;
@@ -301,31 +330,33 @@ export namespace NodeStyles {
         width: 100%;
         margin: 8px 0;
         padding: 8px 0;
-        border: 1px solid ${ThemeColors.OUTLINE_VARIANT};
+        border: 1px solid ${ThemeColors.ON_SURFACE};
         border-radius: 4px;
         background-color: transparent;
         color: ${ThemeColors.ON_SURFACE};
         font-size: 14px;
         font-family: "GilmerRegular";
         cursor: ${(props: { readOnly: boolean }) => (props.readOnly ? "default" : "pointer")};
+        transition: border-color 0.4s ease-out;
         &:hover {
             background-color: ${ThemeColors.SURFACE_BRIGHT};
             border-color: ${(props: { readOnly: boolean }) =>
-            props.readOnly ? ThemeColors.OUTLINE_VARIANT : ThemeColors.SECONDARY};
+            props.readOnly ? ThemeColors.ON_SURFACE : NODE_BORDER_SELECTED_COLOR};
         }
     `;
 
     export const MemoryCard = styled.div<{ readOnly: boolean }>`
         width: 100%;
         padding: 8px 6px 8px 12px;
-        border: 1px solid ${ThemeColors.OUTLINE_VARIANT};
+        border: 1px solid ${ThemeColors.ON_SURFACE};
         border-radius: 4px;
         background-color: transparent;
         color: ${ThemeColors.ON_SURFACE};
         cursor: ${(props: { readOnly: boolean }) => (props.readOnly ? "default" : "pointer")};
-        &:hover {
+        transition: border-color 0.4s ease-out;
+        &:hover:not(:has(vscode-button:hover)) {
             border-color: ${(props: { readOnly: boolean }) =>
-            props.readOnly ? ThemeColors.OUTLINE_VARIANT : ThemeColors.SECONDARY};
+            props.readOnly ? ThemeColors.ON_SURFACE : NODE_BORDER_SELECTED_COLOR};
         }
     `;
 
@@ -402,6 +433,11 @@ interface AgentNodeWidgetProps {
     variant?: "agent" | "typedAgent";
 }
 
+const TOOL_LABEL_X = 110;
+const TOOL_ROW_RIGHT_X = 300;
+const TOOL_MENU_SIZE = 24;
+const TOOL_MENU_GAP = 6;
+
 type AgentNodePresentation = {
     isTypeDefinition: boolean;
     showMemory: boolean;
@@ -419,12 +455,109 @@ function getAgentNodePresentation(variant: "agent" | "typedAgent", agentInfo?: N
     };
 }
 
+function MemoryStoreButton({ store, readOnly, onClick }: {
+    store?: ToolData;
+    readOnly: boolean;
+    onClick: (event: React.MouseEvent) => void;
+}) {
+    if (!store?.name) {
+        return null;
+    }
+    return (
+        <NodeStyles.MemoryStoreButton
+            appearance="icon"
+            buttonSx={readOnly ? { cursor: "not-allowed" } : {}}
+            tooltip={`Memory store: ${store.name}`}
+            onClick={onClick}
+        >
+            <AIModelIcon
+                type={store.type}
+                codedata={{ module: store.type, node: "SHORT_TERM_MEMORY_STORE" }}
+                iconUrl={store.path}
+                size={18}
+            />
+        </NodeStyles.MemoryStoreButton>
+    );
+}
+
+function TraceAccentPulse({ isActive, aiColor, syncPulseAnimation }: {
+    isActive: boolean;
+    aiColor: string;
+    syncPulseAnimation: Keyframes;
+}) {
+    return (
+        <circle
+            cx="80"
+            cy="24"
+            r="22"
+            fill="none"
+            stroke={aiColor}
+            strokeWidth={2.5}
+            css={css`
+                pointer-events: none;
+                opacity: ${isActive ? 1 : 0};
+                transition: opacity 0.4s ease-out;
+                transform-origin: 80px 24px;
+                transform: scale(1.03);
+                animation: ${syncPulseAnimation} 1.5s ease-in-out infinite alternate;
+            `}
+        />
+    );
+}
+
+function TraceAccentLine({ isActive, aiColor, baseStroke, baseDashArray, markerId, markerStartId }: {
+    isActive: boolean;
+    aiColor: string;
+    baseStroke: string;
+    baseDashArray?: string;
+    markerId: string;
+    markerStartId?: string;
+}) {
+    return (
+        <>
+            <line
+                x1="0"
+                y1="25"
+                x2="57"
+                y2="25"
+                style={{
+                    stroke: baseStroke,
+                    strokeWidth: 1.5,
+                    markerEnd: `url(#${markerId})`,
+                    ...(markerStartId ? { markerStart: `url(#${markerStartId})` } : {}),
+                    ...(baseDashArray ? { strokeDasharray: baseDashArray } : {}),
+                    opacity: isActive ? 0 : 1,
+                    transition: "stroke 0.4s ease-out, opacity 0.4s ease-out",
+                }}
+            />
+            <line
+                x1="0"
+                y1="25"
+                x2="57"
+                y2="25"
+                style={{
+                    stroke: aiColor,
+                    strokeWidth: 2.5,
+                    markerEnd: `url(#${markerId}-active)`,
+                    strokeDasharray: "6 6",
+                }}
+                css={css`
+                    pointer-events: none;
+                    opacity: ${isActive ? 1 : 0};
+                    transition: opacity 0.4s ease-out;
+                    animation: ${flowDashAnimation} 1s linear infinite;
+                `}
+            />
+        </>
+    );
+}
+
 export function AgentNodeWidget(props: AgentNodeWidgetProps) {
     const { model, engine, onClick, variant = model.getType() === NodeTypes.TYPED_AGENT_NODE ? "typedAgent" : "agent" } = props;
     const controller = useAgentNodeController(model);
     const {
         onNodeSelect, goToSource, onDeleteNode, removeBreakpoint, addBreakpoint, agentNode, readOnly,
-        entrypointContext, goToAgentDefinition, getAgentDefinitionLocation,
+        goToAgentDefinition, getAgentDefinitionLocation,
     } = controller.context;
     const { traceAnimation, isSelected, isBoxHovered, setIsBoxHovered, agentIdHovered, setAgentIdHovered, anchorEl,
         setAnchorEl, menuButtonElement, setMenuButtonElement, isMenuOpen, aiColor, syncPulseAnimation,
@@ -488,6 +621,14 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
         }
         agentNode?.onSelectMemoryManager && agentNode.onSelectMemoryManager(model.node);
         setMemoryMenuAnchorEl(null);
+    };
+
+    const onMemoryStoreClick = (event: React.MouseEvent) => {
+        event.stopPropagation();
+        if (readOnly) {
+            return;
+        }
+        agentNode?.onSelectMemoryStore?.(model.node);
     };
 
     const onMemoryManagerDeleteClick = () => {
@@ -680,16 +821,6 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
     const nodeInstructions = sanitizedAgent?.instructions || '';
 
     const isTraceMatch = !isTypeDefinition && traceAnimation && (() => {
-        if (entrypointContext) {
-            const traceService = traceAnimation.entrypointServiceName ?? '';
-            const traceFunction = traceAnimation.entrypointFunctionName ?? '';
-            const ctxService = entrypointContext.serviceName ?? '';
-            const ctxFunction = entrypointContext.functionName ?? '';
-            if (traceService !== ctxService || traceFunction !== ctxFunction) {
-                return false;
-            }
-        }
-
         const sysInstr = traceAnimation.systemInstructions;
         if (sysInstr) {
             const extractedRole = sysInstr.match(/(?:^|\n)#\s*Role[ \t]*\r?\n([\s\S]*?)(?=\r?\n#\s*Instructions|$)/i)?.[1]?.trim();
@@ -707,9 +838,7 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
         }
         const hasToolOverlap =
             traceAnimation.activeAgentToolNames.some(t => nodeToolNames.includes(t)) ||
-            traceAnimation.entries.some(e =>
-                e.type === 'execute_tool' && e.toolName && nodeToolNames.includes(e.toolName)
-            );
+            traceAnimation.entries.some(e => e.type === 'execute_tool' && toolEntryMatchesTools(e, tools));
         if (hasToolOverlap) return true;
         return false;
     })();
@@ -719,6 +848,7 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
     const toolEntries = matchedEntries.filter(e => e.type === 'execute_tool');
 
     const activeToolNames = toolEntries.filter(e => e.phase === 'active').map(e => e.toolName);
+    const activeToolKitNames = toolEntries.filter(e => e.phase === 'active').map(e => e.toolKitName);
     const isAnyToolActive = activeToolNames.length > 0;
 
     const isModelActive = chatEntry?.phase === 'active' && !isAnyToolActive;
@@ -746,6 +876,19 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                 onContextMenu={!readOnly ? handleOnContextMenu : undefined}
                 title="Configure Agent"
             >
+                <div
+                    css={css`
+                        position: absolute;
+                        top: -1px; left: -1px; right: -1px; bottom: -1px;
+                        border-radius: 10px;
+                        border: 2px solid ${aiColor};
+                        opacity: ${isAgentNodeActive ? 1 : 0};
+                        transition: opacity 0.4s ease-out;
+                        animation: ${boxSyncPulseAnimation} 1.5s ease-in-out infinite alternate;
+                        pointer-events: none;
+                        z-index: 1;
+                    `}
+                />
                 {hasBreakpoint && (
                     <div
                         data-testid={isActiveBreakpoint ? "breakpoint-indicator-diagram-active" : "breakpoint-indicator-diagram"}
@@ -844,6 +987,7 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                                     onClick={onMemoryManagerClick}
                                     title="Configure Memory"
                                     onContextMenu={!readOnly ? handleMemoryContextMenu : undefined}
+                                    {...releaseBoxHover(setIsBoxHovered)}
                                 >
                                     <NodeStyles.Row readOnly={readOnly}>
                                         <div style={{ flex: 1 }}>
@@ -852,6 +996,11 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                                                 {(memory.type || "MessageWindowChatMemory").replace(/^ai:/, "")}
                                             </NodeStyles.MemoryMeta>
                                         </div>
+                                        <MemoryStoreButton
+                                            store={memory.store}
+                                            readOnly={readOnly}
+                                            onClick={onMemoryStoreClick}
+                                        />
                                         <NodeStyles.MenuButton
                                             ref={setMemoryMenuButtonElement}
                                             buttonSx={readOnly ? { cursor: "not-allowed" } : {}}
@@ -863,7 +1012,7 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                                     </NodeStyles.Row>
                                 </NodeStyles.MemoryCard>
                             ) : (
-                                <NodeStyles.MemoryButton readOnly={readOnly} onClick={onMemoryManagerClick} title="Add Memory">
+                                <NodeStyles.MemoryButton readOnly={readOnly} onClick={onMemoryManagerClick} title="Add Memory" {...releaseBoxHover(setIsBoxHovered)}>
                                     <Icon name="bi-plus" sx={{ fontSize: "16px", marginRight: "4px" }} />
                                     Add Memory
                                 </NodeStyles.MemoryButton>
@@ -895,32 +1044,26 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                                 <NodeStyles.DescriptionBlock readOnly={readOnly} onClick={onNodeClick}>
                                     {hasPrompt ? (
                                         <>
-                                            <NodeStyles.Role>
-                                                <ReactMarkdown
-                                                    disallowedElements={['script', 'iframe', 'object', 'embed', 'link', 'style']}
-                                                    unwrapDisallowed={true}
-                                                >
-                                                    {sanitizedAgent?.role}
-                                                </ReactMarkdown>
-                                            </NodeStyles.Role>
-                                            <NodeStyles.Instructions>
-                                                <ReactMarkdown
-                                                    disallowedElements={['script', 'iframe', 'object', 'embed', 'link', 'style']}
-                                                    unwrapDisallowed={true}
-                                                >
-                                                    {sanitizedAgent?.instructions}
-                                                </ReactMarkdown>
-                                            </NodeStyles.Instructions>
+                                            <MarkdownWithTooltip
+                                                text={sanitizedAgent?.role}
+                                                Styled={NodeStyles.Role}
+                                                TooltipStyled={NodeStyles.TooltipMarkdown}
+                                                containerSx={{ display: "block", width: "100%" }}
+                                            />
+                                            <MarkdownWithTooltip
+                                                text={sanitizedAgent?.instructions}
+                                                Styled={NodeStyles.Instructions}
+                                                TooltipStyled={NodeStyles.TooltipMarkdown}
+                                                containerSx={{ display: "block", width: "100%", height: "100%" }}
+                                            />
                                         </>
                                     ) : (
-                                        <NodeStyles.AgentDescription>
-                                            <ReactMarkdown
-                                                disallowedElements={['script', 'iframe', 'object', 'embed', 'link', 'style']}
-                                                unwrapDisallowed={true}
-                                            >
-                                                {description}
-                                            </ReactMarkdown>
-                                        </NodeStyles.AgentDescription>
+                                        <MarkdownWithTooltip
+                                            text={description}
+                                            Styled={NodeStyles.AgentDescription}
+                                            TooltipStyled={NodeStyles.TooltipMarkdown}
+                                            containerSx={{ display: "block", width: "100%", height: "100%" }}
+                                        />
                                     )}
                                 </NodeStyles.DescriptionBlock>
                             </>
@@ -928,14 +1071,12 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                     ) : (
                         sanitizedAgent?.role ? (
                             <NodeStyles.Row readOnly={readOnly} onClick={handleOnClick}>
-                                <NodeStyles.Role>
-                                    <ReactMarkdown
-                                        disallowedElements={['script', 'iframe', 'object', 'embed', 'link', 'style']}
-                                        unwrapDisallowed={true}
-                                    >
-                                        {sanitizedAgent?.role}
-                                    </ReactMarkdown>
-                                </NodeStyles.Role>
+                                <MarkdownWithTooltip
+                                    text={sanitizedAgent.role}
+                                    Styled={NodeStyles.Role}
+                                    TooltipStyled={NodeStyles.TooltipMarkdown}
+                                    containerSx={{ display: "block", width: "100%" }}
+                                />
                             </NodeStyles.Row>
                         ) : (
                             <NodeStyles.Row readOnly={readOnly} onClick={handleOnClick}>
@@ -947,14 +1088,12 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                     {!isTypeDefinition && (
                         sanitizedAgent?.instructions ? (
                             <NodeStyles.InstructionsRow readOnly={readOnly} onClick={handleOnClick}>
-                                <NodeStyles.Instructions>
-                                    <ReactMarkdown
-                                        disallowedElements={['script', 'iframe', 'object', 'embed', 'link', 'style']}
-                                        unwrapDisallowed={true}
-                                    >
-                                        {sanitizedAgent?.instructions}
-                                    </ReactMarkdown>
-                                </NodeStyles.Instructions>
+                                <MarkdownWithTooltip
+                                    text={sanitizedAgent.instructions}
+                                    Styled={NodeStyles.Instructions}
+                                    TooltipStyled={NodeStyles.TooltipMarkdown}
+                                    containerSx={{ display: "block", width: "100%", height: "100%" }}
+                                />
                             </NodeStyles.InstructionsRow>
                         ) : (
                             <NodeStyles.InstructionsRow readOnly={readOnly} onClick={handleOnClick}>
@@ -980,7 +1119,7 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                         cy="24"
                         r="22"
                         fill={ThemeColors.SURFACE_DIM}
-                        stroke={ThemeColors.OUTLINE_VARIANT}
+                        stroke={ThemeColors.ON_SURFACE}
                         strokeWidth={1.5}
                         strokeDasharray={disabled ? "5 5" : "none"}
                         opacity={disabled ? 0.7 : 1}
@@ -989,12 +1128,13 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                             cursor: ${readOnly ? "default" : "pointer"};
                             transition: stroke 0.4s ease-out;
                             &:hover {
-                                stroke: ${readOnly ? ThemeColors.OUTLINE_VARIANT : ThemeColors.SECONDARY};
+                                stroke: ${readOnly ? ThemeColors.ON_SURFACE : NODE_BORDER_SELECTED_COLOR};
                             }
                         `}
                     >
                         <title>{"Configure Model Provider"}</title>
                     </circle>
+                    <TraceAccentPulse isActive={isModelActive} aiColor={aiColor} syncPulseAnimation={syncPulseAnimation} />
                     <foreignObject
                         x="68"
                         y="12"
@@ -1008,21 +1148,17 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                             : getAIModuleIcon(modelProvider?.type) ?? (nodeModelIconUrl ? <img src={nodeModelIconUrl} style={{ width: 24, height: 24 }} /> : <DefaultLlmIcon />)}
                     </foreignObject>
 
-                    <line
-                        x1="0"
-                        y1="25"
-                        x2="57"
-                        y2="25"
-                        style={{
-                            stroke: ThemeColors.ON_SURFACE,
-                            strokeWidth: 1.5,
-                            markerEnd: `url(#${model.node.id}-arrow-head)`,
-                            markerStart: `url(#${model.node.id}-diamond-start)`,
-                        }}
+                    <TraceAccentLine
+                        isActive={isModelActive}
+                        aiColor={aiColor}
+                        baseStroke={ThemeColors.ON_SURFACE}
+                        markerId={`${model.node.id}-arrow-head`}
+                        markerStartId={`${model.node.id}-diamond-start`}
                     />
                 </g>}
 
                 {tools.map((tool: ToolData, index: number) => {
+                    const isToolActive = isToolTraceActive(tool, activeToolNames, activeToolKitNames);
                     return (
                         <g
                             key={index}
@@ -1040,14 +1176,15 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                                 cursor: not-allowed;
                             ` : css`
                             cursor: ${readOnly ? "default" : "pointer"};
+                            transition: opacity 0.4s ease-out;
                             &:hover circle:first-of-type {
-                                stroke: ${ThemeColors.SECONDARY};
+                                stroke: ${NODE_BORDER_SELECTED_COLOR};
                             }
                             &:hover foreignObject .connector-icon path {
-                                fill: ${ThemeColors.SECONDARY};
+                                fill: ${NODE_BORDER_SELECTED_COLOR};
                             }
-                            &:hover text {
-                                fill: ${ThemeColors.SECONDARY};
+                            &:hover .tool-label {
+                                color: ${ThemeColors.SECONDARY};
                             }
                             &:hover .tool-tooltip {
                                 opacity: 1;
@@ -1065,7 +1202,7 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                                 cy="24"
                                 r="22"
                                 fill={ThemeColors.SURFACE_DIM}
-                                stroke={ThemeColors.OUTLINE_VARIANT}
+                                stroke={ThemeColors.ON_SURFACE}
                                 strokeWidth={1.5}
                                 strokeDasharray={disabled ? "5 5" : "none"}
                                 opacity={disabled ? 0.7 : 1}
@@ -1073,6 +1210,7 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                                     transition: stroke 0.4s ease-out;
                                 `}
                             />
+                            <TraceAccentPulse isActive={isToolActive} aiColor={aiColor} syncPulseAnimation={syncPulseAnimation} />
                             <foreignObject
                                 x="68"
                                 y="12"
@@ -1097,84 +1235,83 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                                 </div>
                             </foreignObject>
 
-                            <text
-                                x="110"
-                                y="28"
-                                textAnchor="start"
-                                fill={ThemeColors.ON_SURFACE}
-                                fontSize="14px"
-                                fontFamily="GilmerRegular"
-                                dominantBaseline="middle"
-                            >
-                                {tool.name.length > 20 ? `${tool.name.slice(0, 20)}...` : tool.name}
-                                <title>{tool.name}</title>
-                            </text>
-
                             {!readOnly && !toolsReadOnly && (
-                                <>
-                                    <foreignObject
-                                        x="60"
-                                        y="0"
-                                        width="220"
-                                        height="48"
-                                        css={css`
+                                <foreignObject
+                                    x="60"
+                                    y="0"
+                                    width="220"
+                                    height="48"
+                                    css={css`
                                         pointer-events: all;
-                                        &:hover + .tool-menu-button {
-                                            opacity: 1;
-                                            visibility: visible;
-                                        }
                                     `}
-                                    >
-                                        <div style={{ width: "100%", height: "100%" }} />
-                                    </foreignObject>
-                                    <foreignObject
-                                        x={tool.name.length > 20 ? 240 : 110 + tool.name.length * 7}
-                                        y="14"
-                                        width="24"
-                                        height="24"
-                                        className="tool-menu-button"
+                                >
+                                    <div style={{ width: "100%", height: "100%" }} />
+                                </foreignObject>
+                            )}
+
+                            <foreignObject
+                                x={TOOL_LABEL_X}
+                                y="4"
+                                width={TOOL_ROW_RIGHT_X - TOOL_LABEL_X}
+                                height="48"
+                            >
+                                <div
+                                    css={css`
+                                        display: flex;
+                                        align-items: center;
+                                        gap: ${TOOL_MENU_GAP}px;
+                                        height: 100%;
+                                        font-family: "GilmerRegular";
+                                        font-size: 14px;
+                                    `}
+                                >
+                                    <span
+                                        className="tool-label"
+                                        title={tool.name}
                                         css={css`
-                                        opacity: 0;
-                                        visibility: hidden;
-                                        transition: opacity 0.2s ease-in-out;
-                                        pointer-events: all;
-                                        &:hover {
-                                            opacity: 1;
-                                            visibility: visible;
-                                        }
-                                    `}
+                                            min-width: 0;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                            white-space: nowrap;
+                                            color: ${isToolActive ? aiColor : ThemeColors.ON_SURFACE};
+                                            transition: color 0.4s ease-out;
+                                        `}
                                     >
+                                        {tool.name}
+                                    </span>
+                                    {!readOnly && !toolsReadOnly && (
                                         <NodeStyles.MenuButton
                                             appearance="icon"
+                                            className="tool-menu-button"
                                             onClick={(e) => handleToolMenuClick(e, tool)}
                                             css={css`
-                                            padding: 2px;
-                                            height: 24px;
-                                            width: 24px;
-                                            min-width: 24px;
-                                        `}
+                                                flex-shrink: 0;
+                                                padding: 2px;
+                                                height: ${TOOL_MENU_SIZE}px;
+                                                width: ${TOOL_MENU_SIZE}px;
+                                                min-width: ${TOOL_MENU_SIZE}px;
+                                                opacity: 0;
+                                                visibility: hidden;
+                                                transition: opacity 0.2s ease-in-out;
+                                                pointer-events: all;
+                                            `}
                                         >
                                             <MoreVertIcon />
                                         </NodeStyles.MenuButton>
-                                    </foreignObject>
-                                </>
-                            )}
+                                    )}
+                                </div>
+                            </foreignObject>
 
                             {/* Rendered after the hover-detection overlay above (it spans the same corner
                                 with pointer-events: all) so the badge paints on top and still gets hover. */}
                             {tool.requiresApproval && <ApprovalBadge background={ThemeColors.SURFACE_DIM} />}
 
-                            <line
-                                x1="0"
-                                y1="25"
-                                x2="57"
-                                y2="25"
-                                style={{
-                                    stroke: ThemeColors.ON_SURFACE,
-                                    strokeWidth: 1.5,
-                                    markerEnd: `url(#${model.node.id}-arrow-head-tool-${sanitizeId(tool.name)})`,
-                                    strokeDasharray: "6 6",
-                                }}
+                            <TraceAccentLine
+                                isActive={isToolActive}
+                                aiColor={aiColor}
+                                baseStroke={ThemeColors.ON_SURFACE}
+                                baseDashArray="6 6"
+                                markerId={`${model.node.id}-arrow-head-tool-${sanitizeId(tool.name)}`}
                             />
 
                             {!toolsReadOnly && <foreignObject
@@ -1239,7 +1376,7 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                         css={css`
                             cursor: ${readOnly ? "not-allowed" : "pointer"};
                             &:hover path:last-of-type {
-                                fill: ${ThemeColors.SECONDARY};
+                                fill: ${NODE_BORDER_SELECTED_COLOR};
                             }
                             &:hover + .custom-tooltip {
                                 opacity: 1;
@@ -1295,6 +1432,18 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                     </marker>
 
                     <marker
+                        id={`${model.node.id}-arrow-head-active`}
+                        markerWidth="4"
+                        markerHeight="4"
+                        refX="3"
+                        refY="2"
+                        viewBox="0 0 4 4"
+                        orient="auto"
+                    >
+                        <polygon points="0,4 0,0 4,2" fill={aiColor}></polygon>
+                    </marker>
+
+                    <marker
                         id={`${model.node.id}-diamond-start`}
                         markerWidth="8"
                         markerHeight="8"
@@ -1324,6 +1473,18 @@ export function AgentNodeWidget(props: AgentNodeWidgetProps) {
                                 orient="auto"
                             >
                                 <polygon points="0,4 0,0 4,2" fill={ThemeColors.ON_SURFACE}></polygon>
+                            </marker>
+
+                            <marker
+                                id={`${model.node.id}-arrow-head-tool-${sanitizeId(tool.name)}-active`}
+                                markerWidth="4"
+                                markerHeight="4"
+                                refX="3"
+                                refY="2"
+                                viewBox="0 0 4 4"
+                                orient="auto"
+                            >
+                                <polygon points="0,4 0,0 4,2" fill={aiColor}></polygon>
                             </marker>
                         </React.Fragment>
                     ))}
