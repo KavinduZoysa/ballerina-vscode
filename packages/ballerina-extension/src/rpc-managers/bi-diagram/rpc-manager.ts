@@ -184,8 +184,6 @@ import {
     IWso2PlatformExtensionAPI,
     ICreateNewIntegrationCmdParams,
     ICreateNewIntegrationCmdIntegrations,
-    resolveIntegrationType,
-    AUTOMATION_WITH_LISTENER_WARNING,
 } from "@wso2/wso2-platform-core";
 import {
     ShellExecution,
@@ -197,6 +195,7 @@ import {
     window, workspace
 } from "vscode";
 import { DebugProtocol } from "vscode-debugprotocol";
+import { selectIntegrationType as pickIntegrationType } from "../../features/devant/integration-type";
 import { extension } from "../../BalExtensionContext";
 import { notifyCurrentWebview } from "../../RPCLayer";
 import { OLD_BACKEND_URL } from "../../features/ai/utils";
@@ -1361,33 +1360,10 @@ export class BiDiagramRpcManager implements BIDiagramAPI {
     }
 
     private async selectIntegrationType(integrationTypes: SCOPE[]): Promise<SCOPE | undefined> {
-        if (!integrationTypes || integrationTypes.length === 0) {
-            return undefined;
-        }
-
-        const resolution = resolveIntegrationType(integrationTypes);
-
-        if (resolution.kind === "autoPick") {
-            return resolution.scope as SCOPE;
-        }
-
-        if (resolution.kind === "autoPickWithWarning") {
-            const choice = await window.showWarningMessage(
-                AUTOMATION_WITH_LISTENER_WARNING,
-                { modal: true },
-                "Continue",
-            );
-            if (choice !== "Continue") {
-                return undefined;
-            }
-            return resolution.scope as SCOPE;
-        }
-
-        const selectedScope = await window.showQuickPick(resolution.choices, {
-            placeHolder: 'You have different types of artifacts within this integration. Select the artifact type to be deployed'
-        });
-
-        return selectedScope as SCOPE;
+        return pickIntegrationType(
+            integrationTypes,
+            'You have different types of artifacts within this integration. Select the artifact type to be deployed'
+        );
     }
 
     openAIChat(params: AIChatRequest): void {
@@ -2020,13 +1996,15 @@ export class BiDiagramRpcManager implements BIDiagramAPI {
 
     async updateImports(params: UpdateImportsRequest): Promise<UpdateImportsResponse> {
         return new Promise((resolve, reject) => {
+            // The offset shifts the expression editor's cursor past the text the import added, so it has
+            // to measure the statement that was actually sent. Measuring the untrimmed one counted the
+            // surrounding whitespace of the completion's text edit - typically a trailing newline - and
+            // drifted the cursor by that much on every accepted completion.
+            const importStatement = params.importStatement.trim();
             StateMachine.langClient()
-                .updateImports({
-                    ...params,
-                    importStatement: params.importStatement.trim()
-                })
+                .updateImports({ ...params, importStatement })
                 .then((response) => {
-                    resolve({ ...response, importStatementOffset: params.importStatement.length });
+                    resolve({ ...response, importStatementOffset: importStatement.length });
                 })
                 .catch((error) => {
                     console.error('Error updating imports', error);

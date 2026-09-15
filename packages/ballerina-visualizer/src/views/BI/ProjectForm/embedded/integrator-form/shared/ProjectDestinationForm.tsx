@@ -106,10 +106,10 @@ const ProjectStatusStrip = styled.div<{ isWarning?: boolean }>`
     border-top: 1px solid var(--vscode-panel-border);
 `;
 
-/** The scannable half of the status ("New project" / "Existing project"),
- *  lifted above the trailing detail clause so the key distinction registers at
- *  a glance. The new-project case stays on the plain foreground — it needs no
- *  louder color; the existing-project case carries the warning tone. */
+/** Emphasizes the key phrase inline within the status sentence ("existing project" /
+ *  "new project") so the distinction registers at a glance instead of requiring the
+ *  whole sentence to be read. The new-project case stays on the plain foreground — it
+ *  needs no louder color; the existing-project case carries the warning tone. */
 const ProjectStatusLead = styled.span<{ isWarning?: boolean }>`
     color: ${(props: { isWarning?: boolean }) =>
         props.isWarning ? "var(--vscode-editorWarning-foreground)" : "var(--vscode-foreground)"};
@@ -124,7 +124,7 @@ const STATUS_ICON_SX = {
     alignItems: "center",
     justifyContent: "center",
     width: "16px",
-    height: "17px",
+    height: "16px",
     flexShrink: 0,
     cursor: "default",
 } as const;
@@ -706,12 +706,16 @@ export function ProjectDestinationForm({
                                 iconSx={existingWorkspace ? STATUS_ICON_WARNING_GLYPH_SX : STATUS_ICON_GLYPH_SX}
                             />
                             <span>
-                                <ProjectStatusLead isWarning={existingWorkspace}>
-                                    {existingWorkspace ? "Existing project" : "New project"}
-                                </ProjectStatusLead>
-                                {existingWorkspace
-                                    ? <> · your {startingPointNoun} will be added here</>
-                                    : <> · will be created here</>}
+                                {existingWorkspace ? (
+                                    <>
+                                        Your {startingPointNoun} will be added to an{" "}
+                                        <ProjectStatusLead isWarning>existing project</ProjectStatusLead>
+                                    </>
+                                ) : (
+                                    <>
+                                        You are creating a <ProjectStatusLead>new project</ProjectStatusLead>
+                                    </>
+                                )}
                             </span>
                         </ProjectStatusStrip>
                     )}
@@ -721,10 +725,10 @@ export function ProjectDestinationForm({
             {showStartingPoint && (
                 <Section>
                     <ProjectTypeSelector
-                        label="Choose your starting point"
+                        label="What do you want to build?"
                         value={isLibrary}
                         onChange={setIsLibrary}
-                        note="This is just your starting point. You can add more integrations and libraries to the project later."
+                        note="This is just a starting point. You can add more integrations and libraries to this project later."
                     />
                 </Section>
             )}

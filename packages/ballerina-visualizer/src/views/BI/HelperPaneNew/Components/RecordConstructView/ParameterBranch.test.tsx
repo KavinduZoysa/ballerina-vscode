@@ -29,9 +29,15 @@ import { act } from "react-dom/test-utils";
 import { TypeField } from "@wso2/ballerina-core";
 import { loadFixture } from "@wso2/test-config/fixtures";
 
-// The core barrel pulls in ESM-only LS transport modules that jest cannot load. `keywords` (read
-// by utils/getFieldName to escape reserved field names) is all this tree needs from it.
-jest.mock("@wso2/ballerina-core", () => ({ __esModule: true, keywords: [] as string[] }));
+// The core barrel pulls in ESM-only LS transport modules that jest cannot load, so only what this
+// tree reads from it is stubbed: `keywords` (utils/getFieldName escapes reserved field names) and
+// the optionality helpers, taken from their real leaf module so the required/optional split under
+// test is the shipped one.
+jest.mock("@wso2/ballerina-core", () => ({
+    __esModule: true,
+    keywords: [] as string[],
+    ...jest.requireActual("@wso2/ballerina-core/lib/utils/optionality-utils"),
+}));
 
 // Stubbed so the assertions read the rendered labels, not a toolkit abstraction over them.
 jest.mock("@wso2/ui-toolkit", () => ({

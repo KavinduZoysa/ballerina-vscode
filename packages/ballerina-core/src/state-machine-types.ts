@@ -73,8 +73,8 @@ export enum MACHINE_VIEW {
     BIAddProjectForm = "BI Add Project SKIP",
     BIComponentView = "BI Component View",
     AddConnectionWizard = "Add Connection Wizard",
-    AddAgent = "Add Agent",
-    AddAgentDefinition = "Add Agent Definition",
+    AddAgent = "Add Agent SKIP",
+    AddAgentDefinition = "Add Agent Definition SKIP",
     ConnectionConfiguration = "Connection Configuration",
     AddCustomConnector = "Add Custom Connector",
     ViewConfigVariables = "View Config Variables",
@@ -516,6 +516,12 @@ export interface ToolResult {
     toolOutput?: any;
     toolCallId?: string;
     failed?: boolean;
+    /**
+     * A progress report, not the call's final result: the tool will send another `tool_result` with the
+     * same `toolCallId` later (a subagent heartbeat, a background task that just started). Renderers keep
+     * the row in its running state; the terminal result carries no `partial`.
+     */
+    partial?: boolean;
 }
 
 export interface EvalsToolResult {
@@ -661,11 +667,10 @@ export interface CompactionStartEvent {
     type: 'compaction_start';
 }
 
-/** Fired when server-side compaction completes; carries the extracted summary */
+/** Fired when server-side compaction completes. The model-authored summary is
+ * intentionally NOT carried here — it stays internal and never reaches the webview. */
 export interface CompactionEndEvent {
     type: 'compaction_end';
-    /** Extracted <summary> content from the compaction block */
-    summary?: string;
 }
 
 /** Fired once per session when compaction is disabled because the codebase floor exceeds the trigger */
@@ -1131,6 +1136,7 @@ export interface TraceAnimationEvent {
     type: 'invoke_agent' | 'chat' | 'execute_tool';
     toolNames: string[];
     activeToolName?: string;
+    activeToolKitName?: string;
     spanId: string;
     active: boolean;
     systemInstructions?: string;

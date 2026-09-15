@@ -822,7 +822,7 @@ export const FlowNodeForm = forwardRef<FormExpressionEditorRef, FlowNodeFormProp
     );
 
     const formDiagnosticsFixTooltip = !isAiUserAuthenticated
-        ? "You need to be logged into WSO2 Integration Intelligence to fix diagnostics"
+        ? "You need to be logged into WSO2 Integrator Copilot to fix diagnostics"
         : !diagnosticsTargetRange
             ? "No source location available for diagnostics"
             : formDiagnostics.length === 0
@@ -1544,6 +1544,7 @@ export const FlowNodeForm = forwardRef<FormExpressionEditorRef, FlowNodeFormProp
     }
 
     const handleCreateNode = useCreateNode(fileName, targetLineRange, props.onConnectionCreated);
+    const handleCreateNodeInModal = useCreateNode(fileName, targetLineRange, props.onConnectionCreated, { preferModal: true });
 
 
     // State to manage record config page modal
@@ -2157,7 +2158,9 @@ export const FlowNodeForm = forwardRef<FormExpressionEditorRef, FlowNodeFormProp
                                     popupManager: popupManager,
                                     nodeInfo: {
                                         kind: node.codedata.node
-                                    }
+                                    },
+                                    onCreateNode: handleCreateNodeInModal,
+                                    onRequestCreateConnection: handleRequestCreateConnection
                                 }}
                             />
                         </DynamicModal>
@@ -2352,7 +2355,9 @@ export const FlowNodeForm = forwardRef<FormExpressionEditorRef, FlowNodeFormProp
                                 popupManager: popupManager,
                                 nodeInfo: {
                                     kind: node.codedata.node
-                                }
+                                },
+                                onCreateNode: handleCreateNodeInModal,
+                                onRequestCreateConnection: handleRequestCreateConnection
                             }}
                         />
                     </DynamicModal>
