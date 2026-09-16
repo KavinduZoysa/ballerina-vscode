@@ -127,6 +127,17 @@
         "editable": true,
         "advanced": true,
         "hidden": true
+      },
+      "userRoles": {
+        "metadata": {
+          "label": "Reviewer Roles"
+        },
+        "valueType": "TEXT",
+        "value": "finance",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
       }
     },
     "flags": 0
@@ -144,7 +155,7 @@
             "character": 18
           }
         },
-        "newText": "{activity: myActivity, requiresApproval: true}"
+        "newText": "{activity: myActivity, approvalPolicy: {userRoles: \"finance\"}}"
       }
     ]
   }

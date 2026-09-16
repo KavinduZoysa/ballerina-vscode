@@ -1200,6 +1200,19 @@ public class WorkflowUtil {
     public static final String REQUIRES_APPROVAL_LABEL = "Requires Approval";
     /** Label of the reviewer-roles field that accompanies the flag. */
     public static final String REVIEWER_ROLES_LABEL = "Reviewer Roles";
+    /** Source field carrying a capability's approval policy. */
+    public static final String APPROVAL_POLICY_FIELD = "approvalPolicy";
+    /** Property keys of the audience fields every review definition form carries beside the roles. */
+    public static final String USERS_KEY = "users";
+    public static final String EXCLUDED_USERS_KEY = "excludedUsers";
+    public static final String EXCLUDED_ROLES_KEY = "excludedRoles";
+    private static final String USERS_LABEL = "Users";
+    private static final String USERS_DOC = "User id(s) permitted to decide, whatever their roles, "
+            + "e.g. \"alice\" or [\"alice\", \"bob\"]";
+    private static final String EXCLUDED_USERS_LABEL = "Excluded Users";
+    private static final String EXCLUDED_USERS_DOC = "User id(s) that may not decide, whatever their roles";
+    private static final String EXCLUDED_ROLES_LABEL = "Excluded Roles";
+    private static final String EXCLUDED_ROLES_DOC = "Role(s) that may not decide";
 
     /**
      * Adds the approval-gate pair a durable agent's gated capabilities share — a {@code requiresApproval}
@@ -1241,6 +1254,86 @@ public class WorkflowUtil {
                 .advanced(true)
                 .stepOut()
                 .addProperty(userRolesKey);
+        addAudienceProperties(nodeBuilder);
+    }
+
+    /**
+     * Adds the audience fields a review definition carries beside its roles — users, excluded users,
+     * excluded roles — as advanced, optional, multi-mode role fields.
+     *
+     * @param nodeBuilder the form being built
+     */
+    public static void addAudienceProperties(NodeBuilder nodeBuilder) {
+        addAudienceProperty(nodeBuilder, USERS_KEY, USERS_LABEL, USERS_DOC);
+        addAudienceProperty(nodeBuilder, EXCLUDED_USERS_KEY, EXCLUDED_USERS_LABEL, EXCLUDED_USERS_DOC);
+        addAudienceProperty(nodeBuilder, EXCLUDED_ROLES_KEY, EXCLUDED_ROLES_LABEL, EXCLUDED_ROLES_DOC);
+    }
+
+    private static void addAudienceProperty(NodeBuilder nodeBuilder, String key, String label, String doc) {
+        addRoleFieldTypes(nodeBuilder.properties().custom()
+                .metadata()
+                    .label(label)
+                    .description(doc)
+                    .stepOut())
+                .placeholder("")
+                .editable(true)
+                .optional(true)
+                .advanced(true)
+                .stepOut()
+                .addProperty(key);
+    }
+
+    /**
+     * The {@code approvalPolicy} literal a gated capability declares, or the empty string when the
+     * gate is off.
+     *
+     * @param sourceBuilder the source builder holding the form values
+     * @param approvalKey   property key of the gate flag
+     * @param userRolesKey  property key of the reviewer roles
+     * @return the record literal, or {@code ""}
+     */
+    public static String approvalPolicyLiteral(SourceBuilder sourceBuilder, String approvalKey,
+                                               String userRolesKey) {
+        boolean gated = sourceBuilder.getProperty(approvalKey)
+                .map(p -> p.value() != null && "true".equals(p.value().toString()))
+                .orElse(false);
+        return gated ? reviewAudienceLiteral(sourceBuilder, userRolesKey, List.of()) : "";
+    }
+
+    /**
+     * A review definition literal from the form's audience fields — {@code userRoles} always (as
+     * {@code ()} when only users decide), the other audience fields when set — followed by any
+     * further fields the caller adds.
+     *
+     * @param sourceBuilder the source builder holding the form values
+     * @param userRolesKey  property key of the reviewer roles
+     * @param moreFields    further {@code name: value} fields, already rendered
+     * @return the record literal
+     */
+    public static String reviewAudienceLiteral(SourceBuilder sourceBuilder, String userRolesKey,
+                                               List<String> moreFields) {
+        List<String> fields = new ArrayList<>();
+        String roles = audienceSource(sourceBuilder, userRolesKey);
+        fields.add("userRoles: " + (roles.isBlank() ? "()" : roles));
+        for (String key : List.of(USERS_KEY, EXCLUDED_USERS_KEY, EXCLUDED_ROLES_KEY)) {
+            String value = audienceSource(sourceBuilder, key);
+            if (!value.isBlank()) {
+                fields.add(key + ": " + value);
+            }
+        }
+        fields.addAll(moreFields);
+        return "{" + String.join(", ", fields) + "}";
+    }
+
+    /**
+     * An audience field's value as source: the role helpers already read both its modes.
+     *
+     * @param sourceBuilder the source builder holding the form values
+     * @param key           the property key
+     * @return the source, or {@code ""} when unset
+     */
+    public static String audienceSource(SourceBuilder sourceBuilder, String key) {
+        return sourceBuilder.getProperty(key).map(WorkflowUtil::roleSource).orElse("");
     }
 
     /** Property key the front end sets to request removal of a capability entry. */

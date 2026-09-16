@@ -86,7 +86,9 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
                 "Identifies the task type; also the tool name advertised to the agent",
                 "approveRequest", true);
         addStringProperty(USER_ROLES_KEY, "User Roles",
-                "Role(s) permitted to complete this task", "MANAGER", true);
+                "Role(s) permitted to complete this task; may be left empty when users are named", "MANAGER",
+                false);
+        WorkflowUtil.addAudienceProperties(this);
         // The completion type drives the task inbox's completion form (schema generation and
         // runtime validation of the submitted payload) — typically a record type.
         // Optional: the module defaults the completion type to anydata (a free-form
@@ -216,12 +218,12 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
         if (name.isBlank()) {
             throw new UserFacingException("A human task name is required");
         }
-        String roles = sourceBuilder.getProperty(USER_ROLES_KEY)
-                .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
+        String roles = WorkflowUtil.audienceSource(sourceBuilder, USER_ROLES_KEY);
+        String users = WorkflowUtil.audienceSource(sourceBuilder, WorkflowUtil.USERS_KEY);
         // Surface the omission rather than picking a role on the user's behalf — same stance as
         // the non-agent HumanTaskBuilder, which never falls back to a privileged role.
-        if (roles.isBlank()) {
-            throw new UserFacingException("At least one user role is required for the human task");
+        if (roles.isBlank() && users.isBlank()) {
+            throw new UserFacingException("Name who may complete the human task: a user role or a user");
         }
         String title = sourceBuilder.getProperty(TITLE_KEY)
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
@@ -232,7 +234,14 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
         String timeout = sourceBuilder.getProperty(TIMEOUT_KEY)
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
         StringBuilder entry = new StringBuilder("{name: ").append(WorkflowUtil.constantNameLiteral(name))
-                .append(", roles: ").append(WorkflowUtil.quoteIfBareRole(roles));
+                .append(", userRoles: ").append(roles.isBlank() ? "()" : roles);
+        for (String key : List.of(WorkflowUtil.USERS_KEY, WorkflowUtil.EXCLUDED_USERS_KEY,
+                WorkflowUtil.EXCLUDED_ROLES_KEY)) {
+            String value = WorkflowUtil.audienceSource(sourceBuilder, key);
+            if (!value.isBlank()) {
+                entry.append(", ").append(key).append(": ").append(value);
+            }
+        }
         if (!resultType.isBlank()) {
             entry.append(", resultType: ").append(resultType);
         }

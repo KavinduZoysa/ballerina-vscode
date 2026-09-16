@@ -76,7 +76,6 @@
                 },
                 "values": {
                   "activity": "lookupBooking",
-                  "requiresApproval": "true",
                   "retryPolicy": "AutoRetry",
                   "maxRetries": "2",
                   "retryDelay": "1.5",
@@ -146,12 +145,7 @@
                 },
                 "values": {
                   "agent": "hotelAgent",
-                  "name": "askHotelDesk",
-                  "description": "Hotel research",
-                  "wait": "false",
-                  "callbackChannel": "hotelResults",
-                  "requiresApproval": "true",
-                  "userRoles": "travel-lead"
+                  "description": "Hotel research"
                 }
               }
             ],

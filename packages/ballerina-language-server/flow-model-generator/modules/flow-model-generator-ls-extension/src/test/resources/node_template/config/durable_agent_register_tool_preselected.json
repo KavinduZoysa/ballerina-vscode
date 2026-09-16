@@ -94,6 +94,75 @@
         "advanced": true,
         "hidden": false
       },
+      "users": {
+        "metadata": {
+          "label": "Users",
+          "description": "User id(s) permitted to decide, whatever their roles, e.g. \"alice\" or [\"alice\", \"bob\"]"
+        },
+        "types": [
+          {
+            "fieldType": "TEXT",
+            "ballerinaType": "string",
+            "selected": false
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string|string[]",
+            "selected": false
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "excludedUsers": {
+        "metadata": {
+          "label": "Excluded Users",
+          "description": "User id(s) that may not decide, whatever their roles"
+        },
+        "types": [
+          {
+            "fieldType": "TEXT",
+            "ballerinaType": "string",
+            "selected": false
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string|string[]",
+            "selected": false
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "excludedRoles": {
+        "metadata": {
+          "label": "Excluded Roles",
+          "description": "Role(s) that may not decide"
+        },
+        "types": [
+          {
+            "fieldType": "TEXT",
+            "ballerinaType": "string",
+            "selected": false
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string|string[]",
+            "selected": false
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
       "checkError": {
         "metadata": {
           "label": "Check Error",
