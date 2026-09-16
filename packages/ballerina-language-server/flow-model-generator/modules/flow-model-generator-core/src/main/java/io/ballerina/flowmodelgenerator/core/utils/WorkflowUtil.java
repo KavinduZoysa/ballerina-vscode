@@ -488,6 +488,27 @@ public class WorkflowUtil {
      * @return the config literal, or empty when the initializer is not a {@code new} with a
      *         positional mapping argument
      */
+    public static Optional<MappingConstructorExpressionNode> agentConfigLiteral(ExpressionNode initializerExpr) {
+        ExpressionNode initializer = initializerExpr;
+        if (initializer instanceof CheckExpressionNode checkExpr) {
+            initializer = checkExpr.expression();
+        }
+        SeparatedNodeList<FunctionArgumentNode> args;
+        if (initializer instanceof ImplicitNewExpressionNode newExpr
+                && newExpr.parenthesizedArgList().isPresent()) {
+            args = newExpr.parenthesizedArgList().get().arguments();
+        } else if (initializer instanceof ExplicitNewExpressionNode explicitNew) {
+            args = explicitNew.parenthesizedArgList().arguments();
+        } else {
+            return Optional.empty();
+        }
+        if (args.isEmpty() || !(args.get(0) instanceof PositionalArgumentNode positional)
+                || !(positional.expression() instanceof MappingConstructorExpressionNode config)) {
+            return Optional.empty();
+        }
+        return Optional.of(config);
+    }
+
     /**
      * One declared capability of a durable agent: its name, the mapping that configures it, and the
      * node it was declared at.
@@ -550,27 +571,6 @@ public class WorkflowUtil {
             return unescapeLiteralBody(source.substring(1, source.length() - 1));
         }
         return source.startsWith("'") ? source.substring(1) : source;
-    }
-
-    public static Optional<MappingConstructorExpressionNode> agentConfigLiteral(ExpressionNode initializerExpr) {
-        ExpressionNode initializer = initializerExpr;
-        if (initializer instanceof CheckExpressionNode checkExpr) {
-            initializer = checkExpr.expression();
-        }
-        SeparatedNodeList<FunctionArgumentNode> args;
-        if (initializer instanceof ImplicitNewExpressionNode newExpr
-                && newExpr.parenthesizedArgList().isPresent()) {
-            args = newExpr.parenthesizedArgList().get().arguments();
-        } else if (initializer instanceof ExplicitNewExpressionNode explicitNew) {
-            args = explicitNew.parenthesizedArgList().arguments();
-        } else {
-            return Optional.empty();
-        }
-        if (args.isEmpty() || !(args.get(0) instanceof PositionalArgumentNode positional)
-                || !(positional.expression() instanceof MappingConstructorExpressionNode config)) {
-            return Optional.empty();
-        }
-        return Optional.of(config);
     }
 
     /**
