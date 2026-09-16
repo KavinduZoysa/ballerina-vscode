@@ -1707,6 +1707,14 @@ export class BallerinaExtension {
             return true;
         }
 
+        // The requirement belongs to the bundled jar. getServerOptionsUsingJava launches a
+        // configured jar instead when one is set, and that jar's Java version is the user's
+        // own concern -- blocking it here would reject a server that runs perfectly well.
+        if (this.getConfiguredLangServerPath()?.trim()) {
+            debug('[INIT] Custom language server path configured; skipping the JDK check');
+            return true;
+        }
+
         const jdkDir = resolveLanguageServerJdkDir(this);
         if (!jdkDir) {
             // No JDK resolved. getServerOptions raises a clearer error for this case.
