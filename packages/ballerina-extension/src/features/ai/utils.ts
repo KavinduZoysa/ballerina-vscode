@@ -80,7 +80,7 @@ export const setBackendRegion = (region: string): boolean => {
         const devUrl = COPILOT_ROOT_URLS.get(devKey);
         if (devUrl) {
             vscode.window.showWarningMessage(
-                `Copilot: No backend URL configured for '${devantEnv}', falling back to '${devKey}'.`
+                `Copilot: No backend URL configured for '${devantEnv}', falling back to dev.`
             );
             regionalUrl = devUrl;
         }
