@@ -340,6 +340,7 @@ export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
                         <StatusCard>
                             <Icon name="bi-error" sx={{ color: ThemeColors.ERROR, fontSize: "18px" }} />
                             <StatusText variant="body2">{endpointError}</StatusText>
+                            <Button appearance="secondary" onClick={onBack}>Back</Button>
                         </StatusCard>
                     ) : (
                         <NestedFormWrapper>
