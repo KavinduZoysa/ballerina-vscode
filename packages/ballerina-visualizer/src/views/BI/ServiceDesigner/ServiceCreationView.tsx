@@ -16,20 +16,21 @@
  * under the License.
  */
 
-import { Button, CheckBox, Codicon, Icon, Stepper, TextField, ThemeColors, Typography, View, ViewContent } from "@wso2/ui-toolkit";
+import { Button, Icon, ThemeColors, View, ViewContent } from "@wso2/ui-toolkit";
 import { TopNavigationBar } from "../../../components/TopNavigationBar";
 import { useEffect, useRef, useState } from "react";
 import { TitleBar } from "../../../components/TitleBar";
 import { isBetaModule } from "../ComponentListView/componentListUtils";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { FormField, FormImports, FormValues } from "@wso2/ballerina-side-panel";
-import { EVENT_TYPE, hasBlockingValidationErrors, LineRange, McpServiceDefaults, McpToolEndpoint, ModelResolutionIssue, RecordTypeField, ServiceInitModel, ValidationResult } from "@wso2/ballerina-core";
+import { EVENT_TYPE, hasBlockingValidationErrors, LineRange, ModelResolutionIssue, RecordTypeField, ServiceInitModel, ValidationResult } from "@wso2/ballerina-core";
 import { FormHeader } from "../../../components/FormHeader";
 import ArtifactForm from "../Forms/ArtifactForm";
 import styled from "@emotion/styled";
-import { getColorByMethod } from "../../../utils/utils";
 import { DownloadIcon } from "../../../components/DownloadIcon";
 import { RelativeLoader } from "../../../components/RelativeLoader";
+import { McpOpenApiImportWizard } from "./McpOpenApiImportWizard";
+import { HeaderWrapper, NestedFormWrapper, StatusCard, StatusText } from "./ServiceCreationLayout";
 import {
     applyFormValuesToModel,
     collectRecordTypeFields,
@@ -46,30 +47,8 @@ const Container = styled.div`
     height: 100%;
 `;
 
-// Every step lines up on CONTENT_INSET. The nested ArtifactForm already pads its own content
-// by NESTED_FORM_INSET, so it only needs the difference.
-const CONTENT_INSET = 16;
-const NESTED_FORM_INSET = 5;
-const BODY_FONT_SIZE = "13px";
-
 const FormContainer = styled.div`
     padding-bottom: 100px;
-`;
-
-const NestedFormWrapper = styled.div`
-    padding: 0 ${CONTENT_INSET - NESTED_FORM_INSET}px;
-`;
-
-const SelectionContainer = styled.div`
-    padding-bottom: 100px;
-`;
-
-const SelectionBody = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 0 ${CONTENT_INSET}px;
-    margin-top: 16px;
 `;
 
 const StatusContainer = styled.div`
@@ -77,168 +56,6 @@ const StatusContainer = styled.div`
     justify-content: center;
     align-items: center;
     height: 100%;
-`;
-
-const StatusCard = styled.div`
-    margin: 16px 16px 0 16px;
-    padding: 16px;
-    border-radius: 8px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 16px;
-
-    & > svg {
-        font-size: 24px;
-        color: ${ThemeColors.ON_SURFACE};
-    }
-`;
-
-const StatusText = styled(Typography)`
-    color: ${ThemeColors.ON_SURFACE};
-`;
-
-// FormHeader ships its own inset and a 14px (body2) subtitle; normalise both.
-const HeaderWrapper = styled.div`
-    padding: 0 ${CONTENT_INSET}px;
-    & > div { padding: 0; }
-    & p { font-size: ${BODY_FONT_SIZE}; }
-`;
-
-const ImportStepperWrapper = styled.div`
-    padding: 0 ${CONTENT_INSET}px;
-    margin-bottom: 8px;
-`;
-
-const SpecFileBadge = styled.div`
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0 ${CONTENT_INSET}px;
-    margin-top: 8px;
-    font-size: ${BODY_FONT_SIZE};
-    color: ${ThemeColors.ON_SURFACE_VARIANT};
-    font-family: monospace;
-    line-height: 16px;
-`;
-
-const Toolbar = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-`;
-
-const ToolbarRow = styled.div`
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-`;
-
-const MethodFilters = styled.div`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-`;
-
-const MethodChip = styled.button<{ active: boolean; color: string }>`
-    border: 1px solid ${(p: { active: boolean; color: string }) => p.active ? p.color : ThemeColors.OUTLINE_VARIANT};
-    background-color: ${(p: { active: boolean; color: string }) => p.active ? p.color : "transparent"};
-    color: ${(p: { active: boolean; color: string }) => p.active ? "#fff" : ThemeColors.ON_SURFACE_VARIANT};
-    border-radius: 4px;
-    padding: 3px 10px;
-    font-size: 11px;
-    font-weight: bold;
-    font-family: monospace;
-    text-transform: uppercase;
-    cursor: pointer;
-`;
-
-const SelectionSummary = styled.div`
-    color: ${ThemeColors.ON_SURFACE_VARIANT};
-    font-size: ${BODY_FONT_SIZE};
-`;
-
-const EndpointList = styled.div`
-    display: flex;
-    flex-direction: column;
-    border: 1px solid ${ThemeColors.OUTLINE_VARIANT};
-    border-radius: 6px;
-    max-height: 340px;
-    overflow-y: auto;
-`;
-
-// Small gap: the label-less CheckBox still reserves its empty label slot.
-const EndpointRow = styled.div`
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 10px 14px;
-    cursor: pointer;
-    border-bottom: 1px solid ${ThemeColors.OUTLINE_VARIANT};
-    &:last-child { border-bottom: none; }
-    &:hover { background-color: ${ThemeColors.SURFACE_CONTAINER}; }
-`;
-
-const EndpointMeta = styled.div`
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    min-width: 0;
-    flex: 1;
-`;
-
-// Fixed min-width so the paths line up in a column.
-const MethodPill = styled.span<{ color: string }>`
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    min-width: 56px;
-    padding: 3px 7px;
-    border-radius: 4px;
-    background-color: ${(p: { color: string }) => p.color};
-    color: #fff;
-    font-weight: bold;
-    font-size: 11px;
-    font-family: monospace;
-    text-transform: uppercase;
-`;
-
-const EndpointPath = styled.span`
-    min-width: 0;
-    max-width: 50%;
-    flex: 0 1 auto;
-    font-family: monospace;
-    font-size: 13px;
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-`;
-
-const EndpointDesc = styled.span`
-    min-width: 0;
-    flex: 1;
-    font-size: ${BODY_FONT_SIZE};
-    color: ${ThemeColors.ON_SURFACE_VARIANT};
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-`;
-
-const EmptyMessage = styled.div`
-    padding: 24px;
-    text-align: center;
-    font-size: ${BODY_FONT_SIZE};
-    color: ${ThemeColors.ON_SURFACE_VARIANT};
-`;
-
-const SelectionActions = styled.div`
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 8px;
 `;
 
 export interface ServiceCreationViewProps {
@@ -255,12 +72,9 @@ interface HeaderInfo {
     moduleName: string;
 }
 
-interface McpImportConfiguration {
-    serviceName: string;
-    version: string;
-    basePath: string;
-    port: string;
-    listenerName: string;
+interface McpImportRequest {
+    model: ServiceInitModel;
+    specPath: string;
 }
 
 enum PullingStatus {
@@ -270,6 +84,85 @@ enum PullingStatus {
     ERROR = "error",
     UNSUPPORTED_VERSION = "unsupported_version",
     UPDATING = "updating",
+}
+
+/** The design approach choice's properties for whichever option is currently selected (e.g. manual vs. import-from-spec). */
+function getEnabledDesignApproachProperties(model: ServiceInitModel) {
+    return model?.properties.designApproach?.choices?.find((choice) => choice.enabled)?.properties;
+}
+
+interface PackagePullingStatusProps {
+    status: PullingStatus;
+    isLocalRepository?: boolean;
+    packageName: string;
+    upgradeIssue?: ModelResolutionIssue;
+    onRetry: () => void;
+    onUpdateNow: () => void;
+}
+
+function PackagePullingStatus({ status, isLocalRepository, packageName, upgradeIssue, onRetry, onUpdateNow }: PackagePullingStatusProps) {
+    switch (status) {
+        case PullingStatus.FETCHING:
+            return <RelativeLoader message="Loading package..." />;
+        case PullingStatus.PULLING:
+            return (
+                <StatusCard>
+                    {isLocalRepository ? (
+                        <Icon name="bi-spinner" sx={{ color: ThemeColors.ON_SURFACE, fontSize: "18px" }} />
+                    ) : (
+                        <DownloadIcon color={ThemeColors.ON_SURFACE} />
+                    )}
+                    <StatusText variant="body2">
+                        {isLocalRepository
+                            ? `Please wait while the ${packageName} package is being loaded from your `
+                            + "local repository..."
+                            : `Please wait while the ${packageName} package is being pulled...`}
+                    </StatusText>
+                </StatusCard>
+            );
+        case PullingStatus.SUCCESS:
+            return (
+                <StatusCard>
+                    <Icon name="bi-success" sx={{ color: ThemeColors.PRIMARY, fontSize: "18px" }} />
+                    <StatusText variant="body2">
+                        {isLocalRepository ? "Package loaded successfully." : "Package pulled successfully."}
+                    </StatusText>
+                </StatusCard>
+            );
+        case PullingStatus.ERROR:
+            return (
+                <StatusCard>
+                    <Icon name="bi-error" sx={{ color: ThemeColors.ERROR, fontSize: "18px" }} />
+                    <StatusText variant="body2">
+                        {isLocalRepository
+                            ? "Failed to load the package from your local repository. Please try again."
+                            : "Failed to pull the package. Please try again."}
+                    </StatusText>
+                    <Button appearance="secondary" onClick={onRetry}>Retry</Button>
+                </StatusCard>
+            );
+        case PullingStatus.UNSUPPORTED_VERSION:
+            return upgradeIssue ? (
+                <StatusCard>
+                    <Icon name="bi-error" sx={{ color: ThemeColors.ERROR, fontSize: "18px" }} />
+                    <StatusText variant="body2">
+                        A newer version is required to use this feature..
+                    </StatusText>
+                    <Button appearance="primary" onClick={onUpdateNow}>Update Now</Button>
+                </StatusCard>
+            ) : null;
+        case PullingStatus.UPDATING:
+            return (
+                <StatusCard>
+                    <Icon name="bi-spinner" sx={{ color: ThemeColors.ON_SURFACE, fontSize: "18px" }} />
+                    <StatusText variant="body2">
+                        {`Updating ${packageName}...`}
+                    </StatusText>
+                </StatusCard>
+            );
+        default:
+            return null;
+    }
 }
 
 export function ServiceCreationView(props: ServiceCreationViewProps) {
@@ -288,38 +181,11 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
     const [isSaving, setIsSaving] = useState<boolean>(false);
     const [serverValidationErrors, setServerValidationErrors] = useState<ValidationResult[]>([]);
     const [recordTypeFields, setRecordTypeFields] = useState<RecordTypeField[]>([]);
-    const [configStep, setConfigStep] = useState(false);
-    const [selectedSpecPath, setSelectedSpecPath] = useState("");
-    const [selectionMode, setSelectionMode] = useState(false);
-    const [pendingModel, setPendingModel] = useState<ServiceInitModel>(null);
-    const [endpoints, setEndpoints] = useState<McpToolEndpoint[]>([]);
-    const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
-    const [toolSearch, setToolSearch] = useState("");
-    const [methodFilters, setMethodFilters] = useState<Set<string>>(new Set());
-    const [loadingEndpoints, setLoadingEndpoints] = useState(false);
-    const [endpointError, setEndpointError] = useState("");
+    const [mcpImport, setMcpImport] = useState<McpImportRequest>(null);
 
     const isMountedRef = useRef(true);
 
     const MAIN_BALLERINA_FILE = "main.bal";
-
-    const toMcpImportConfiguration = (defaults: McpServiceDefaults): McpImportConfiguration => ({
-        serviceName: defaults.serviceName,
-        version: defaults.version,
-        basePath: defaults.basePath,
-        port: String(defaults.port),
-        listenerName: defaults.listenerName,
-    });
-
-    const applyMcpImportConfiguration = (serviceModel: ServiceInitModel, config: McpImportConfiguration) => {
-        const properties = serviceModel.properties;
-        if (properties.serviceName) properties.serviceName.value = config.serviceName;
-        if (properties.version) properties.version.value = config.version;
-        if (properties.basePath) properties.basePath.value = config.basePath;
-        if (properties.listenTo) properties.listenTo.value = config.port;
-        if (properties.listenerVarName) properties.listenerVarName.value = config.listenerName;
-        return serviceModel;
-    };
 
     // Lifted out of the effect (rather than a local closure) so the ERROR state's Retry button can
     // call it again — previously a failed fetch here left the loading screen stuck forever with no
@@ -485,52 +351,14 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
     const handleOnSubmit = async (data: FormValues, formImports: FormImports) => {
         const updatedModel = applyFormValuesToModel(formFields, model, data, formImports);
 
-        const designApproach = updatedModel.properties.designApproach?.choices?.find((choice) => choice.enabled);
-        const specPath = designApproach?.properties?.spec?.value as string | undefined;
-
+        const specPath = getEnabledDesignApproachProperties(updatedModel)?.spec?.value as string | undefined;
         if (moduleName === "mcp" && specPath) {
-            setSelectedSpecPath(specPath);
-            setConfigStep(true);
-            setLoadingEndpoints(true);
-            setEndpointError("");
-            try {
-                const res = await rpcClient.getServiceDesignerRpcClient().listOpenApiEndpoints({ specPath });
-                if (!isMountedRef.current) {
-                    return;
-                }
-                if (res.errorMsg) {
-                    setEndpointError(res.errorMsg);
-                } else {
-                    const modelWithDefaults = res.defaults
-                        ? applyMcpImportConfiguration(updatedModel, toMcpImportConfiguration(res.defaults))
-                        : updatedModel;
-                    setEndpoints(res.endpoints);
-                    setSelectedTools(new Set(res.endpoints.map((endpoint) => endpoint.toolName)));
-                    setPendingModel(modelWithDefaults);
-                    setFormFields(mapPropertiesToFormFields(modelWithDefaults.properties));
-                }
-            } catch (error) {
-                if (isMountedRef.current) {
-                    setEndpointError(error instanceof Error ? error.message : String(error));
-                }
-            } finally {
-                if (isMountedRef.current) {
-                    setLoadingEndpoints(false);
-                }
-            }
+            setMcpImport({ model: updatedModel, specPath });
             return;
         }
 
         setIsSaving(true);
         await createService(updatedModel);
-    };
-
-    const handleConfigSubmit = async (data: FormValues, formImports: FormImports) => {
-        const configFields = formFields.filter((field) => field.key !== "designApproach");
-        const updatedModel = applyFormValuesToModel(configFields, pendingModel, data, formImports);
-        setPendingModel(updatedModel);
-        setConfigStep(false);
-        setSelectionMode(true);
     };
 
     const createService = async (serviceModel: ServiceInitModel) => {
@@ -564,124 +392,24 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
         setIsSaving(false);
     };
 
-    const handleConfirmSelection = async () => {
-        if (!pendingModel) return;
-        pendingModel.selectedTools = Array.from(selectedTools);
-        await createService(pendingModel);
-    };
-
-    const handleBackFromSelection = () => {
-        setSelectionMode(false);
-        setConfigStep(true);
-    };
-
-    const handleBackFromConfig = () => {
-        setConfigStep(false);
-        setEndpoints([]);
-        setEndpointError("");
-        setPendingModel(null);
-        setSelectedTools(new Set());
-        setToolSearch("");
-        setMethodFilters(new Set());
-        setSelectedSpecPath("");
-    };
-
-    const toggleTool = (toolName: string, checked: boolean) => {
-        setSelectedTools((previous) => {
-            const next = new Set(previous);
-            checked ? next.add(toolName) : next.delete(toolName);
-            return next;
-        });
-    };
-
-    const allSelected = endpoints.length > 0 && selectedTools.size === endpoints.length;
-    const toggleAll = (checked: boolean) => {
-        setSelectedTools(checked ? new Set(endpoints.map((endpoint) => endpoint.toolName)) : new Set());
-    };
-
-    const toggleMethodFilter = (method: string) => {
-        setMethodFilters((previous) => {
-            const next = new Set(previous);
-            next.has(method) ? next.delete(method) : next.add(method);
-            return next;
-        });
-    };
-
-    const distinctMethods = Array.from(new Set(endpoints.map((endpoint) => endpoint.method.toUpperCase())));
-    const query = toolSearch.trim().toLowerCase();
-    const filteredEndpoints = endpoints.filter((endpoint) =>
-        (methodFilters.size === 0 || methodFilters.has(endpoint.method.toUpperCase()))
-        && (!query || endpoint.path.toLowerCase().includes(query)
-            || endpoint.toolName.toLowerCase().includes(query)
-            || endpoint.method.toLowerCase().includes(query)
-            || endpoint.description?.toLowerCase().includes(query)));
-    const selectedDesignApproach = model?.properties.designApproach?.choices?.find((choice) => choice.enabled);
-    const isMcpOpenApiImport = moduleName === "mcp" && Boolean(selectedDesignApproach?.properties?.spec);
+    const enabledDesignApproachProperties = getEnabledDesignApproachProperties(model);
+    const isMcpOpenApiImport = moduleName === "mcp" && Boolean(enabledDesignApproachProperties?.spec);
     const visibleFormFields = isMcpOpenApiImport
         ? formFields.filter((field) => field.key === "designApproach")
         : formFields;
-    const importSteps = ["Source", "Configure", "Tools"];
-    const importStepIndex = configStep ? 1 : selectionMode ? 2 : 0;
-    const specFileName = selectedSpecPath.split(/[\\/]/).pop();
 
     return (
         <View>
             {pullingStatus && (
                 <StatusContainer>
-                    {pullingStatus === PullingStatus.FETCHING && (
-                        <RelativeLoader message="Loading package..." />
-                    )}
-                    {pullingStatus === PullingStatus.PULLING && (
-                        <StatusCard>
-                            {isLocalRepository ? (
-                                <Icon name="bi-spinner" sx={{ color: ThemeColors.ON_SURFACE, fontSize: "18px" }} />
-                            ) : (
-                                <DownloadIcon color={ThemeColors.ON_SURFACE} />
-                            )}
-                            <StatusText variant="body2">
-                                {isLocalRepository
-                                    ? `Please wait while the ${packageName} package is being loaded from your `
-                                    + "local repository..."
-                                    : `Please wait while the ${packageName} package is being pulled...`}
-                            </StatusText>
-                        </StatusCard>
-                    )}
-                    {pullingStatus === PullingStatus.SUCCESS && (
-                        <StatusCard>
-                            <Icon name="bi-success" sx={{ color: ThemeColors.PRIMARY, fontSize: "18px" }} />
-                            <StatusText variant="body2">
-                                {isLocalRepository ? "Package loaded successfully." : "Package pulled successfully."}
-                            </StatusText>
-                        </StatusCard>
-                    )}
-                    {pullingStatus === PullingStatus.ERROR && (
-                        <StatusCard>
-                            <Icon name="bi-error" sx={{ color: ThemeColors.ERROR, fontSize: "18px" }} />
-                            <StatusText variant="body2">
-                                {isLocalRepository
-                                    ? "Failed to load the package from your local repository. Please try again."
-                                    : "Failed to pull the package. Please try again."}
-                            </StatusText>
-                            <Button appearance="secondary" onClick={fetchData}>Retry</Button>
-                        </StatusCard>
-                    )}
-                    {pullingStatus === PullingStatus.UNSUPPORTED_VERSION && upgradeIssue && (
-                        <StatusCard>
-                            <Icon name="bi-error" sx={{ color: ThemeColors.ERROR, fontSize: "18px" }} />
-                            <StatusText variant="body2">
-                                A newer version is required to use this feature..
-                            </StatusText>
-                            <Button appearance="primary" onClick={handleUpdateNow}>Update Now</Button>
-                        </StatusCard>
-                    )}
-                    {pullingStatus === PullingStatus.UPDATING && (
-                        <StatusCard>
-                            <Icon name="bi-spinner" sx={{ color: ThemeColors.ON_SURFACE, fontSize: "18px" }} />
-                            <StatusText variant="body2">
-                                {`Updating ${packageName}...`}
-                            </StatusText>
-                        </StatusCard>
-                    )}
+                    <PackagePullingStatus
+                        status={pullingStatus}
+                        isLocalRepository={isLocalRepository}
+                        packageName={packageName}
+                        upgradeIssue={upgradeIssue}
+                        onRetry={fetchData}
+                        onUpdateNow={handleUpdateNow}
+                    />
                 </StatusContainer>
             )}
 
@@ -697,138 +425,17 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
                     )}
                     <ViewContent>
                         <Container>
-                            {configStep ? (
-                                <SelectionContainer>
-                                    <ImportStepperWrapper>
-                                        <Stepper steps={importSteps} currentStep={importStepIndex} alignment="flex-start" />
-                                    </ImportStepperWrapper>
-                                    <HeaderWrapper>
-                                        <FormHeader
-                                            title={`Configure ${model.displayName}`}
-                                            subtitle="Review and adjust the service details generated from your OpenAPI specification."
-                                        />
-                                    </HeaderWrapper>
-                                    <SpecFileBadge title={selectedSpecPath}>
-                                        <Codicon name="file-code" sx={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "default" }} iconSx={{ fontSize: 13 }} />
-                                        {specFileName}
-                                    </SpecFileBadge>
-                                    {loadingEndpoints ? (
-                                        <RelativeLoader message="Reading OpenAPI specification..." />
-                                    ) : endpointError ? (
-                                        <StatusCard>
-                                            <Icon name="bi-error" sx={{ color: ThemeColors.ERROR, fontSize: "18px" }} />
-                                            <StatusText variant="body2">{endpointError}</StatusText>
-                                        </StatusCard>
-                                    ) : (
-                                        <NestedFormWrapper>
-                                            <ArtifactForm
-                                                fileName={filePath}
-                                                targetLineRange={targetLineRange}
-                                                fields={formFields.filter((field) => field.key !== "designApproach")}
-                                                isSaving={false}
-                                                nestedForm={true}
-                                                onSubmit={handleConfigSubmit}
-                                                onBack={handleBackFromConfig}
-                                                cancelText="Back"
-                                                serverValidationErrors={[]}
-                                                preserveFieldOrder={true}
-                                                recordTypeFields={recordTypeFields}
-                                                submitText="Next"
-                                            />
-                                        </NestedFormWrapper>
-                                    )}
-                                </SelectionContainer>
-                            ) : selectionMode ? (
-                                <SelectionContainer>
-                                    <ImportStepperWrapper>
-                                        <Stepper steps={importSteps} currentStep={importStepIndex} alignment="flex-start" />
-                                    </ImportStepperWrapper>
-                                    <HeaderWrapper>
-                                        <FormHeader
-                                            title="Select Tools to Expose"
-                                            subtitle="Each selected operation becomes an MCP tool that proxies requests to the underlying REST API."
-                                        />
-                                    </HeaderWrapper>
-                                    <SpecFileBadge title={selectedSpecPath}>
-                                        <Codicon name="file-code" sx={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "default" }} iconSx={{ fontSize: 13 }} />
-                                        {specFileName}
-                                    </SpecFileBadge>
-                                    {loadingEndpoints ? (
-                                        <RelativeLoader message="Reading OpenAPI specification..." />
-                                    ) : endpointError ? (
-                                        <StatusCard>
-                                            <Icon name="bi-error" sx={{ color: ThemeColors.ERROR, fontSize: "18px" }} />
-                                            <StatusText variant="body2">{endpointError}</StatusText>
-                                        </StatusCard>
-                                    ) : (
-                                        <SelectionBody>
-                                            <Toolbar>
-                                                <TextField
-                                                    placeholder="Search operations..."
-                                                    value={toolSearch}
-                                                    onTextChange={setToolSearch}
-                                                    icon={{ iconComponent: <Codicon name="search" />, position: "start" }}
-                                                    sx={{ width: "100%" }}
-                                                />
-                                                <ToolbarRow>
-                                                    <MethodFilters>
-                                                        {distinctMethods.map((method) => (
-                                                            <MethodChip
-                                                                key={method}
-                                                                active={methodFilters.has(method)}
-                                                                color={getColorByMethod(method)}
-                                                                onClick={() => toggleMethodFilter(method)}
-                                                            >
-                                                                {method}
-                                                            </MethodChip>
-                                                        ))}
-                                                    </MethodFilters>
-                                                    <CheckBox
-                                                        label={allSelected ? "Deselect all" : "Select all"}
-                                                        value="select-all"
-                                                        checked={allSelected}
-                                                        onChange={toggleAll}
-                                                    />
-                                                </ToolbarRow>
-                                            </Toolbar>
-                                            <SelectionSummary>Selected {selectedTools.size} out of {endpoints.length} tools</SelectionSummary>
-                                            <EndpointList>
-                                                {filteredEndpoints.length === 0 ? (
-                                                    <EmptyMessage>No operations match your search.</EmptyMessage>
-                                                ) : filteredEndpoints.map((endpoint) => (
-                                                    <EndpointRow
-                                                        key={endpoint.toolName}
-                                                        onClick={() => toggleTool(endpoint.toolName, !selectedTools.has(endpoint.toolName))}
-                                                    >
-                                                        <span onClick={(event) => event.stopPropagation()}>
-                                                            <CheckBox
-                                                                label=""
-                                                                value={endpoint.toolName}
-                                                                checked={selectedTools.has(endpoint.toolName)}
-                                                                onChange={(checked: boolean) => toggleTool(endpoint.toolName, checked)}
-                                                            />
-                                                        </span>
-                                                        <EndpointMeta>
-                                                            <MethodPill color={getColorByMethod(endpoint.method)}>{endpoint.method}</MethodPill>
-                                                            <EndpointPath>{endpoint.path}</EndpointPath>
-                                                            {endpoint.description && <EndpointDesc>{endpoint.description}</EndpointDesc>}
-                                                        </EndpointMeta>
-                                                    </EndpointRow>
-                                                ))}
-                                            </EndpointList>
-                                            <SelectionActions>
-                                                <Button appearance="secondary" onClick={handleBackFromSelection} disabled={isSaving}>Back</Button>
-                                                <Button appearance="primary" onClick={handleConfirmSelection} disabled={isSaving || selectedTools.size === 0}>
-                                                    {isSaving ? (
-                                                        <Typography variant="progress">Creating...</Typography>
-                                                    ) : (
-                                                        `Create with ${selectedTools.size} tool${selectedTools.size === 1 ? "" : "s"}`
-                                                    )}
-                                                </Button>
-                                            </SelectionActions>
-                                        </SelectionBody>
-                                    )}
-                                </SelectionContainer>
+                            {mcpImport ? (
+                                <McpOpenApiImportWizard
+                                    initialModel={mcpImport.model}
+                                    specPath={mcpImport.specPath}
+                                    filePath={filePath}
+                                    targetLineRange={targetLineRange}
+                                    recordTypeFields={recordTypeFields}
+                                    isSaving={isSaving}
+                                    onBack={() => setMcpImport(null)}
+                                    onCreate={createService}
+                                />
                             ) : (
                                 <>
                                     {visibleFormFields && visibleFormFields.length > 0 && (
