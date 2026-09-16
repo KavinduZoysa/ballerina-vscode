@@ -51,11 +51,11 @@ const COPILOT_ROOT_URLS = new Map<string, string>([
     ["us", process.env.COPILOT_ROOT_URL],
     ["us-prod", process.env.COPILOT_ROOT_URL],
     ["us-dev", process.env.COPILOT_DEV_ROOT_URL],
-    ["us-stage", process.env.COPILOT_STAGE_ROOT_URL || process.env.COPILOT_DEV_ROOT_URL],
+    ["us-stage", process.env.COPILOT_STAGE_ROOT_URL],
     ["eu", process.env.COPILOT_EU_ROOT_URL],
     ["eu-prod", process.env.COPILOT_EU_ROOT_URL],
     ["eu-dev", process.env.COPILOT_EU_DEV_ROOT_URL],
-    ["eu-stage", process.env.COPILOT_EU_STAGE_ROOT_URL || process.env.COPILOT_EU_DEV_ROOT_URL],
+    ["eu-stage", process.env.COPILOT_EU_STAGE_ROOT_URL],
 ]);
 
 const defaultRegionKey = devantEnv ? `us-${devantEnv}` : "us";
@@ -74,7 +74,17 @@ export const setBackendRegion = (region: string): boolean => {
     }
     const normalized = region?.trim().toLowerCase();
     const key = devantEnv ? `${normalized}-${devantEnv}` : normalized;
-    const regionalUrl = COPILOT_ROOT_URLS.get(key);
+    let regionalUrl = COPILOT_ROOT_URLS.get(key);
+    if (!regionalUrl && devantEnv && devantEnv == "stage") {
+        const devKey = `${normalized}-dev`;
+        const devUrl = COPILOT_ROOT_URLS.get(devKey);
+        if (devUrl) {
+            vscode.window.showWarningMessage(
+                `Copilot: No backend URL configured for '${devantEnv}', falling back to '${devKey}'.`
+            );
+            regionalUrl = devUrl;
+        }
+    }
     if (!regionalUrl) {
         console.error(`No backend URL configured for region '${normalized}'`);
         return false;
