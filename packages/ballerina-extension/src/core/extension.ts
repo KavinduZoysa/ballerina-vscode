@@ -1728,6 +1728,15 @@ export class BallerinaExtension {
         const message = `This version of the extension requires Ballerina ${REQUIRED_BALLERINA_VERSION} or later.`;
         sendTelemetryEvent(this, TM_EVENT_EXTENSION_INI_FAILED, CMP_EXTENSION_CORE, getMessageObject(message));
 
+        // The modal is transient; once dismissed the visualizer would otherwise sit on its
+        // loading frame forever. Give the panel the same explanation and the same actions.
+        VisualizerWebview.showJdkIncompatibility({
+            ballerinaVersion: this.ballerinaVersion,
+            jdkMajorVersion,
+            requiredJdkMajorVersion: REQUIRED_JDK_MAJOR_VERSION,
+            requiredBallerinaVersion: REQUIRED_BALLERINA_VERSION
+        });
+
         const UPDATE_BALLERINA = 'Update Ballerina';
         const INSTALL_PREVIOUS = 'Install Previous Extension Version';
         const selection = await window.showWarningMessage(
