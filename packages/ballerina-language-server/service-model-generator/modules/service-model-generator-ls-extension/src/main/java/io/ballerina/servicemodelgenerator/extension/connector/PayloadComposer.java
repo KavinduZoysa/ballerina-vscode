@@ -266,10 +266,8 @@ public final class PayloadComposer {
         if (template.contains(BRACED)) {
             return template.replace(BRACED, safe);
         }
-        // A template carrying neither placeholder cannot be composed: fall back to the element
-        // rather than emitting a type that silently drops it.
-        Matcher matcher = STANDALONE_T.matcher(template);
-        return matcher.find() ? matcher.replaceAll(Matcher.quoteReplacement(safe)) : safe;
+        // A template carrying neither placeholder is returned unchanged; callers normalize it first.
+        return STANDALONE_T.matcher(template).replaceAll(Matcher.quoteReplacement(safe));
     }
 
     public static String selectedFieldType(TriggerUISchemaModel.Property property) {
