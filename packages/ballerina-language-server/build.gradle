@@ -75,8 +75,12 @@ allprojects {
 
 subprojects {
     apply plugin: "java"
+    // Ballerina 2201.14.0 and its libraries are published as Java 25 artifacts, so the
+    // LS cannot target anything lower -- a Java 21 target fails during dependency
+    // resolution, before compilation. The LS runs on the JRE the distribution ships,
+    // which is Java 25 from 2201.14.0 onwards.
     tasks.withType(JavaCompile).configureEach {
-        options.release = 21
+        options.release = 25
     }
     configurations {
         ballerinaStdLibs
@@ -347,7 +351,7 @@ task pack(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
     // Depend on each subproject's build task and POM generation
     dependsOn subprojects.collect { it.path + ':build' }
     dependsOn generatePackPom
-    
+
     filesMatching('META-INF/services/**') {
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
     }
