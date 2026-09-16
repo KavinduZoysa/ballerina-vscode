@@ -119,6 +119,24 @@ describe("NodeLinkModel.getSVGPath - single segment (plain 2-point link)", () =>
         });
     });
 
+    test("snaps two near-level ports (within STRAIGHT_TOLERANCE) dead flat instead of a faint bow", () => {
+        // dy = 4 - the two ports are practically level (e.g. a real port's rendered Y landing a
+        // few px off the layout's computed anchor), but left untouched this would still draw a
+        // real, visible bow across a wide horizontal span. Regression test for exactly that: a
+        // link that should read as a clean horizontal line instead showed a faint S-curve wobble.
+        const link = buildLinkWithPoints([{ x: 0, y: 100 }, { x: 400, y: 104 }]);
+        const { start, segments } = parseBezierPath(link.getSVGPath());
+        const { c1, c2, end } = segments[0];
+
+        expect(start.y).toBe(102);
+        expect(end.y).toBe(102);
+        expect(c1.y).toBe(102);
+        expect(c2.y).toBe(102);
+        samples(20).forEach((t) => {
+            expect(cubicBezierAt(start, c1, c2, end, t).y).toBeCloseTo(102);
+        });
+    });
+
     test("the arrowhead-relevant tangent at the very end of the path is purely horizontal", () => {
         // Whatever the link's overall angle, control point 2 shares the target's Y - so the
         // tangent SVG's marker orient="auto" would read at the end is always horizontal. This is
