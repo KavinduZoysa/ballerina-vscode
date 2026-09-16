@@ -18,6 +18,7 @@
 
 package io.ballerina.servicemodelgenerator.extension.core;
 
+import io.ballerina.compiler.api.SemanticModel;
 import io.ballerina.compiler.syntax.tree.ModulePartNode;
 import io.ballerina.mcp.core.generator.GeneratorOptions;
 import io.ballerina.mcp.core.generator.MainBalGenerator;
@@ -66,6 +67,7 @@ public class McpOpenApiServiceGenerator {
     private static final String TYPES_BAL = "types.bal";
     private static final int DEFAULT_PORT = 9090;
     private static final String DEFAULT_LISTENER_NAME = "mcpListener";
+    private static final String DEFAULT_CLIENT_NAME = "apiClient";
     private static final String DEFAULT_SERVICE_NAME = "Proxy Service";
     private static final String DEFAULT_VERSION = "1.0.0";
     private static final Pattern SERVICE_PATH_PATTERN =
@@ -88,7 +90,7 @@ public class McpOpenApiServiceGenerator {
     }
 
     public Map<String, List<TextEdit>> generateService(ServiceInitModel model, Document mainDocument,
-                                                         WorkspaceManager workspaceManager)
+                                                         WorkspaceManager workspaceManager, SemanticModel semanticModel)
             throws McpGenerationException, IOException {
         SpecInfo fullSpec = runSilently(() -> new OpenApiSpecParser().parse(specPath));
         List<EndpointInfo> endpoints = selectedEndpoints(fullSpec.getEndpoints(), model.getSelectedTools());
@@ -108,11 +110,15 @@ public class McpOpenApiServiceGenerator {
             serviceSource = SERVICE_PATH_PATTERN.matcher(serviceSource)
                     .replaceFirst("$1" + Matcher.quoteReplacement(normalized) + "$2");
         }
-        serviceSource = serviceSource.replace(DEFAULT_LISTENER_NAME, listenerName)
+        ModulePartNode mainModulePart = mainDocument.syntaxTree().rootNode();
+        // Uniquified like refreshListenerName, so a second import doesn't redeclare apiClient.
+        String clientName = Utils.generateVariableIdentifier(semanticModel, mainDocument,
+                mainModulePart.lineRange().endLine(), DEFAULT_CLIENT_NAME);
+        serviceSource = serviceSource.replace(DEFAULT_CLIENT_NAME, clientName)
+                .replace(DEFAULT_LISTENER_NAME, listenerName)
                 .replace("new (" + DEFAULT_PORT + ")", "new (" + port + ")");
 
         Map<String, List<TextEdit>> edits = new LinkedHashMap<>();
-        ModulePartNode mainModulePart = mainDocument.syntaxTree().rootNode();
         edits.put(projectPath.resolve(MAIN_BAL).toAbsolutePath().toString(),
                 appendGeneratedSource(mainModulePart, serviceSource));
 
