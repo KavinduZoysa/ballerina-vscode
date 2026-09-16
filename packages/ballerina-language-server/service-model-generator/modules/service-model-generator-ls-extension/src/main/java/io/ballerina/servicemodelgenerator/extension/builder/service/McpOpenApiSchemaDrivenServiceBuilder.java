@@ -80,7 +80,7 @@ public class McpOpenApiSchemaDrivenServiceBuilder extends SchemaDrivenServiceBui
         }
         try {
             return new McpOpenApiServiceGenerator(Path.of(spec.getValue()), context.project().sourceRoot())
-                    .generateService(model);
+                    .generateService(model, context.document(), context.workspaceManager());
         } catch (McpGenerationException | IOException error) {
             throw new RuntimeException("Failed to generate MCP service from OpenAPI specification: "
                     + error.getMessage(), error);

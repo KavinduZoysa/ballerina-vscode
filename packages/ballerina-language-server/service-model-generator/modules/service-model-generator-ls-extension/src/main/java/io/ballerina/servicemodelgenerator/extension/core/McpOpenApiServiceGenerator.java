@@ -18,6 +18,7 @@
 
 package io.ballerina.servicemodelgenerator.extension.core;
 
+import io.ballerina.compiler.syntax.tree.ModulePartNode;
 import io.ballerina.mcp.core.generator.GeneratorOptions;
 import io.ballerina.mcp.core.generator.MainBalGenerator;
 import io.ballerina.mcp.core.generator.McpGenerationException;
@@ -25,12 +26,14 @@ import io.ballerina.mcp.core.generator.McpProjectGenerator;
 import io.ballerina.mcp.core.generator.OpenApiSpecParser;
 import io.ballerina.mcp.core.model.EndpointInfo;
 import io.ballerina.mcp.core.model.SpecInfo;
+import io.ballerina.projects.Document;
 import io.ballerina.servicemodelgenerator.extension.model.Codedata;
 import io.ballerina.servicemodelgenerator.extension.model.McpServiceDefaults;
 import io.ballerina.servicemodelgenerator.extension.model.ServiceInitModel;
 import io.ballerina.servicemodelgenerator.extension.model.Value;
 import io.ballerina.servicemodelgenerator.extension.util.Utils;
 import io.ballerina.tools.text.LinePosition;
+import org.ballerinalang.langserver.commons.workspace.WorkspaceManager;
 import org.eclipse.lsp4j.TextEdit;
 
 import java.io.IOException;
@@ -59,13 +62,16 @@ import static io.ballerina.servicemodelgenerator.extension.util.Constants.PROPER
 public class McpOpenApiServiceGenerator {
 
     private static final String OPENAPI = "openapi";
+    private static final String MAIN_BAL = "main.bal";
     private static final String TYPES_BAL = "types.bal";
     private static final int DEFAULT_PORT = 9090;
     private static final String DEFAULT_LISTENER_NAME = "mcpListener";
     private static final String DEFAULT_SERVICE_NAME = "Proxy Service";
     private static final String DEFAULT_VERSION = "1.0.0";
     private static final Pattern SERVICE_PATH_PATTERN =
-            Pattern.compile("(service\\s+mcp:Service\\s+)\\S+(\\s+on\\s+mcpListener)");
+            Pattern.compile("(service\\s+mcp:StreamableHttpService\\s+)\\S+(\\s+on\\s+mcpListener)");
+    private static final Pattern LEADING_IMPORT_PATTERN =
+            Pattern.compile("\\Aimport\\s+([\\w.]+)/([\\w.]+);[ \\t]*\\r?\\n");
 
     // Only basePath/listenerVarName carry a codedata type in mcp.json, so only those resolve via resolveValue().
     private static final String KEY_SERVICE_NAME = "serviceName";
@@ -81,7 +87,8 @@ public class McpOpenApiServiceGenerator {
         this.projectPath = projectPath;
     }
 
-    public Map<String, List<TextEdit>> generateService(ServiceInitModel model)
+    public Map<String, List<TextEdit>> generateService(ServiceInitModel model, Document mainDocument,
+                                                         WorkspaceManager workspaceManager)
             throws McpGenerationException, IOException {
         SpecInfo fullSpec = runSilently(() -> new OpenApiSpecParser().parse(specPath));
         List<EndpointInfo> endpoints = selectedEndpoints(fullSpec.getEndpoints(), model.getSelectedTools());
@@ -104,14 +111,44 @@ public class McpOpenApiServiceGenerator {
                 .replace("new (" + DEFAULT_PORT + ")", "new (" + port + ")");
 
         Map<String, List<TextEdit>> edits = new LinkedHashMap<>();
-        String base = sanitize(serviceName);
-        edits.put(projectPath.resolve(base + ".bal").toAbsolutePath().toString(),
-                List.of(new TextEdit(Utils.toRange(LinePosition.from(0, 0)), serviceSource)));
+        ModulePartNode mainModulePart = mainDocument.syntaxTree().rootNode();
+        edits.put(projectPath.resolve(MAIN_BAL).toAbsolutePath().toString(),
+                appendGeneratedSource(mainModulePart, serviceSource));
+
         String typesSource = generateTypes();
         if (!typesSource.isBlank()) {
-            edits.put(projectPath.resolve(base + "_types.bal").toAbsolutePath().toString(),
-                    List.of(new TextEdit(Utils.toRange(LinePosition.from(0, 0)), typesSource)));
+            Path typesPath = projectPath.resolve(TYPES_BAL).toAbsolutePath();
+            Optional<Document> typesDocument = Files.exists(typesPath)
+                    ? workspaceManager.document(typesPath) : Optional.empty();
+            List<TextEdit> typesEdits = typesDocument.isPresent()
+                    ? appendGeneratedSource(typesDocument.get().syntaxTree().rootNode(), typesSource)
+                    : List.of(new TextEdit(Utils.toRange(LinePosition.from(0, 0)), typesSource));
+            edits.put(typesPath.toString(), typesEdits);
         }
+        return edits;
+    }
+
+    /** Appends {@code generatedSource}, deduping its leading imports against ones already in {@code modulePart}. */
+    private static List<TextEdit> appendGeneratedSource(ModulePartNode modulePart, String generatedSource) {
+        StringBuilder missingImports = new StringBuilder();
+        String body = generatedSource;
+        Matcher importMatcher = LEADING_IMPORT_PATTERN.matcher(body);
+        while (importMatcher.find()) {
+            String org = importMatcher.group(1);
+            String module = importMatcher.group(2);
+            if (!Utils.importExists(modulePart, org, module)) {
+                missingImports.append(Utils.getImportStmt(org, module));
+            }
+            body = body.substring(importMatcher.end());
+            importMatcher = LEADING_IMPORT_PATTERN.matcher(body);
+        }
+        body = body.replaceFirst("\\A\\r?\\n", "");
+
+        List<TextEdit> edits = new ArrayList<>();
+        if (!missingImports.isEmpty()) {
+            edits.add(new TextEdit(Utils.toRange(modulePart.lineRange().startLine()), missingImports.toString()));
+        }
+        edits.add(Utils.appendAtEndOfModule(modulePart, body));
         return edits;
     }
 
@@ -202,12 +239,6 @@ public class McpOpenApiServiceGenerator {
         String path = title.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_")
                 .replaceAll("^_|_$", "");
         return path.isBlank() ? "mcp" : path;
-    }
-
-    private static String sanitize(String name) {
-        String sanitized = name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_")
-                .replaceAll("^_|_$", "");
-        return sanitized.isBlank() ? "mcp_service" : sanitized;
     }
 
     static <T> T runSilently(SilentAction<T> action) throws McpGenerationException, IOException {

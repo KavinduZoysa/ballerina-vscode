@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Button, CheckBox, Codicon, Icon, LinkButton, TextField, ThemeColors, Typography, View, ViewContent } from "@wso2/ui-toolkit";
+import { Button, CheckBox, Codicon, Icon, Stepper, TextField, ThemeColors, Typography, View, ViewContent } from "@wso2/ui-toolkit";
 import { TopNavigationBar } from "../../../components/TopNavigationBar";
 import { useEffect, useRef, useState } from "react";
 import { TitleBar } from "../../../components/TitleBar";
@@ -103,6 +103,23 @@ const HeaderWrapper = styled.div`
     padding: 0 ${CONTENT_INSET}px;
     & > div { padding: 0; }
     & p { font-size: ${BODY_FONT_SIZE}; }
+`;
+
+const ImportStepperWrapper = styled.div`
+    padding: 0 ${CONTENT_INSET}px;
+    margin-bottom: 8px;
+`;
+
+const SpecFileBadge = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 ${CONTENT_INSET}px;
+    margin-top: 8px;
+    font-size: ${BODY_FONT_SIZE};
+    color: ${ThemeColors.ON_SURFACE_VARIANT};
+    font-family: monospace;
+    line-height: 16px;
 `;
 
 const Toolbar = styled.div`
@@ -224,25 +241,6 @@ const SelectionActions = styled.div`
     margin-top: 8px;
 `;
 
-const AdvancedConfigurationRow = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: ${BODY_FONT_SIZE};
-`;
-
-const AdvancedFields = styled.div`
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-`;
-
-const AdvancedField = styled.div<{ fullWidth?: boolean }>`
-    min-width: 0;
-    grid-column: ${(p: { fullWidth?: boolean }) => p.fullWidth ? "1 / -1" : "auto"};
-`;
-
-
 export interface ServiceCreationViewProps {
     projectPath: string;
     orgName: string;
@@ -290,6 +288,8 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
     const [isSaving, setIsSaving] = useState<boolean>(false);
     const [serverValidationErrors, setServerValidationErrors] = useState<ValidationResult[]>([]);
     const [recordTypeFields, setRecordTypeFields] = useState<RecordTypeField[]>([]);
+    const [configStep, setConfigStep] = useState(false);
+    const [selectedSpecPath, setSelectedSpecPath] = useState("");
     const [selectionMode, setSelectionMode] = useState(false);
     const [pendingModel, setPendingModel] = useState<ServiceInitModel>(null);
     const [endpoints, setEndpoints] = useState<McpToolEndpoint[]>([]);
@@ -298,8 +298,6 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
     const [methodFilters, setMethodFilters] = useState<Set<string>>(new Set());
     const [loadingEndpoints, setLoadingEndpoints] = useState(false);
     const [endpointError, setEndpointError] = useState("");
-    const [mcpImportConfiguration, setMcpImportConfiguration] = useState<McpImportConfiguration>(null);
-    const [showAdvancedConfiguration, setShowAdvancedConfiguration] = useState(false);
 
     const isMountedRef = useRef(true);
 
@@ -485,10 +483,54 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
     };
 
     const handleOnSubmit = async (data: FormValues, formImports: FormImports) => {
-        setIsSaving(true);
         const updatedModel = applyFormValuesToModel(formFields, model, data, formImports);
 
+        const designApproach = updatedModel.properties.designApproach?.choices?.find((choice) => choice.enabled);
+        const specPath = designApproach?.properties?.spec?.value as string | undefined;
+
+        if (moduleName === "mcp" && specPath) {
+            setSelectedSpecPath(specPath);
+            setConfigStep(true);
+            setLoadingEndpoints(true);
+            setEndpointError("");
+            try {
+                const res = await rpcClient.getServiceDesignerRpcClient().listOpenApiEndpoints({ specPath });
+                if (!isMountedRef.current) {
+                    return;
+                }
+                if (res.errorMsg) {
+                    setEndpointError(res.errorMsg);
+                } else {
+                    const modelWithDefaults = res.defaults
+                        ? applyMcpImportConfiguration(updatedModel, toMcpImportConfiguration(res.defaults))
+                        : updatedModel;
+                    setEndpoints(res.endpoints);
+                    setSelectedTools(new Set(res.endpoints.map((endpoint) => endpoint.toolName)));
+                    setPendingModel(modelWithDefaults);
+                    setFormFields(mapPropertiesToFormFields(modelWithDefaults.properties));
+                }
+            } catch (error) {
+                if (isMountedRef.current) {
+                    setEndpointError(error instanceof Error ? error.message : String(error));
+                }
+            } finally {
+                if (isMountedRef.current) {
+                    setLoadingEndpoints(false);
+                }
+            }
+            return;
+        }
+
+        setIsSaving(true);
         await createService(updatedModel);
+    };
+
+    const handleConfigSubmit = async (data: FormValues, formImports: FormImports) => {
+        const configFields = formFields.filter((field) => field.key !== "designApproach");
+        const updatedModel = applyFormValuesToModel(configFields, pendingModel, data, formImports);
+        setPendingModel(updatedModel);
+        setConfigStep(false);
+        setSelectionMode(true);
     };
 
     const createService = async (serviceModel: ServiceInitModel) => {
@@ -524,22 +566,24 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
 
     const handleConfirmSelection = async () => {
         if (!pendingModel) return;
-        const finalModel = mcpImportConfiguration
-            ? applyMcpImportConfiguration(pendingModel, mcpImportConfiguration)
-            : pendingModel;
-        finalModel.selectedTools = Array.from(selectedTools);
-        await createService(finalModel);
+        pendingModel.selectedTools = Array.from(selectedTools);
+        await createService(pendingModel);
     };
 
     const handleBackFromSelection = () => {
         setSelectionMode(false);
+        setConfigStep(true);
+    };
+
+    const handleBackFromConfig = () => {
+        setConfigStep(false);
         setEndpoints([]);
         setEndpointError("");
         setPendingModel(null);
+        setSelectedTools(new Set());
         setToolSearch("");
         setMethodFilters(new Set());
-        setMcpImportConfiguration(null);
-        setShowAdvancedConfiguration(false);
+        setSelectedSpecPath("");
     };
 
     const toggleTool = (toolName: string, checked: boolean) => {
@@ -563,10 +607,6 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
         });
     };
 
-    const updateMcpImportConfiguration = (key: keyof McpImportConfiguration, value: string) => {
-        setMcpImportConfiguration((config) => config ? { ...config, [key]: value } : config);
-    };
-
     const distinctMethods = Array.from(new Set(endpoints.map((endpoint) => endpoint.method.toUpperCase())));
     const query = toolSearch.trim().toLowerCase();
     const filteredEndpoints = endpoints.filter((endpoint) =>
@@ -580,6 +620,9 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
     const visibleFormFields = isMcpOpenApiImport
         ? formFields.filter((field) => field.key === "designApproach")
         : formFields;
+    const importSteps = ["Source", "Configure", "Tools"];
+    const importStepIndex = configStep ? 1 : selectionMode ? 2 : 0;
+    const specFileName = selectedSpecPath.split(/[\\/]/).pop();
 
     return (
         <View>
@@ -654,14 +697,62 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
                     )}
                     <ViewContent>
                         <Container>
-                            {selectionMode ? (
+                            {configStep ? (
                                 <SelectionContainer>
+                                    <ImportStepperWrapper>
+                                        <Stepper steps={importSteps} currentStep={importStepIndex} alignment="flex-start" />
+                                    </ImportStepperWrapper>
+                                    <HeaderWrapper>
+                                        <FormHeader
+                                            title={`Configure ${model.displayName}`}
+                                            subtitle="Review and adjust the service details generated from your OpenAPI specification."
+                                        />
+                                    </HeaderWrapper>
+                                    <SpecFileBadge title={selectedSpecPath}>
+                                        <Codicon name="file-code" sx={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "default" }} iconSx={{ fontSize: 13 }} />
+                                        {specFileName}
+                                    </SpecFileBadge>
+                                    {loadingEndpoints ? (
+                                        <RelativeLoader message="Reading OpenAPI specification..." />
+                                    ) : endpointError ? (
+                                        <StatusCard>
+                                            <Icon name="bi-error" sx={{ color: ThemeColors.ERROR, fontSize: "18px" }} />
+                                            <StatusText variant="body2">{endpointError}</StatusText>
+                                        </StatusCard>
+                                    ) : (
+                                        <NestedFormWrapper>
+                                            <ArtifactForm
+                                                fileName={filePath}
+                                                targetLineRange={targetLineRange}
+                                                fields={formFields.filter((field) => field.key !== "designApproach")}
+                                                isSaving={false}
+                                                nestedForm={true}
+                                                onSubmit={handleConfigSubmit}
+                                                onBack={handleBackFromConfig}
+                                                cancelText="Back"
+                                                serverValidationErrors={[]}
+                                                preserveFieldOrder={true}
+                                                recordTypeFields={recordTypeFields}
+                                                submitText="Next"
+                                            />
+                                        </NestedFormWrapper>
+                                    )}
+                                </SelectionContainer>
+                            ) : selectionMode ? (
+                                <SelectionContainer>
+                                    <ImportStepperWrapper>
+                                        <Stepper steps={importSteps} currentStep={importStepIndex} alignment="flex-start" />
+                                    </ImportStepperWrapper>
                                     <HeaderWrapper>
                                         <FormHeader
                                             title="Select Tools to Expose"
                                             subtitle="Each selected operation becomes an MCP tool that proxies requests to the underlying REST API."
                                         />
                                     </HeaderWrapper>
+                                    <SpecFileBadge title={selectedSpecPath}>
+                                        <Codicon name="file-code" sx={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "default" }} iconSx={{ fontSize: 13 }} />
+                                        {specFileName}
+                                    </SpecFileBadge>
                                     {loadingEndpoints ? (
                                         <RelativeLoader message="Reading OpenAPI specification..." />
                                     ) : endpointError ? (
@@ -725,33 +816,14 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
                                                     </EndpointRow>
                                                 ))}
                                             </EndpointList>
-                                            {mcpImportConfiguration && (
-                                                <>
-                                                    <AdvancedConfigurationRow>
-                                                        <span>Advanced Configurations</span>
-                                                        <LinkButton
-                                                            onClick={() => setShowAdvancedConfiguration((show) => !show)}
-                                                            sx={{ fontSize: 13, padding: 8, color: ThemeColors.PRIMARY, gap: 4 }}
-                                                        >
-                                                            <Codicon name={showAdvancedConfiguration ? "chevron-up" : "chevron-down"} iconSx={{ fontSize: 12 }} sx={{ height: 12 }} />
-                                                            {showAdvancedConfiguration ? "Collapse" : "Expand"}
-                                                        </LinkButton>
-                                                    </AdvancedConfigurationRow>
-                                                    {showAdvancedConfiguration && (
-                                                        <AdvancedFields>
-                                                            <AdvancedField fullWidth><TextField label="Service Name" value={mcpImportConfiguration.serviceName} onTextChange={(value) => updateMcpImportConfiguration("serviceName", value)} /></AdvancedField>
-                                                            <AdvancedField><TextField label="Version" value={mcpImportConfiguration.version} onTextChange={(value) => updateMcpImportConfiguration("version", value)} /></AdvancedField>
-                                                            <AdvancedField><TextField label="Port" value={mcpImportConfiguration.port} onTextChange={(value) => updateMcpImportConfiguration("port", value)} /></AdvancedField>
-                                                            <AdvancedField fullWidth><TextField label="Base Path" value={mcpImportConfiguration.basePath} onTextChange={(value) => updateMcpImportConfiguration("basePath", value)} /></AdvancedField>
-                                                            <AdvancedField fullWidth><TextField label="Listener Name" value={mcpImportConfiguration.listenerName} onTextChange={(value) => updateMcpImportConfiguration("listenerName", value)} /></AdvancedField>
-                                                        </AdvancedFields>
-                                                    )}
-                                                </>
-                                            )}
                                             <SelectionActions>
                                                 <Button appearance="secondary" onClick={handleBackFromSelection} disabled={isSaving}>Back</Button>
                                                 <Button appearance="primary" onClick={handleConfirmSelection} disabled={isSaving || selectedTools.size === 0}>
-                                                    {isSaving ? "Creating..." : `Create with ${selectedTools.size} tool${selectedTools.size === 1 ? "" : "s"}`}
+                                                    {isSaving ? (
+                                                        <Typography variant="progress">Creating...</Typography>
+                                                    ) : (
+                                                        `Create with ${selectedTools.size} tool${selectedTools.size === 1 ? "" : "s"}`
+                                                    )}
                                                 </Button>
                                             </SelectionActions>
                                         </SelectionBody>
