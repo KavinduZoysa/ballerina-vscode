@@ -433,6 +433,7 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
                                     targetLineRange={targetLineRange}
                                     recordTypeFields={recordTypeFields}
                                     isSaving={isSaving}
+                                    serverValidationErrors={serverValidationErrors}
                                     onBack={() => setMcpImport(null)}
                                     onCreate={createService}
                                 />

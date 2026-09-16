@@ -473,7 +473,12 @@ export class ServiceDesignerRpcManager implements ServiceDesignerAPI {
 
     async listOpenApiEndpoints(params: OpenApiEndpointsRequest): Promise<OpenApiEndpointsResponse> {
         const context = StateMachine.context();
-        return context.langClient.listOpenApiEndpoints(params);
+        try {
+            return await context.langClient.listOpenApiEndpoints(params);
+        } catch (error) {
+            console.log(error);
+            throw error;
+        }
     }
 
     async getConnectorUpgradeAdvice(params: ConnectorUpgradeAdviceRequest): Promise<ConnectorUpgradeAdviceResponse> {

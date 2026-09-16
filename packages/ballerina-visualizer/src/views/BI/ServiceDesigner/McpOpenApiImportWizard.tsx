@@ -21,7 +21,7 @@ import styled from "@emotion/styled";
 import { Button, CheckBox, Codicon, Icon, Stepper, TextField, ThemeColors, Typography } from "@wso2/ui-toolkit";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { FormField, FormImports, FormValues } from "@wso2/ballerina-side-panel";
-import { LineRange, McpServiceDefaults, McpToolEndpoint, RecordTypeField, ServiceInitModel } from "@wso2/ballerina-core";
+import { LineRange, McpServiceDefaults, McpToolEndpoint, RecordTypeField, ServiceInitModel, ValidationResult } from "@wso2/ballerina-core";
 import { FormHeader } from "../../../components/FormHeader";
 import { RelativeLoader } from "../../../components/RelativeLoader";
 import ArtifactForm from "../Forms/ArtifactForm";
@@ -217,13 +217,15 @@ export interface McpOpenApiImportWizardProps {
     targetLineRange: LineRange;
     recordTypeFields: RecordTypeField[];
     isSaving: boolean;
+    serverValidationErrors: ValidationResult[];
     /** Return to the Source step, discarding this wizard's in-progress state. */
     onBack: () => void;
     onCreate: (model: ServiceInitModel) => void | Promise<void>;
 }
 
 export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
-    const { initialModel, specPath, filePath, targetLineRange, recordTypeFields, isSaving, onBack, onCreate } = props;
+    const { initialModel, specPath, filePath, targetLineRange, recordTypeFields, isSaving, serverValidationErrors,
+        onBack, onCreate } = props;
     const { rpcClient } = useRpcContext();
 
     const [step, setStep] = useState<WizardStep>("configure");
@@ -430,6 +432,14 @@ export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
                                     </EndpointRow>
                                 ))}
                             </EndpointList>
+                            {serverValidationErrors.length > 0 && (
+                                <StatusCard>
+                                    <Icon name="bi-error" sx={{ color: ThemeColors.ERROR, fontSize: "18px" }} />
+                                    <StatusText variant="body2">
+                                        {serverValidationErrors.map((validationError) => validationError.message).join(" ")}
+                                    </StatusText>
+                                </StatusCard>
+                            )}
                             <SelectionActions>
                                 <Button appearance="secondary" onClick={() => setStep("configure")} disabled={isSaving}>Back</Button>
                                 <Button appearance="primary" onClick={handleConfirmSelection} disabled={isSaving || selectedTools.size === 0}>

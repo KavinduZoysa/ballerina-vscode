@@ -26,13 +26,13 @@ import io.ballerina.mcp.core.generator.McpProjectGenerator;
 import io.ballerina.mcp.core.generator.OpenApiSpecParser;
 import io.ballerina.mcp.core.model.EndpointInfo;
 import io.ballerina.mcp.core.model.SpecInfo;
+import io.ballerina.modelgenerator.commons.FileSystemUtils;
 import io.ballerina.projects.Document;
 import io.ballerina.servicemodelgenerator.extension.model.Codedata;
 import io.ballerina.servicemodelgenerator.extension.model.McpServiceDefaults;
 import io.ballerina.servicemodelgenerator.extension.model.ServiceInitModel;
 import io.ballerina.servicemodelgenerator.extension.model.Value;
 import io.ballerina.servicemodelgenerator.extension.util.Utils;
-import io.ballerina.tools.text.LinePosition;
 import org.ballerinalang.langserver.commons.workspace.WorkspaceManager;
 import org.eclipse.lsp4j.TextEdit;
 
@@ -103,6 +103,7 @@ public class McpOpenApiServiceGenerator {
         String serviceSource = runSilently(() -> new MainBalGenerator().generate(filteredSpec));
         String basePath = resolveValue(model, PROPERTY_BASE_PATH, ARG_TYPE_SERVICE_BASE_PATH, null);
         if (basePath != null && !basePath.isBlank()) {
+            basePath = basePath.trim();
             String normalized = basePath.startsWith("/") ? basePath : "/" + basePath;
             serviceSource = SERVICE_PATH_PATTERN.matcher(serviceSource)
                     .replaceFirst("$1" + Matcher.quoteReplacement(normalized) + "$2");
@@ -118,12 +119,9 @@ public class McpOpenApiServiceGenerator {
         String typesSource = generateTypes();
         if (!typesSource.isBlank()) {
             Path typesPath = projectPath.resolve(TYPES_BAL).toAbsolutePath();
-            Optional<Document> typesDocument = Files.exists(typesPath)
-                    ? workspaceManager.document(typesPath) : Optional.empty();
-            List<TextEdit> typesEdits = typesDocument.isPresent()
-                    ? appendGeneratedSource(typesDocument.get().syntaxTree().rootNode(), typesSource)
-                    : List.of(new TextEdit(Utils.toRange(LinePosition.from(0, 0)), typesSource));
-            edits.put(typesPath.toString(), typesEdits);
+            Document typesDocument = FileSystemUtils.getDocument(workspaceManager, typesPath);
+            edits.put(typesPath.toString(),
+                    appendGeneratedSource(typesDocument.syntaxTree().rootNode(), typesSource));
         }
         return edits;
     }
@@ -241,18 +239,23 @@ public class McpOpenApiServiceGenerator {
         return path.isBlank() ? "mcp" : path;
     }
 
+    // Serializes access since System.out/err are JVM-global, not per-call.
+    private static final Object STDIO_REDIRECT_LOCK = new Object();
+
     static <T> T runSilently(SilentAction<T> action) throws McpGenerationException, IOException {
-        PrintStream originalOut = System.out;
-        PrintStream originalErr = System.err;
-        PrintStream sink = new PrintStream(OutputStream.nullOutputStream(), true, StandardCharsets.UTF_8);
-        System.setOut(sink);
-        System.setErr(sink);
-        try {
-            return action.run();
-        } finally {
-            System.setOut(originalOut);
-            System.setErr(originalErr);
-            sink.close();
+        synchronized (STDIO_REDIRECT_LOCK) {
+            PrintStream originalOut = System.out;
+            PrintStream originalErr = System.err;
+            PrintStream sink = new PrintStream(OutputStream.nullOutputStream(), true, StandardCharsets.UTF_8);
+            System.setOut(sink);
+            System.setErr(sink);
+            try {
+                return action.run();
+            } finally {
+                System.setOut(originalOut);
+                System.setErr(originalErr);
+                sink.close();
+            }
         }
     }
 
