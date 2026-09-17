@@ -17,7 +17,10 @@
  */
 
 /** Full-page panels reachable from the chat. The chat itself is the empty stack. */
-export type PanelRoute = "settings" | "mcp" | "skills";
+import type { AIPanelView } from "@wso2/ballerina-core";
+
+/** The panel's surfaces are part of the cross-boundary payload, so core owns the union. */
+export type PanelRoute = AIPanelView;
 
 const PANEL_TITLES: Record<PanelRoute, string> = {
     settings: "Settings",

@@ -649,6 +649,18 @@ const AIChat: React.FC = () => {
                 .getDefaultPrompt()
                 .then(async (defaultPrompt: AIPanelPrompt) => {
                     if (defaultPrompt) {
+                        // Opened straight onto a surface or a thread rather than with something to send.
+                        if (defaultPrompt.type === 'view') {
+                            rpcClient.getAiPanelRpcClient().clearInitialPrompt();
+                            pushPanel(defaultPrompt.view);
+                            return;
+                        }
+                        if (defaultPrompt.type === 'thread') {
+                            rpcClient.getAiPanelRpcClient().clearInitialPrompt();
+                            void handleSwitchThread(defaultPrompt.threadId);
+                            return;
+                        }
+
                         // Extract CodeContext from both command-template metadata and text-type direct param
                         const codeCtx = defaultPrompt.type === 'command-template'
                             ? defaultPrompt.metadata?.codeContext

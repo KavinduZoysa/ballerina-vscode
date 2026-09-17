@@ -42,6 +42,7 @@ import {
 import { CopilotOrb } from "../../../components/AgentStatusOrb/CopilotOrb";
 import { useOrbColors } from "../../../components/AgentStatusOrb/orbTheme";
 import { openCopilotPanel, submitPromptToCopilot } from "../../../components/AgentStatusOrb/copilotPanel";
+import { CopilotMenu } from "../../../components/CopilotMenu";
 
 const CONTENT_WIDTH = 620;
 const INPUT_MIN_HEIGHT = 46;
@@ -236,6 +237,12 @@ const ActionRow = styled.div`
     align-items: center;
     justify-content: space-between;
     width: 100%;
+`;
+
+const LeftControls = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 6px;
 `;
 
 const RightControls = styled.div`
@@ -580,7 +587,10 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
                                     </AttachmentsWrap>
                                 )}
                                 <ActionRow>
-                                    <ModeToggle mode={agentMode} onChange={setAgentMode} />
+                                    <LeftControls>
+                                        <ModeToggle mode={agentMode} onChange={setAgentMode} />
+                                        <CopilotMenu />
+                                    </LeftControls>
                                     <RightControls>
                                         <input
                                             type="file"

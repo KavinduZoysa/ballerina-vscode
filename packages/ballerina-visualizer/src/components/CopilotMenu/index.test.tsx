@@ -1,0 +1,151 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com) All Rights Reserved.
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+// The menu's job is to hand the panel a payload it understands. What these pin is the shape of those
+// payloads — the panel reads them on mount, and a wrong `type` fails silently as "panel just opened".
+
+import * as React from "react";
+import { act } from "react-dom/test-utils";
+import { createRoot, Root } from "react-dom/client";
+
+jest.mock("@wso2/ballerina-core", () => ({
+    SHARED_COMMANDS: { OPEN_AI_PANEL: "ballerina.open.ai.panel" },
+}));
+
+let mockRpcClient: ReturnType<typeof makeRpcClient> | undefined;
+
+jest.mock("@wso2/ballerina-rpc-client", () => ({
+    useRpcContext: () => ({ rpcClient: mockRpcClient }),
+}));
+
+import { CopilotMenu } from "./index";
+
+declare global {
+    // eslint-disable-next-line no-var
+    var IS_REACT_ACT_ENVIRONMENT: boolean;
+}
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+const THREADS = [
+    { id: "t1", name: "Order API", isActive: true, createdAt: 1, updatedAt: 9, turnCount: 3 },
+    { id: "t2", name: "Kafka consumer", isActive: false, createdAt: 1, updatedAt: 8, turnCount: 1 },
+];
+
+function makeRpcClient(threads: unknown[] = THREADS) {
+    const common = { executeCommand: jest.fn().mockResolvedValue(undefined) };
+    const ai = { listThreads: jest.fn().mockResolvedValue(threads) };
+    return { getCommonRpcClient: () => common, getAiPanelRpcClient: () => ai };
+}
+
+describe("CopilotMenu", () => {
+    let container: HTMLDivElement;
+    let root: Root;
+
+    beforeEach(() => {
+        mockRpcClient = makeRpcClient();
+        container = document.createElement("div");
+        document.body.appendChild(container);
+        root = createRoot(container);
+    });
+
+    afterEach(() => {
+        act(() => root.unmount());
+        container.remove();
+        mockRpcClient = undefined;
+    });
+
+    const render = async () => {
+        await act(async () => {
+            root.render(<CopilotMenu />);
+        });
+    };
+
+    const trigger = () => container.querySelector("button[aria-haspopup='menu']") as HTMLButtonElement;
+    const items = () => Array.from(container.querySelectorAll("[role='menuitem']")) as HTMLButtonElement[];
+    const labelled = (text: string) => items().find((el) => el.textContent?.trim().startsWith(text))!;
+    const click = async (el: HTMLElement) => {
+        await act(async () => {
+            el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        });
+    };
+    const commands = () =>
+        (mockRpcClient!.getCommonRpcClient().executeCommand as jest.Mock).mock.calls.map((c) => c[0].commands);
+
+    it("stays closed until asked", async () => {
+        await render();
+        expect(items()).toHaveLength(0);
+        expect(trigger().getAttribute("aria-expanded")).toBe("false");
+    });
+
+    it("offers chats and every configured surface", async () => {
+        await render();
+        await click(trigger());
+
+        expect(items().map((el) => el.textContent?.trim())).toEqual(["Chats", "Settings"]);
+    });
+
+    it("opens the panel on a surface rather than sending a prompt", async () => {
+        await render();
+        await click(trigger());
+        await click(labelled("Settings"));
+
+        const [command, payload] = commands()[0];
+        expect(command).toBe("ballerina.open.ai.panel");
+        expect(payload).toEqual({ type: "view", view: "settings" });
+    });
+
+    // Loading on mount would call listThreads for every overview render, most of which never open it.
+    it("does not read the thread list until the menu is opened", async () => {
+        await render();
+        expect(mockRpcClient!.getAiPanelRpcClient().listThreads).not.toHaveBeenCalled();
+
+        await click(trigger());
+        expect(mockRpcClient!.getAiPanelRpcClient().listThreads).toHaveBeenCalled();
+    });
+
+    it("opens the panel on the chosen conversation", async () => {
+        await render();
+        await click(trigger());
+        await click(labelled("Chats"));
+        await click(labelled("Kafka consumer"));
+
+        const [command, payload] = commands()[0];
+        expect(command).toBe("ballerina.open.ai.panel");
+        expect(payload).toEqual({ type: "thread", threadId: "t2" });
+    });
+
+    it("says so when there is no history rather than showing an empty list", async () => {
+        mockRpcClient = makeRpcClient([]);
+        await render();
+        await click(trigger());
+        await click(labelled("Chats"));
+
+        expect(container.textContent).toContain("No chats yet");
+    });
+
+    it("closes on Escape", async () => {
+        await render();
+        await click(trigger());
+        expect(items().length).toBeGreaterThan(0);
+
+        await act(async () => {
+            document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        });
+        expect(items()).toHaveLength(0);
+    });
+});
