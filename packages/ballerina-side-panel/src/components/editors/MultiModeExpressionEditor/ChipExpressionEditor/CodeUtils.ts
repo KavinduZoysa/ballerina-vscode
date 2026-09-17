@@ -539,6 +539,32 @@ export const activeChipSelectionGuard = EditorView.updateListener.of((update) =>
     }
 });
 
+// All editable value-chip (and, once reachable, compound) ranges in the current document,
+// in document order - the tab stops for keyboard-only chip navigation below.
+const getEditableChipRanges = (view: EditorView): { start: number; end: number }[] => {
+    const tokenState = view.state.field(tokenField, false);
+    if (!tokenState) return [];
+
+    const tokenRanges = tokenState.tokens
+        .filter(token => isEditableValueChip(token.type) && token.start < token.end)
+        .map(token => ({ start: token.start, end: token.end }));
+
+    const compoundRanges = tokenState.compounds
+        .filter(compound => isEditableValueChip(compound.tokenType) && compound.start < compound.end)
+        .map(compound => ({ start: compound.start, end: compound.end }));
+
+    return [...tokenRanges, ...compoundRanges].sort((a, b) => a.start - b.start);
+};
+
+const activateChipRange = (view: EditorView, range: { start: number; end: number }): boolean => {
+    view.dispatch({
+        selection: { anchor: range.start, head: range.end },
+        effects: setActiveEditableTokenEffect.of(range.start)
+    });
+    view.focus();
+    return true;
+};
+
 export const expressionEditorKeymap = [
     {
         // Commits the chip currently in edit mode (re-collapses it back into a chip); does
@@ -549,6 +575,36 @@ export const expressionEditorKeymap = [
             if (activeStart === undefined) return false;
             view.dispatch({ effects: setActiveEditableTokenEffect.of(undefined) });
             return true;
+        }
+    },
+    {
+        // Jumps to (and activates) the next editable chip after the current one, so a
+        // multi-argument function call's placeholders can be filled without ever touching
+        // the mouse. Wraps back to the first chip past the last one.
+        key: "Tab",
+        run: (view: EditorView) => {
+            const chips = getEditableChipRanges(view);
+            if (chips.length === 0) return false;
+
+            const activeStart = view.state.field(activeEditableTokenField, false);
+            const referencePos = activeStart !== undefined ? activeStart : view.state.selection.main.head;
+
+            const nextChip = chips.find(chip => chip.start > referencePos) ?? chips[0];
+            return activateChipRange(view, nextChip);
+        }
+    },
+    {
+        // Mirror of Tab above: jumps to the previous editable chip, wrapping to the last.
+        key: "Shift-Tab",
+        run: (view: EditorView) => {
+            const chips = getEditableChipRanges(view);
+            if (chips.length === 0) return false;
+
+            const activeStart = view.state.field(activeEditableTokenField, false);
+            const referencePos = activeStart !== undefined ? activeStart : view.state.selection.main.head;
+
+            const prevChip = [...chips].reverse().find(chip => chip.start < referencePos) ?? chips[chips.length - 1];
+            return activateChipRange(view, prevChip);
         }
     },
     {
