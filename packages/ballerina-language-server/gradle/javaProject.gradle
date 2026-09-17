@@ -74,12 +74,6 @@ task validateSpotbugs() {
     }
 }
 
-spotbugs {
-    // Gradle 9 needs the newer plugin, but its default analyzer enables detectors
-    // that fire across the existing codebase. Pin the analyzer the project already used.
-    toolVersion = "${spotbugsToolVersion}"
-}
-
 spotbugsMain {
     def classLoader = plugins["com.github.spotbugs"].class.classLoader
     def SpotBugsConfidence = classLoader.findLoadedClass("com.github.spotbugs.snom.Confidence")
