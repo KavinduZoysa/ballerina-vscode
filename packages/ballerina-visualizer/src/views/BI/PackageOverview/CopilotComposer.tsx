@@ -245,6 +245,14 @@ const LeftControls = styled.div`
     gap: 6px;
 `;
 
+// The menu is unrelated to the mode toggle beside it.
+const ControlDivider = styled.span`
+    width: 1px;
+    height: 16px;
+    background-color: var(--vscode-panel-border, var(--vscode-editorWidget-border));
+    opacity: 0.6;
+`;
+
 const RightControls = styled.div`
     display: flex;
     align-items: center;
@@ -588,6 +596,7 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
                                 <ActionRow>
                                     <LeftControls>
                                         <ModeToggle mode={agentMode} onChange={setAgentMode} />
+                                        <ControlDivider aria-hidden="true" />
                                         <CopilotMenu />
                                     </LeftControls>
                                     <RightControls>

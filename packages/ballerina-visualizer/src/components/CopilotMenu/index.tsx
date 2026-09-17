@@ -118,7 +118,7 @@ const Note = styled.div`
  * Entry points into the Copilot panel, kept out of the surfaces that host it so the overview,
  * the mini chat and anything later can share one menu.
  */
-export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
+export function CopilotMenu({ icon = "ellipsis" }: { icon?: string } = {}) {
     const { rpcClient } = useRpcContext();
     const [open, setOpen] = useState(false);
     const [level, setLevel] = useState<MenuLevel>("root");
@@ -198,8 +198,8 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
                 ref={triggerRef}
                 type="button"
                 data-testid={`copilot-menu-trigger-${icon}`}
-                title="WSO2 Integrator Copilot"
-                aria-label="WSO2 Integrator Copilot"
+                title="More actions"
+                aria-label="More actions"
                 aria-haspopup="menu"
                 aria-expanded={open}
                 onClick={toggle}
