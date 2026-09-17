@@ -256,6 +256,14 @@ export const Sphere = styled.div<SphereProps>`
         inset 0 9px 16px rgba(255, 255, 255, 0.1),
         inset 0 -8px 14px rgba(0, 0, 0, 0.16),
         0 0 14px color-mix(in srgb, ${(props: SphereProps) => props.colors[1]} 45%, transparent);
+
+    body.vscode-dark & {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+            inset 0 9px 16px rgba(255, 255, 255, 0.1),
+            inset 0 -8px 14px rgba(0, 0, 0, 0.16),
+            0 0 16px color-mix(in srgb, ${(props: SphereProps) => props.colors[1]} 24%, transparent);
+    }
     animation:
         ${spherePulse} ${(props: SphereProps) => (4.2 - props.energy * 2.4).toFixed(2)}s ease-in-out infinite,
         ${sphereDrift} ${(props: SphereProps) => (7.5 - props.energy * 3.5).toFixed(2)}s ease-in-out infinite;
