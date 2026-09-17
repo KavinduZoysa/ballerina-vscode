@@ -92,6 +92,44 @@ describe("toSvgDataUri", () => {
         );
     });
 
+    it("repaints a mark that hardcodes its ink, as the generated aws.sqs icon does", () => {
+        // The sqs pair states its ink literally — "#000000" light, "#FFFFFF" dark — so substituting
+        // `currentColor` alone would leave the brand color unused and the node black.
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><path d="M0,0" fill="#000000"/></svg>';
+
+        const decoded = decode(toSvgDataUri(svg, "#FF9900"));
+
+        expect(decoded).toContain('<style>*:not([fill="none"]){fill:#FF9900 !important}</style>');
+        expect(decoded.indexOf("<style>")).toBe(decoded.indexOf(">") + 1); // injected as the first child
+        expect(decoded).toContain('<path d="M0,0" fill="#000000"/>'); // the mark itself is untouched
+    });
+
+    it("leaves the document alone when no color is declared", () => {
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" fill="black"><path d="M0,0"/></svg>';
+
+        expect(decode(toSvgDataUri(svg))).toBe(svg);
+    });
+
+    it("steps over a quoted '>' when finding the end of the root start tag", () => {
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" aria-label="a > b"><path d="M0,0"/></svg>';
+
+        expect(decode(toSvgDataUri(svg, "#f60"))).toBe(
+            '<svg xmlns="http://www.w3.org/2000/svg" aria-label="a > b"><style>*:not([fill="none"]){fill:#f60 !important}</style><path d="M0,0"/></svg>'
+        );
+    });
+
+    it("skips the stylesheet for an empty root, which has nothing to repaint", () => {
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg"/>';
+
+        expect(decode(toSvgDataUri(svg, "#f60"))).toBe(svg);
+    });
+
+    it("ignores a color that is not a plain hex or named value", () => {
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0,0"/></svg>';
+
+        expect(decode(toSvgDataUri(svg, '#f60"}</style><script/>'))).toBe(svg);
+    });
+
     it("returns undefined when there is no SVG to render", () => {
         expect(toSvgDataUri(undefined)).toBeUndefined();
         expect(toSvgDataUri("")).toBeUndefined();

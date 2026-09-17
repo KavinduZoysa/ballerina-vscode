@@ -102,13 +102,23 @@ export function getColorByMethod(method: string) {
     }
 }
 
+const HTTP_SERVICE_TYPE = "http:Service";
+
 /**
  * Renders a service's icon following the descriptor's representation order: the theme-specific SVG
  * pair first, then the single `url` image, then the generic HTTP glyph. Each step falls through on a
  * load failure, so a connector shipping an SVG the browser refuses still gets its `url` image rather
  * than an empty icon slot.
+ *
+ * HTTP is drawn with the diagram's own bundled glyph rather than the descriptor, the way `ai` and
+ * `graphql` get their own widgets in {@link EntryNodeWidget}: it's the diagram's most common node
+ * and the one the canvas already has an icon designed for, so it should not depend on a remote
+ * package image that the theme can't follow and the webview may not be able to reach.
  */
 function getServiceIcon(service: CDService) {
+    if (service.type === HTTP_SERVICE_TYPE) {
+        return <HttpIcon />;
+    }
     const descriptor = toIconDescriptor(service.icon);
     const svgDataUri = toSvgDataUri(isLightTheme() ? descriptor?.light : descriptor?.dark, descriptor?.color);
     const urlIcon = <ImageWithFallback imageUrl={descriptor?.url ?? ""} fallbackEl={<HttpIcon />} />;

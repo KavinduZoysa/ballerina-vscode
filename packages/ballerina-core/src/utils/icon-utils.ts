@@ -87,18 +87,51 @@ export function normalizeSvgDocument(svg?: string): string | undefined {
     return SVG_ROOT_START.test(root) ? root : undefined;
 }
 
+const SAFE_COLOR = /^(?:#[0-9a-f]{3,8}|[a-z]+)$/i;
+
+/**
+ * Returns the index just past the root element's start tag, or `-1` when it is never closed. Quoted
+ * attribute values are stepped over, since XML permits a raw ">" inside one.
+ */
+function rootStartTagEnd(svg: string): number {
+    let quote: string | undefined;
+    for (let at = 0; at < svg.length; at++) {
+        const char = svg[at];
+        if (quote) {
+            if (char === quote) {
+                quote = undefined;
+            }
+        } else if (char === '"' || char === "'") {
+            quote = char;
+        } else if (char === ">") {
+            return at + 1;
+        }
+    }
+    return -1;
+}
+
+function tintSvg(root: string, color: string): string {
+    const painted = root.replace(/currentColor/g, color);
+    const contentStart = rootStartTagEnd(painted);
+    if (contentStart < 0 || painted[contentStart - 2] === "/") {
+        return painted; // an empty root: no element content to repaint
+    }
+    const style = `<style>*:not([fill="none"]){fill:${color} !important}</style>`;
+    return painted.slice(0, contentStart) + style + painted.slice(contentStart);
+}
+
 /**
  * Turns an SVG document — an `IconDescriptor`'s `light`/`dark` member — into an `<img>`-ready data
  * URI, or `undefined` when there is no SVG to render.
  *
- * `color` tints a monochrome glyph by substituting the `currentColor` keyword, which cannot resolve
- * inside an `<img>` — the image inherits no color from the page.
+ * `color` repaints the mark in the connector's brand color. It is declared only for the monochrome
+ * marks it makes sense for, so flattening the document to a single fill is the intended result.
  */
 export function toSvgDataUri(svg?: string, color?: string): string | undefined {
     const root = normalizeSvgDocument(svg);
     if (!root) {
         return undefined;
     }
-    const tinted = color ? root.replace(/currentColor/g, color) : root;
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(tinted)}`;
+    const painted = color && SAFE_COLOR.test(color) ? tintSvg(root, color) : root;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(painted)}`;
 }
