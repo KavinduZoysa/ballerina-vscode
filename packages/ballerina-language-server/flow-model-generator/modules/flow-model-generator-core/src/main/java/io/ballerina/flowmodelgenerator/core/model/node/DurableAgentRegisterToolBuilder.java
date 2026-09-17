@@ -54,11 +54,6 @@ public class DurableAgentRegisterToolBuilder extends CallBuilder {
     public static final String TOOL_LABEL = "Tool";
     public static final String TOOL_DOC = "The @ai:AgentTool function to register with the agent";
 
-    public static final String REQUIRES_APPROVAL_KEY = "requiresApproval";
-    public static final String USER_ROLES_KEY = "userRoles";
-    public static final String REQUIRES_APPROVAL_DOC =
-            "Gate this tool: before the agent runs it, a review activity is created and the agent suspends "
-            + "durably until a reviewer proceeds (optionally editing the arguments) or rejects.";
 
     @Override
     protected NodeKind getFunctionNodeKind() {
@@ -114,9 +109,8 @@ public class DurableAgentRegisterToolBuilder extends CallBuilder {
 
         // ToolDecl gating: emitted as `{tool: <ref>, approvalPolicy: {userRoles: ...}}` on the
         // declaration's tools list when set; a bare reference otherwise.
-        WorkflowUtil.addApprovalGateProperties(this, REQUIRES_APPROVAL_KEY, REQUIRES_APPROVAL_DOC, USER_ROLES_KEY,
-                "Role(s) permitted to decide the approval review of this tool, "
-                        + "e.g. \"support-lead\" or [\"finance\", \"manager\"].");
+        ApprovalPolicyForm.addFormProperties(this, ApprovalPolicyForm.NO_APPROVAL_VALUE,
+                ActivityCallBuilder.ReviewFormValues.empty());
         properties().checkError(true);
     }
 
@@ -132,10 +126,9 @@ public class DurableAgentRegisterToolBuilder extends CallBuilder {
         if (toolRef.isBlank()) {
             throw new UserFacingException("An agent tool function must be selected");
         }
-        String approvalPolicy = WorkflowUtil.approvalPolicyLiteral(sourceBuilder, REQUIRES_APPROVAL_KEY,
-                USER_ROLES_KEY);
-        String entry = approvalPolicy.isBlank() ? toolRef
-                : "{tool: " + toolRef + ", " + WorkflowUtil.APPROVAL_POLICY_FIELD + ": " + approvalPolicy + "}";
+        String approvalPolicy = ApprovalPolicyForm.literal(sourceBuilder.flowNode.properties());
+        String entry = approvalPolicy == null ? toolRef
+                : "{tool: " + toolRef + ", " + ApprovalPolicyForm.KEY + ": " + approvalPolicy + "}";
         return WorkflowUtil.upsertAgentCapabilityEntry(sourceBuilder, "tools", entry);
     }
 

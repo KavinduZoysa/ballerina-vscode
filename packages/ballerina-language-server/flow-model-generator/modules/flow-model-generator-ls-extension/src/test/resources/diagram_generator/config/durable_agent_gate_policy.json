@@ -48,10 +48,10 @@
                 "values": {
                   "activity": "chargeCard",
                   "description": "Charges the card",
-                  "requiresApproval": "true",
-                  "userRoles": "[\"manager\"]",
-                  "users": "alice",
-                  "approvalTitle": "\"Approve the charge\"",
+                  "approvalPolicy": "HumanApproval",
+                  "approvalUserRoles": "[\"manager\"]",
+                  "approvalUsers": "\"alice\"",
+                  "approvalTitle": "Approve the charge",
                   "approvalTimeout": "{hours: 4}",
                   "bindings.api": "payApi"
                 }
@@ -75,10 +75,10 @@
                 },
                 "values": {
                   "tool": "refund",
-                  "requiresApproval": "true",
-                  "userRoles": "finance",
-                  "excludedUsers": "[\"bob\"]",
-                  "approvalDescription": "\"Approve the refund\""
+                  "approvalPolicy": "HumanApproval",
+                  "approvalUserRoles": "\"finance\"",
+                  "approvalExcludedUsers": "[\"bob\"]",
+                  "approvalDescription": "Approve the refund"
                 }
               }
             ],
