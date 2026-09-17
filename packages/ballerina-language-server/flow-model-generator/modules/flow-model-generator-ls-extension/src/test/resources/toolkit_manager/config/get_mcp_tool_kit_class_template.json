@@ -65,12 +65,26 @@
           },
           "types": [
             {
+              "fieldType": "RECORD_MAP_EXPRESSION",
+              "ballerinaType": "mcp:Implementation",
+              "typeMembers": [
+                {
+                  "type": "Implementation",
+                  "packageInfo": "ballerina:mcp:1.3.0",
+                  "packageName": "mcp",
+                  "kind": "RECORD_TYPE",
+                  "selected": false
+                }
+              ],
+              "selected": false
+            },
+            {
               "fieldType": "EXPRESSION",
-              "ballerinaType": "$CompilationError$",
+              "ballerinaType": "mcp:Implementation",
               "selected": false
             }
           ],
-          "placeholder": "",
+          "placeholder": "{version: \"\", name: \"\"}",
           "optional": true,
           "editable": true,
           "advanced": false,

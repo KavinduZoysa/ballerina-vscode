@@ -281,7 +281,7 @@
           "kind": "DEFAULTABLE",
           "originalName": "minCount"
         },
-        "defaultValue": "0",
+        "defaultValue": "<int:Unsigned32>futures.length()",
         "modified": true,
         "value": "1"
       },
@@ -386,7 +386,7 @@
           "kind": "DEFAULTABLE",
           "originalName": "minCount"
         },
-        "defaultValue": "<int:Unsigned32>futures.length()"
+        "defaultValue": "0"
       },
       "timeout": {
         "metadata": {
