@@ -18,7 +18,7 @@
 
 import React, { useState } from "react";
 import { PortWidget } from "@projectstorm/react-diagrams-core";
-import { CDAutomation, CDService, CDWorkflow, CDWorkflowEvent, CDWorkflowHumanTask, toIconDescriptor } from "@wso2/ballerina-core";
+import { CDAutomation, CDService, CDWorkflow, CDWorkflowEvent, CDWorkflowHumanTask, isLightTheme, toIconDescriptor, toSvgDataUri } from "@wso2/ballerina-core";
 import { Item, Menu, MenuItem, Popover, ImageWithFallback, Icon } from "@wso2/ui-toolkit";
 import { useDiagramContext } from "../../../DiagramContext";
 import { HttpIcon, TaskIcon } from "../../../../resources";
@@ -102,16 +102,20 @@ export function getColorByMethod(method: string) {
     }
 }
 
+/**
+ * Renders a service's icon following the descriptor's representation order: the theme-specific SVG
+ * pair first, then the single `url` image, then the generic HTTP glyph. Each step falls through on a
+ * load failure, so a connector shipping an SVG the browser refuses still gets its `url` image rather
+ * than an empty icon slot.
+ */
 function getServiceIcon(service: CDService) {
     const descriptor = toIconDescriptor(service.icon);
-    const lightTheme = typeof document !== "undefined" && (document.body.classList.contains("vscode-light")
-        || document.body.classList.contains("vscode-high-contrast-light"));
-    const svg = lightTheme ? descriptor?.light : descriptor?.dark;
-    if (svg) {
-        const tinted = descriptor?.color ? svg.replace(/currentColor/g, descriptor.color) : svg;
-        return <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(tinted)}`} alt="" />;
+    const svgDataUri = toSvgDataUri(isLightTheme() ? descriptor?.light : descriptor?.dark, descriptor?.color);
+    const urlIcon = <ImageWithFallback imageUrl={descriptor?.url ?? ""} fallbackEl={<HttpIcon />} />;
+    if (svgDataUri) {
+        return <ImageWithFallback imageUrl={svgDataUri} fallbackEl={urlIcon} />;
     }
-    return <ImageWithFallback imageUrl={descriptor?.url ?? ""} fallbackEl={<HttpIcon />} />;
+    return urlIcon;
 }
 
 export function FunctionBox(props: { func: any; model: EntryNodeModel; engine: any; readonly?: boolean }) {
