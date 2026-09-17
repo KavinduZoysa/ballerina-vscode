@@ -24,6 +24,7 @@ import io.ballerina.compiler.api.symbols.Symbol;
 import io.ballerina.compiler.api.symbols.TypeDescKind;
 import io.ballerina.compiler.api.symbols.TypeReferenceTypeSymbol;
 import io.ballerina.compiler.api.symbols.TypeSymbol;
+import io.ballerina.compiler.api.symbols.UnionTypeSymbol;
 import io.ballerina.compiler.api.symbols.VariableSymbol;
 import io.ballerina.compiler.syntax.tree.Node;
 import io.ballerina.flowmodelgenerator.core.AiUtils;
@@ -382,7 +383,7 @@ public abstract class CallBuilder extends NodeBuilder {
                         .stepOut();
             }
             default -> {
-                // Add PROMPT field type for ai:Prompt parameters
+                // Add PROMPT field type for ai:Prompt parameters, including inside a union.
                 // TODO: Need an extension pattern to extract the following implementation out of the CallBuilder
                 String typeSignature = CommonUtils.getTypeSignature(paramData.typeSymbol(), moduleInfo);
                 if (AiUtils.AI_PROMPT_TYPE.equals(typeSignature)) {
@@ -391,6 +392,11 @@ public abstract class CallBuilder extends NodeBuilder {
                             .ballerinaType(AiUtils.AI_PROMPT_TYPE)
                             .selected(true)
                             .stepOut();
+                } else if (unionContainsPromptType(paramData.typeSymbol(), moduleInfo)) {
+                    customPropBuilder.type()
+                            .fieldType(Property.ValueType.PROMPT)
+                            .ballerinaType(AiUtils.AI_PROMPT_TYPE)
+                            .stepOut();
                 }
                 customPropBuilder.typeWithExpression(paramData.typeSymbol(), moduleInfo,
                         paramData.defaultValue());
@@ -398,6 +404,12 @@ public abstract class CallBuilder extends NodeBuilder {
         }
 
         return customPropBuilder.build();
+    }
+
+    private boolean unionContainsPromptType(TypeSymbol typeSymbol, ModuleInfo moduleInfo) {
+        TypeSymbol rawType = CommonUtil.getRawType(typeSymbol);
+        return rawType instanceof UnionTypeSymbol unionTypeSymbol && unionTypeSymbol.memberTypeDescriptors().stream()
+                .anyMatch(member -> AiUtils.AI_PROMPT_TYPE.equals(CommonUtils.getTypeSignature(member, moduleInfo)));
     }
 
     protected String getParameterPropertyKey(ParameterData paramData) {
