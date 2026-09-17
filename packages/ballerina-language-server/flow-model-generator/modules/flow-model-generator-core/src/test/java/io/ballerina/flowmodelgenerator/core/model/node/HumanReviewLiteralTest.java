@@ -36,13 +36,13 @@ import java.util.Map;
  */
 public class HumanReviewLiteralTest {
 
-    @Test(description = "An empty form writes only the required roles, as the empty 'any role' list")
+    @Test(description = "An empty form writes only the required roles, as nil: only the named users decide")
     public void testEmptyReview() {
-        Assert.assertEquals(ActivityCallBuilder.humanReviewRecordLiteral(Map.of()), "{userRoles: []}");
+        Assert.assertEquals(ActivityCallBuilder.humanReviewRecordLiteral(Map.of()), "{userRoles: ()}");
         Assert.assertEquals(ActivityCallBuilder.humanReviewRecordLiteral(props(
                 ActivityCallBuilder.RETRY_USER_ROLES_KEY, "",
                 ActivityCallBuilder.RETRY_TITLE_KEY, "",
-                ActivityCallBuilder.RETRY_TIMEOUT_KEY, "")), "{userRoles: []}");
+                ActivityCallBuilder.RETRY_TIMEOUT_KEY, "")), "{userRoles: ()}");
     }
 
     @Test(description = "Roles alone: a bare role is quoted, a role list is written as it was typed")

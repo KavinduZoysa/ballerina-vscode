@@ -510,6 +510,83 @@ public class WorkflowUtil {
     }
 
     /**
+     * One declared capability of a durable agent: its name, the mapping that configures it, and the
+     * node it was declared at.
+     *
+     * @param name   the capability's name
+     * @param config the mapping that configures it, {@code null} when the entry's value is not
+     *               written inline as a mapping — a reference to a shared config constant, say
+     * @param node   the declaration node, for a location a reader can navigate to
+     */
+    public record CapabilityEntry(String name, MappingConstructorExpressionNode config, Node node) {
+    }
+
+    /**
+     * The entries of an agent capability field, in whichever form it was declared: a mapping keyed
+     * by capability name — {@code events: {chat: {request: string}}}, what the module documents —
+     * or the list of records that carry their own {@code name} field, which it still accepts.
+     *
+     * <p>Reading only one form leaves the other invisible, and a capability the tooling cannot see
+     * is one it silently drops the next time it writes the declaration back.
+     *
+     * @param value the value of an {@code events}, {@code humanTasks} or similar config field
+     * @return the entries it declares, empty when the value is neither form
+     */
+    public static List<CapabilityEntry> capabilityEntries(ExpressionNode value) {
+        List<CapabilityEntry> entries = new ArrayList<>();
+        if (value instanceof MappingConstructorExpressionNode keyed) {
+            for (MappingFieldNode field : keyed.fields()) {
+                if (!(field instanceof SpecificFieldNode entry) || entry.valueExpr().isEmpty()) {
+                    continue;
+                }
+                String name = capabilityName(entry.fieldName().toSourceCode().trim());
+                if (name.isBlank()) {
+                    continue;
+                }
+                // The key names a capability even when its config is a reference rather than an
+                // inline mapping; dropping the entry would hide a capability that exists.
+                MappingConstructorExpressionNode config =
+                        entry.valueExpr().get() instanceof MappingConstructorExpressionNode inline ? inline : null;
+                entries.add(new CapabilityEntry(name, config, entry));
+            }
+            return entries;
+        }
+        if (value instanceof ListConstructorExpressionNode list) {
+            for (Node item : list.expressions()) {
+                if (!(item instanceof MappingConstructorExpressionNode config)) {
+                    continue;
+                }
+                for (MappingFieldNode field : config.fields()) {
+                    if (field instanceof SpecificFieldNode entry && entry.valueExpr().isPresent()
+                            && "name".equals(entry.fieldName().toSourceCode().trim())) {
+                        String name = capabilityName(entry.valueExpr().get().toSourceCode().trim());
+                        if (!name.isBlank()) {
+                            entries.add(new CapabilityEntry(name, config, item));
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        return entries;
+    }
+
+    /**
+     * A capability name as the declaration means it, from the source that spells it: a string
+     * literal carries escapes, a quoted identifier a {@code '} prefix. Every reader of a
+     * declaration normalizes the same way, or the same capability reads under two names.
+     *
+     * @param source the key or {@code name} value as written
+     * @return the capability name it denotes
+     */
+    public static String capabilityName(String source) {
+        if (source.length() >= 2 && source.startsWith("\"") && source.endsWith("\"")) {
+            return unescapeLiteralBody(source.substring(1, source.length() - 1));
+        }
+        return source.startsWith("'") ? source.substring(1) : source;
+    }
+
+    /**
      * The {@code ballerina/workflow} version the project resolves: the locked
      * {@code Dependencies.toml} entry first, then the explicit {@code Ballerina.toml} pin. Form
      * metadata that points at a workflow-declared type (the {@code Duration} record the timeout
@@ -649,36 +726,18 @@ public class WorkflowUtil {
         return names;
     }
 
-    // Collects the `name` field of each mapping entry in the config's `events` list.
+    // Collects the name of each entry in the config's `events`, in whichever form it was declared.
     private static void collectDeclaredEventNames(
             MappingConstructorExpressionNode config,
             java.util.Set<String> names) {
         for (MappingFieldNode field : config.fields()) {
             if (!(field instanceof SpecificFieldNode specificField)
                     || specificField.valueExpr().isEmpty()
-                    || !"events".equals(specificField.fieldName().toSourceCode().trim())
-                    || !(specificField.valueExpr().get()
-                            instanceof ListConstructorExpressionNode list)) {
+                    || !"events".equals(specificField.fieldName().toSourceCode().trim())) {
                 continue;
             }
-            for (Node item : list.expressions()) {
-                if (item.kind() != SyntaxKind.MAPPING_CONSTRUCTOR) {
-                    continue;
-                }
-                for (MappingFieldNode entryField
-                        : ((MappingConstructorExpressionNode) item).fields()) {
-                    if (entryField instanceof SpecificFieldNode entry
-                            && entry.valueExpr().isPresent()
-                            && "name".equals(entry.fieldName().toSourceCode().trim())) {
-                        String raw = entry.valueExpr().get().toSourceCode().trim();
-                        if (raw.length() >= 2 && raw.startsWith("\"") && raw.endsWith("\"")) {
-                            raw = unescapeLiteralBody(raw.substring(1, raw.length() - 1));
-                        }
-                        if (!raw.isEmpty()) {
-                            names.add(raw);
-                        }
-                    }
-                }
+            for (CapabilityEntry entry : capabilityEntries(specificField.valueExpr().get())) {
+                names.add(entry.name());
             }
         }
     }
@@ -1200,6 +1259,41 @@ public class WorkflowUtil {
     public static final String REQUIRES_APPROVAL_LABEL = "Requires Approval";
     /** Label of the reviewer-roles field that accompanies the flag. */
     public static final String REVIEWER_ROLES_LABEL = "Reviewer Roles";
+    /** Source field carrying a capability's approval policy. */
+    public static final String APPROVAL_POLICY_FIELD = "approvalPolicy";
+    /** Property keys of the audience fields every review definition form carries beside the roles. */
+    public static final String USERS_KEY = "users";
+    public static final String EXCLUDED_USERS_KEY = "excludedUsers";
+    public static final String EXCLUDED_ROLES_KEY = "excludedRoles";
+    public static final String ADMINISTRATOR_ROLES_KEY = "administratorRoles";
+    public static final String ADMINISTRATOR_USERS_KEY = "administratorUsers";
+    /** Property keys of the review details a gate form carries beside its audience. */
+    public static final String APPROVAL_TITLE_KEY = "approvalTitle";
+    public static final String APPROVAL_DESCRIPTION_KEY = "approvalDescription";
+    public static final String APPROVAL_TIMEOUT_KEY = "approvalTimeout";
+    private static final String APPROVAL_TITLE_LABEL = "Review Title";
+    private static final String APPROVAL_TITLE_DOC = "Inbox summary of the review, e.g. \"Approve the refund\"; "
+            + "empty derives it from the capability";
+    private static final String APPROVAL_DESCRIPTION_LABEL = "Review Description";
+    private static final String APPROVAL_DESCRIPTION_DOC = "Context shown with the decision; empty derives it";
+    private static final String APPROVAL_TIMEOUT_LABEL = "Review Timeout";
+    private static final String APPROVAL_TIMEOUT_DOC = "How long to wait for a decision, in days, hours and "
+            + "minutes, e.g. {days: 1, hours: 2, minutes: 30}; empty waits indefinitely";
+    /** The audience fields beside the roles, in the order the literal writes them. */
+    public static final List<String> AUDIENCE_KEYS = List.of(USERS_KEY, EXCLUDED_USERS_KEY, EXCLUDED_ROLES_KEY,
+            ADMINISTRATOR_ROLES_KEY, ADMINISTRATOR_USERS_KEY);
+    private static final String USERS_LABEL = "Users";
+    private static final String USERS_DOC = "User id(s) permitted to decide, whatever their roles, "
+            + "e.g. \"alice\" or [\"alice\", \"bob\"]";
+    private static final String EXCLUDED_USERS_LABEL = "Excluded Users";
+    private static final String EXCLUDED_USERS_DOC = "User id(s) that may not decide, whatever their roles";
+    private static final String EXCLUDED_ROLES_LABEL = "Excluded Roles";
+    private static final String EXCLUDED_ROLES_DOC = "Role(s) that may not decide";
+    private static final String ADMINISTRATOR_ROLES_LABEL = "Administrator Roles";
+    private static final String ADMINISTRATOR_ROLES_DOC =
+            "Role(s) that administer the task: they see it, may reassign it, move its deadline, fail or decide it";
+    private static final String ADMINISTRATOR_USERS_LABEL = "Administrator Users";
+    private static final String ADMINISTRATOR_USERS_DOC = "User id(s) that administer the task, whatever their roles";
 
     /**
      * Adds the approval-gate pair a durable agent's gated capabilities share — a {@code requiresApproval}
@@ -1241,6 +1335,151 @@ public class WorkflowUtil {
                 .advanced(true)
                 .stepOut()
                 .addProperty(userRolesKey);
+        addAudienceProperties(nodeBuilder);
+        addExpressionProperty(nodeBuilder, APPROVAL_TITLE_KEY, APPROVAL_TITLE_LABEL, APPROVAL_TITLE_DOC, "string");
+        addExpressionProperty(nodeBuilder, APPROVAL_DESCRIPTION_KEY, APPROVAL_DESCRIPTION_LABEL,
+                APPROVAL_DESCRIPTION_DOC, "string");
+        addExpressionProperty(nodeBuilder, APPROVAL_TIMEOUT_KEY, APPROVAL_TIMEOUT_LABEL, APPROVAL_TIMEOUT_DOC,
+                "workflow:Duration");
+    }
+
+    private static void addExpressionProperty(NodeBuilder nodeBuilder, String key, String label, String doc,
+                                              String ballerinaType) {
+        nodeBuilder.properties().custom()
+                .metadata()
+                    .label(label)
+                    .description(doc)
+                    .stepOut()
+                .type().fieldType(Property.ValueType.EXPRESSION).ballerinaType(ballerinaType).selected(true).stepOut()
+                .placeholder("")
+                .editable(true)
+                .optional(true)
+                .advanced(true)
+                .stepOut()
+                .addProperty(key);
+    }
+
+    /**
+     * The review details a gate form holds, rendered as {@code name: value} fields: a plain title or
+     * description is quoted, a timeout is written as the expression it is.
+     *
+     * @param sourceBuilder the source builder holding the form values
+     * @return the rendered fields, possibly empty
+     */
+    public static List<String> approvalDetailFields(SourceBuilder sourceBuilder) {
+        List<String> fields = new ArrayList<>();
+        String title = trimmedProperty(sourceBuilder, APPROVAL_TITLE_KEY);
+        if (!title.isBlank()) {
+            fields.add("title: " + quoteIfPlain(title));
+        }
+        String description = trimmedProperty(sourceBuilder, APPROVAL_DESCRIPTION_KEY);
+        if (!description.isBlank()) {
+            fields.add("description: " + quoteIfPlain(description));
+        }
+        String timeout = trimmedProperty(sourceBuilder, APPROVAL_TIMEOUT_KEY);
+        if (!timeout.isBlank()) {
+            fields.add("timeout: " + timeout);
+        }
+        return fields;
+    }
+
+    private static String trimmedProperty(SourceBuilder sourceBuilder, String key) {
+        return sourceBuilder.getProperty(key)
+                .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
+    }
+
+    /**
+     * Adds the audience fields a review definition carries beside its roles — users, excluded users,
+     * excluded roles — as advanced, optional, multi-mode role fields.
+     *
+     * @param nodeBuilder the form being built
+     */
+    public static void addAudienceProperties(NodeBuilder nodeBuilder) {
+        addAudienceProperty(nodeBuilder, USERS_KEY, USERS_LABEL, USERS_DOC);
+        addAudienceProperty(nodeBuilder, EXCLUDED_USERS_KEY, EXCLUDED_USERS_LABEL, EXCLUDED_USERS_DOC);
+        addAudienceProperty(nodeBuilder, EXCLUDED_ROLES_KEY, EXCLUDED_ROLES_LABEL, EXCLUDED_ROLES_DOC);
+        addAudienceProperty(nodeBuilder, ADMINISTRATOR_ROLES_KEY, ADMINISTRATOR_ROLES_LABEL, ADMINISTRATOR_ROLES_DOC);
+        addAudienceProperty(nodeBuilder, ADMINISTRATOR_USERS_KEY, ADMINISTRATOR_USERS_LABEL, ADMINISTRATOR_USERS_DOC);
+    }
+
+    private static void addAudienceProperty(NodeBuilder nodeBuilder, String key, String label, String doc) {
+        addRoleFieldTypes(nodeBuilder.properties().custom()
+                .metadata()
+                    .label(label)
+                    .description(doc)
+                    .stepOut())
+                .placeholder("")
+                .editable(true)
+                .optional(true)
+                .advanced(true)
+                .stepOut()
+                .addProperty(key);
+    }
+
+    /**
+     * The {@code approvalPolicy} literal a gated capability declares, or the empty string when the
+     * gate is off.
+     *
+     * @param sourceBuilder the source builder holding the form values
+     * @param approvalKey   property key of the gate flag
+     * @param userRolesKey  property key of the reviewer roles
+     * @return the record literal, or {@code ""}
+     */
+    public static String approvalPolicyLiteral(SourceBuilder sourceBuilder, String approvalKey,
+                                               String userRolesKey) {
+        boolean gated = sourceBuilder.getProperty(approvalKey)
+                .map(p -> p.value() != null && "true".equals(p.value().toString()))
+                .orElse(false);
+        return gated ? reviewAudienceLiteral(sourceBuilder, userRolesKey, approvalDetailFields(sourceBuilder)) : "";
+    }
+
+    /**
+     * A review definition literal from the form's audience fields — {@code userRoles} always (as
+     * {@code ()} when only users decide), the other audience fields when set — followed by any
+     * further fields the caller adds.
+     *
+     * @param sourceBuilder the source builder holding the form values
+     * @param userRolesKey  property key of the reviewer roles
+     * @param moreFields    further {@code name: value} fields, already rendered
+     * @return the record literal
+     */
+    public static String reviewAudienceLiteral(SourceBuilder sourceBuilder, String userRolesKey,
+                                               List<String> moreFields) {
+        List<String> fields = reviewAudienceFields(sourceBuilder, userRolesKey);
+        fields.addAll(moreFields);
+        return "{" + String.join(", ", fields) + "}";
+    }
+
+    /**
+     * The audience fields as {@code name: value} source — {@code userRoles} always ({@code ()} when only
+     * users decide), the others when set — for a literal that leads with other fields.
+     *
+     * @param sourceBuilder the source builder holding the form values
+     * @param userRolesKey  property key of the reviewer roles
+     * @return the rendered fields, {@code userRoles} first
+     */
+    public static List<String> reviewAudienceFields(SourceBuilder sourceBuilder, String userRolesKey) {
+        List<String> fields = new ArrayList<>();
+        String roles = audienceSource(sourceBuilder, userRolesKey);
+        fields.add("userRoles: " + (roles.isBlank() ? "()" : roles));
+        for (String key : AUDIENCE_KEYS) {
+            String value = audienceSource(sourceBuilder, key);
+            if (!value.isBlank()) {
+                fields.add(key + ": " + value);
+            }
+        }
+        return fields;
+    }
+
+    /**
+     * An audience field's value as source: the role helpers already read both its modes.
+     *
+     * @param sourceBuilder the source builder holding the form values
+     * @param key           the property key
+     * @return the source, or {@code ""} when unset
+     */
+    public static String audienceSource(SourceBuilder sourceBuilder, String key) {
+        return sourceBuilder.getProperty(key).map(WorkflowUtil::roleSource).orElse("");
     }
 
     /** Property key the front end sets to request removal of a capability entry. */

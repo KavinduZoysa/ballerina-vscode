@@ -78,7 +78,7 @@
             "character": 0
           }
         },
-        "newText": "\n, tools: [{tool: searchClaimDocs, requiresApproval: true, userRoles: \"finance\"}]"
+        "newText": "\n, tools: [{tool: searchClaimDocs, approvalPolicy: {userRoles: \"finance\"}}]"
       }
     ]
   }

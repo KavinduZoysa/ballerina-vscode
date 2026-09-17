@@ -296,9 +296,8 @@ public class DurableAgentAddActivityBuilder extends CallBuilder {
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
         String activityDescription = sourceBuilder.getProperty(ACTIVITY_DESCRIPTION_KEY)
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
-        String userRoles = sourceBuilder.getProperty(USER_ROLES_KEY)
-                .map(WorkflowUtil::roleSource).orElse("");
-        boolean requiresApproval = isRequiresApproval(sourceBuilder);
+        String approvalPolicy = WorkflowUtil.approvalPolicyLiteral(sourceBuilder, REQUIRES_APPROVAL_KEY,
+                USER_ROLES_KEY);
         String retryPolicyValue = ActivityCallBuilder.retryPolicyEntryValue(
                 sourceBuilder.flowNode.properties());
         List<String> bindings = new ArrayList<>();
@@ -311,8 +310,8 @@ public class DurableAgentAddActivityBuilder extends CallBuilder {
                     + property.value().toString().trim());
         });
         String entry;
-        if (activityName.isBlank() && activityDescription.isBlank() && !requiresApproval
-                && userRoles.isBlank() && retryPolicyValue == null && bindings.isEmpty()) {
+        if (activityName.isBlank() && activityDescription.isBlank() && approvalPolicy.isBlank()
+                && retryPolicyValue == null && bindings.isEmpty()) {
             entry = activityRef;
         } else {
             StringBuilder mapping = new StringBuilder("{activity: ").append(activityRef);
@@ -322,11 +321,8 @@ public class DurableAgentAddActivityBuilder extends CallBuilder {
             if (!activityDescription.isBlank()) {
                 mapping.append(", description: ").append(WorkflowUtil.quoteIfPlain(activityDescription));
             }
-            if (requiresApproval) {
-                mapping.append(", requiresApproval: true");
-            }
-            if (!userRoles.isBlank()) {
-                mapping.append(", userRoles: ").append(userRoles);
+            if (!approvalPolicy.isBlank()) {
+                mapping.append(", ").append(WorkflowUtil.APPROVAL_POLICY_FIELD).append(": ").append(approvalPolicy);
             }
             if (retryPolicyValue != null) {
                 mapping.append(", retryPolicy: ").append(retryPolicyValue);
@@ -337,12 +333,6 @@ public class DurableAgentAddActivityBuilder extends CallBuilder {
             entry = mapping.append("}").toString();
         }
         return WorkflowUtil.upsertAgentCapabilityEntry(sourceBuilder, "activities", entry);
-    }
-
-    private static boolean isRequiresApproval(SourceBuilder sourceBuilder) {
-        return sourceBuilder.getProperty(REQUIRES_APPROVAL_KEY)
-                .map(p -> p.value() != null && "true".equals(p.value().toString()))
-                .orElse(false);
     }
 
     private List<Option> getActivityFunctions(TemplateContext context) {
