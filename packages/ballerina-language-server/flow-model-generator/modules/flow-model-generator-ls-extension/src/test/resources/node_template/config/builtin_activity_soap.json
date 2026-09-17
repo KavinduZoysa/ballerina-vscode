@@ -490,7 +490,7 @@
             "retryTimeout": {
               "metadata": {
                 "label": "Timeout",
-                "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+                "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
               },
               "types": [
                 {
@@ -766,7 +766,7 @@
             "retryTimeout": {
               "metadata": {
                 "label": "Timeout",
-                "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+                "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
               },
               "types": [
                 {
@@ -999,7 +999,7 @@
       "retryTimeout": {
         "metadata": {
           "label": "Timeout",
-          "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+          "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
         },
         "types": [
           {

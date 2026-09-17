@@ -123,9 +123,9 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
         properties().custom()
                 .metadata()
                     .label("Timeout")
-                    .description("Maximum time to wait for completion, e.g. {hours: 4}. On expiry "
-                            + "the agent is told the task timed out so it can react; omit to wait "
-                            + "indefinitely")
+                    .description("Maximum time to wait for completion, in days, hours and minutes, e.g. "
+                            + "{days: 1, hours: 2, minutes: 30}. On expiry the agent is told the task timed out so it "
+                            + "can react; omit to wait indefinitely")
                     .stepOut()
                 .type()
                     .fieldType(Property.ValueType.EXPRESSION)
@@ -143,7 +143,7 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
                     .originalName(TIMEOUT_KEY)
                     .stepOut()
                 .imports("ballerina/workflow")
-                .placeholder("{hours: 4}")
+                .placeholder("{days: 1, hours: 2, minutes: 30}")
                 .value("")
                 .editable(true)
                 .optional(true)

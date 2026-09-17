@@ -169,7 +169,8 @@ public class ActivityCallBuilder extends CallBuilder {
             + "description of the failure and the outcomes available.";
     private static final String RETRY_TIMEOUT_LABEL = "Timeout";
     private static final String RETRY_TIMEOUT_DOC =
-            "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely.";
+            "How long to wait for a decision, in days, hours and minutes from when the review opens, "
+            + "e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely.";
     // The AutoRetry record's own documentation: each field states the default that applies when it is
     // left empty, since the generated record omits an empty field rather than writing a value for it.
     private static final String MAX_RETRIES_DOC = "Maximum retry attempts (default: 3)";

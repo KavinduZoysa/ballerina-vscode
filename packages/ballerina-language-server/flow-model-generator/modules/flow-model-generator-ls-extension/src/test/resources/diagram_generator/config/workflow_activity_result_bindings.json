@@ -471,6 +471,52 @@
                   "advanced": false,
                   "hidden": false
                 },
+                "retryAdministratorRoles": {
+                  "metadata": {
+                    "label": "Administrator Roles",
+                    "description": "Role(s) that administer the review: they see it, may reassign it, move its deadline or decide it"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
+                "retryAdministratorUsers": {
+                  "metadata": {
+                    "label": "Administrator Users",
+                    "description": "User id(s) that administer the review"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
                 "retryTitle": {
                   "metadata": {
                     "label": "Title",
@@ -520,7 +566,7 @@
                 "retryTimeout": {
                   "metadata": {
                     "label": "Timeout",
-                    "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+                    "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
                   },
                   "types": [
                     {
@@ -701,6 +747,52 @@
                   "advanced": false,
                   "hidden": false
                 },
+                "retryAdministratorRoles": {
+                  "metadata": {
+                    "label": "Administrator Roles",
+                    "description": "Role(s) that administer the review: they see it, may reassign it, move its deadline or decide it"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
+                "retryAdministratorUsers": {
+                  "metadata": {
+                    "label": "Administrator Users",
+                    "description": "User id(s) that administer the review"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
                 "retryTitle": {
                   "metadata": {
                     "label": "Title",
@@ -750,7 +842,7 @@
                 "retryTimeout": {
                   "metadata": {
                     "label": "Timeout",
-                    "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+                    "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
                   },
                   "types": [
                     {
@@ -898,6 +990,42 @@
             "advanced": false,
             "hidden": true
           },
+          "retryAdministratorRoles": {
+            "metadata": {
+              "label": "Administrator Roles",
+              "description": "Role(s) that administer the review: they see it, may reassign it, move its deadline or decide it"
+            },
+            "types": [
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string|string[]",
+                "selected": true
+              }
+            ],
+            "value": "",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": true
+          },
+          "retryAdministratorUsers": {
+            "metadata": {
+              "label": "Administrator Users",
+              "description": "User id(s) that administer the review"
+            },
+            "types": [
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string|string[]",
+                "selected": true
+              }
+            ],
+            "value": "",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": true
+          },
           "retryTitle": {
             "metadata": {
               "label": "Title",
@@ -947,7 +1075,7 @@
           "retryTimeout": {
             "metadata": {
               "label": "Timeout",
-              "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+              "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
             },
             "types": [
               {
@@ -1394,6 +1522,52 @@
                   "advanced": false,
                   "hidden": false
                 },
+                "retryAdministratorRoles": {
+                  "metadata": {
+                    "label": "Administrator Roles",
+                    "description": "Role(s) that administer the review: they see it, may reassign it, move its deadline or decide it"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
+                "retryAdministratorUsers": {
+                  "metadata": {
+                    "label": "Administrator Users",
+                    "description": "User id(s) that administer the review"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
                 "retryTitle": {
                   "metadata": {
                     "label": "Title",
@@ -1443,7 +1617,7 @@
                 "retryTimeout": {
                   "metadata": {
                     "label": "Timeout",
-                    "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+                    "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
                   },
                   "types": [
                     {
@@ -1624,6 +1798,52 @@
                   "advanced": false,
                   "hidden": false
                 },
+                "retryAdministratorRoles": {
+                  "metadata": {
+                    "label": "Administrator Roles",
+                    "description": "Role(s) that administer the review: they see it, may reassign it, move its deadline or decide it"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
+                "retryAdministratorUsers": {
+                  "metadata": {
+                    "label": "Administrator Users",
+                    "description": "User id(s) that administer the review"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
                 "retryTitle": {
                   "metadata": {
                     "label": "Title",
@@ -1673,7 +1893,7 @@
                 "retryTimeout": {
                   "metadata": {
                     "label": "Timeout",
-                    "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+                    "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
                   },
                   "types": [
                     {
@@ -1821,6 +2041,42 @@
             "advanced": false,
             "hidden": true
           },
+          "retryAdministratorRoles": {
+            "metadata": {
+              "label": "Administrator Roles",
+              "description": "Role(s) that administer the review: they see it, may reassign it, move its deadline or decide it"
+            },
+            "types": [
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string|string[]",
+                "selected": true
+              }
+            ],
+            "value": "",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": true
+          },
+          "retryAdministratorUsers": {
+            "metadata": {
+              "label": "Administrator Users",
+              "description": "User id(s) that administer the review"
+            },
+            "types": [
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string|string[]",
+                "selected": true
+              }
+            ],
+            "value": "",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": true
+          },
           "retryTitle": {
             "metadata": {
               "label": "Title",
@@ -1870,7 +2126,7 @@
           "retryTimeout": {
             "metadata": {
               "label": "Timeout",
-              "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+              "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
             },
             "types": [
               {
@@ -2482,6 +2738,52 @@
                   "advanced": false,
                   "hidden": false
                 },
+                "retryAdministratorRoles": {
+                  "metadata": {
+                    "label": "Administrator Roles",
+                    "description": "Role(s) that administer the review: they see it, may reassign it, move its deadline or decide it"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
+                "retryAdministratorUsers": {
+                  "metadata": {
+                    "label": "Administrator Users",
+                    "description": "User id(s) that administer the review"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
                 "retryTitle": {
                   "metadata": {
                     "label": "Title",
@@ -2531,7 +2833,7 @@
                 "retryTimeout": {
                   "metadata": {
                     "label": "Timeout",
-                    "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+                    "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
                   },
                   "types": [
                     {
@@ -2712,6 +3014,52 @@
                   "advanced": false,
                   "hidden": false
                 },
+                "retryAdministratorRoles": {
+                  "metadata": {
+                    "label": "Administrator Roles",
+                    "description": "Role(s) that administer the review: they see it, may reassign it, move its deadline or decide it"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
+                "retryAdministratorUsers": {
+                  "metadata": {
+                    "label": "Administrator Users",
+                    "description": "User id(s) that administer the review"
+                  },
+                  "types": [
+                    {
+                      "fieldType": "TEXT",
+                      "ballerinaType": "string",
+                      "selected": false
+                    },
+                    {
+                      "fieldType": "EXPRESSION",
+                      "ballerinaType": "string|string[]",
+                      "selected": false
+                    }
+                  ],
+                  "value": "",
+                  "optional": true,
+                  "editable": true,
+                  "advanced": false,
+                  "hidden": false
+                },
                 "retryTitle": {
                   "metadata": {
                     "label": "Title",
@@ -2761,7 +3109,7 @@
                 "retryTimeout": {
                   "metadata": {
                     "label": "Timeout",
-                    "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+                    "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
                   },
                   "types": [
                     {
@@ -2909,6 +3257,42 @@
             "advanced": false,
             "hidden": true
           },
+          "retryAdministratorRoles": {
+            "metadata": {
+              "label": "Administrator Roles",
+              "description": "Role(s) that administer the review: they see it, may reassign it, move its deadline or decide it"
+            },
+            "types": [
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string|string[]",
+                "selected": true
+              }
+            ],
+            "value": "",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": true
+          },
+          "retryAdministratorUsers": {
+            "metadata": {
+              "label": "Administrator Users",
+              "description": "User id(s) that administer the review"
+            },
+            "types": [
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string|string[]",
+                "selected": true
+              }
+            ],
+            "value": "",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": true
+          },
           "retryTitle": {
             "metadata": {
               "label": "Title",
@@ -2958,7 +3342,7 @@
           "retryTimeout": {
             "metadata": {
               "label": "Timeout",
-              "description": "How long to wait for a decision, e.g. {hours: 4}. Empty waits indefinitely."
+              "description": "How long to wait for a decision, in days, hours and minutes from when the review opens, e.g. {days: 1, hours: 2, minutes: 30}. Empty waits indefinitely."
             },
             "types": [
               {
