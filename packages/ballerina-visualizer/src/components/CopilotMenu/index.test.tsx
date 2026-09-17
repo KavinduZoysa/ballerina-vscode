@@ -129,6 +129,38 @@ describe("CopilotMenu", () => {
         expect(payload).toEqual({ type: "thread", threadId: "t2" });
     });
 
+    // The composer outlives the menu, so a fetch-once list would go stale against chats started
+    // elsewhere, and a single failed call would read as "no chats" for the rest of the session.
+    it("re-reads the thread list every time it opens", async () => {
+        await render();
+        await click(trigger());
+        await click(trigger());
+        await click(trigger());
+
+        expect(mockRpcClient!.getAiPanelRpcClient().listThreads).toHaveBeenCalledTimes(2);
+    });
+
+    it("distinguishes a failed read from an empty history", async () => {
+        const failing = makeRpcClient();
+        (failing.getAiPanelRpcClient().listThreads as jest.Mock).mockRejectedValue(new Error("rpc down"));
+        mockRpcClient = failing;
+
+        await render();
+        await click(trigger());
+        await click(labelled("Chats"));
+
+        expect(container.textContent).toContain("Couldn't load chats");
+        expect(container.textContent).not.toContain("No chats yet");
+    });
+
+    it("returns focus to the trigger when it closes", async () => {
+        await render();
+        await click(trigger());
+        await click(labelled("Settings"));
+
+        expect(document.activeElement).toBe(trigger());
+    });
+
     it("says so when there is no history rather than showing an empty list", async () => {
         mockRpcClient = makeRpcClient([]);
         await render();

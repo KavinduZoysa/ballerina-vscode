@@ -51,9 +51,6 @@ const Halo = styled.div<ColorsProps>`
     border-radius: 50%;
     background: radial-gradient(circle, ${(props: ColorsProps) => props.colors[1]} 0%, transparent 70%);
     animation: ${haloPulse} 1.8s ease-in-out infinite;
-    body.vscode-dark & {
-        opacity: 0.6;
-    }
     pointer-events: none;
     @media (prefers-reduced-motion: reduce) {
         animation: none;
@@ -77,7 +74,8 @@ const Aura = styled.div<AuraProps>`
     opacity: ${(props: AuraProps) => (props.state === "idle" ? 0.45 : props.state === "running" ? 1 : 0.85)};
     // The same saturated glow that reads as a soft shadow on a light ground turns into a hot ring
     // against near-black.
-    body.vscode-dark & {
+    body.vscode-dark &,
+    body.vscode-high-contrast & {
         opacity: ${(props: AuraProps) => (props.state === "idle" ? 0.26 : props.state === "running" ? 0.7 : 0.55)};
         filter: blur(11px);
     }

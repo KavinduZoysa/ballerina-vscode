@@ -123,9 +123,11 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
     const [open, setOpen] = useState(false);
     const [level, setLevel] = useState<MenuLevel>("root");
     const [threads, setThreads] = useState<ThreadSummary[] | undefined>(undefined);
+    const [threadsFailed, setThreadsFailed] = useState(false);
     // Opening upward would cover the prompt box directly above; only do it with no room below.
     const [dropUp, setDropUp] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         if (!open) {
@@ -139,6 +141,7 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
                 setOpen(false);
+                triggerRef.current?.focus();
             }
         };
         document.addEventListener("pointerdown", onPointerDown);
@@ -149,21 +152,36 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
         };
     }, [open]);
 
-    // Loaded on open rather than on mount: the list is only ever seen from inside the menu.
+    // Re-read on every open: the composer outlives the menu, so a chat started elsewhere would
+    // otherwise never appear, and one failed call would read as "no chats" for good.
     useEffect(() => {
-        if (!open || !rpcClient || threads !== undefined) {
+        if (!open || !rpcClient) {
             return;
         }
         let cancelled = false;
+        setThreadsFailed(false);
         rpcClient
             .getAiPanelRpcClient()
             .listThreads()
-            .then((list) => !cancelled && setThreads(list))
-            .catch(() => !cancelled && setThreads([]));
+            .then((list) => {
+                if (!cancelled) {
+                    setThreads(list);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setThreadsFailed(true);
+                }
+            });
         return () => {
             cancelled = true;
         };
-    }, [open, rpcClient, threads]);
+    }, [open, rpcClient]);
+
+    const close = () => {
+        setOpen(false);
+        triggerRef.current?.focus();
+    };
 
     const toggle = () => {
         const below = window.innerHeight - (rootRef.current?.getBoundingClientRect().bottom ?? 0);
@@ -177,6 +195,7 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
     return (
         <Root ref={rootRef}>
             <TriggerButton
+                ref={triggerRef}
                 type="button"
                 data-testid={`copilot-menu-trigger-${icon}`}
                 title="WSO2 Integrator Copilot"
@@ -189,7 +208,7 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
             </TriggerButton>
 
             {open && (
-                <Surface role="menu" data-testid="copilot-menu" $dropUp={dropUp}>
+                <Surface role="menu" aria-label="WSO2 Integrator Copilot" data-testid="copilot-menu" $dropUp={dropUp}>
                     {level === "root" ? (
                         <>
                             <Row type="button" role="menuitem" onClick={() => setLevel("chats")}>
@@ -203,7 +222,7 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
                                     type="button"
                                     role="menuitem"
                                     onClick={() => {
-                                        setOpen(false);
+                                        close();
                                         openCopilotPanelAt(rpcClient, surface.id);
                                     }}
                                 >
@@ -214,12 +233,13 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
                         </>
                     ) : (
                         <>
-                            <Row type="button" role="menuitem" onClick={() => setLevel("root")}>
+                            <Row type="button" role="menuitem" aria-label="Back" onClick={() => setLevel("root")}>
                                 <span className="codicon codicon-arrow-left" />
                                 <RowLabel>Chats</RowLabel>
                             </Row>
-                            {threads === undefined && <Note>Loading…</Note>}
-                            {threads?.length === 0 && <Note>No chats yet</Note>}
+                            {threadsFailed && <Note>Couldn't load chats</Note>}
+                            {!threadsFailed && threads === undefined && <Note>Loading…</Note>}
+                            {!threadsFailed && threads?.length === 0 && <Note>No chats yet</Note>}
                             {recent.map((thread) => (
                                 <Row
                                     key={thread.id}
@@ -227,7 +247,7 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
                                     role="menuitem"
                                     title={thread.name}
                                     onClick={() => {
-                                        setOpen(false);
+                                        close();
                                         openCopilotThread(rpcClient, thread.id);
                                     }}
                                 >

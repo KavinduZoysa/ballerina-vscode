@@ -493,7 +493,6 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
                     : "Working on it…";
     const runDetail = state === "completed" ? undefined : status?.label;
     const showOpenCopilot = !aiPanelOpen;
-    // Single gate for the callout — tour sequencing (when it appears and how it is dismissed) is still to come.
 
     // A failed chip stays visible until removed instead of being silently dropped on send.
     const attachmentsReady = attachments.every((a) => a.status === AttachmentStatus.Success);

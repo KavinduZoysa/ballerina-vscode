@@ -257,7 +257,8 @@ export const Sphere = styled.div<SphereProps>`
         inset 0 -8px 14px rgba(0, 0, 0, 0.16),
         0 0 14px color-mix(in srgb, ${(props: SphereProps) => props.colors[1]} 45%, transparent);
 
-    body.vscode-dark & {
+    body.vscode-dark &,
+    body.vscode-high-contrast & {
         box-shadow:
             inset 0 0 0 1px rgba(255, 255, 255, 0.22),
             inset 0 9px 16px rgba(255, 255, 255, 0.1),
