@@ -138,6 +138,44 @@ describe("CopilotMenu", () => {
         expect(container.textContent).toContain("No chats yet");
     });
 
+    // It sits under the prompt box, so upward covers the thing being typed into — only acceptable
+    // when there is genuinely no room below.
+    describe("direction", () => {
+        const withSpaceBelow = (px: number) => {
+            jest.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
+                bottom: window.innerHeight - px,
+            } as DOMRect);
+        };
+
+        const placement = () => {
+            const surface = container.querySelector("[role='menu']") as HTMLElement;
+            const own = Array.from(surface.classList).find((c) => c.startsWith("css-"))!;
+            const rule = Array.from(document.querySelectorAll("style"))
+                .flatMap((style) => Array.from((style.sheet?.cssRules ?? []) as unknown as CSSRule[]))
+                .map((r) => r.cssText)
+                .find((text) => text.includes(own))!;
+            return /bottom:\s*calc/.test(rule) ? "up" : "down";
+        };
+
+        afterEach(() => jest.restoreAllMocks());
+
+        it("opens downward when there is room", async () => {
+            withSpaceBelow(500);
+            await render();
+            await click(trigger());
+
+            expect(placement()).toBe("down");
+        });
+
+        it("flips up only when it would be clipped", async () => {
+            withSpaceBelow(40);
+            await render();
+            await click(trigger());
+
+            expect(placement()).toBe("up");
+        });
+    });
+
     it("closes on Escape", async () => {
         await render();
         await click(trigger());

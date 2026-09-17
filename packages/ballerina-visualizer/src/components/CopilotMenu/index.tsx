@@ -23,6 +23,8 @@ import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { openCopilotPanelAt, openCopilotThread } from "../AgentStatusOrb/copilotPanel";
 
 const RECENT_THREAD_LIMIT = 5;
+/** Roughly a full thread list; below this the menu would be clipped, so it flips up instead. */
+const MENU_CLEARANCE = 220;
 
 /** A surface the menu can jump to. Adding one here is the whole change. */
 interface SurfaceEntry {
@@ -61,9 +63,9 @@ const TriggerButton = styled.button`
     }
 `;
 
-const Surface = styled.div`
+const Surface = styled.div<{ $dropUp: boolean }>`
     position: absolute;
-    bottom: calc(100% + 6px);
+    ${(props: { $dropUp: boolean }) => (props.$dropUp ? "bottom: calc(100% + 6px);" : "top: calc(100% + 6px);")}
     left: 0;
     z-index: 10;
     // Hugs its items; the cap only bites on long thread names, which then ellipsize.
@@ -121,6 +123,8 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
     const [open, setOpen] = useState(false);
     const [level, setLevel] = useState<MenuLevel>("root");
     const [threads, setThreads] = useState<ThreadSummary[] | undefined>(undefined);
+    // Opening upward would cover the prompt box directly above; only do it with no room below.
+    const [dropUp, setDropUp] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -162,6 +166,8 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
     }, [open, rpcClient, threads]);
 
     const toggle = () => {
+        const below = window.innerHeight - (rootRef.current?.getBoundingClientRect().bottom ?? 0);
+        setDropUp(below < MENU_CLEARANCE);
         setLevel("root");
         setOpen((wasOpen) => !wasOpen);
     };
@@ -183,7 +189,7 @@ export function CopilotMenu({ icon = "settings" }: { icon?: string } = {}) {
             </TriggerButton>
 
             {open && (
-                <Surface role="menu" data-testid="copilot-menu">
+                <Surface role="menu" data-testid="copilot-menu" $dropUp={dropUp}>
                     {level === "root" ? (
                         <>
                             <Row type="button" role="menuitem" onClick={() => setLevel("chats")}>
