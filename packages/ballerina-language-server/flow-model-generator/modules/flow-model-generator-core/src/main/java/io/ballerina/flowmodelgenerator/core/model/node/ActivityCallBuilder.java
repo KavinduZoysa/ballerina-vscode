@@ -178,9 +178,13 @@ public class ActivityCallBuilder extends CallBuilder {
     private static final String RETRY_BACKOFF_DOC = "Multiplier applied to delay after each retry (default: 2.0)";
     private static final String MAX_RETRY_DELAY_DOC = "Cap on the delay between retries, in seconds";
     // retryPolicy is excluded from ADVANCE_PARAM_LIST; it is added at root level as a DROPDOWN_CHOICE.
+    /** The open rest of {@code CallActivityOptions}, as the generic parameter reader names it. */
+    public static final String ADDITIONAL_VALUES_KEY = "additionalValues";
+    // The open rest is the module's door for hand-written options; a key-value editor for it would
+    // write named arguments the compiler rejects, so the form offers declared fields only.
     public static final Set<String> EXCLUDED_CALL_ACTIVITY_PARAMS = Set.of(
             Constants.Workflow.CALL_ACTIVITY_FUNCTION_PARAM, Constants.Workflow.CALL_ACTIVITY_ARGS_PARAM, "T",
-            Property.CHECK_ERROR_KEY, Property.CONNECTION_KEY, RETRY_POLICY_PARAM);
+            Property.CHECK_ERROR_KEY, Property.CONNECTION_KEY, RETRY_POLICY_PARAM, ADDITIONAL_VALUES_KEY);
     private static final String NEW_CONNECTION_SENTINEL = "NEW_CONNECTION";
     private static final String ACTIVITY_MODULE_PREFIX = "activity";
     private static final String DEFAULT_REST_DATABINDING = "json";
@@ -1002,7 +1006,8 @@ public class ActivityCallBuilder extends CallBuilder {
                                              FunctionData callActivityData) {
         LinkedHashMap<String, ParameterData> filteredParams = new LinkedHashMap<>(callActivityData.parameters());
         filteredParams.keySet().removeAll(EXCLUDED_CALL_ACTIVITY_PARAMS);
-        filteredParams.values().removeIf(p -> p.kind() == ParameterData.Kind.PARAM_FOR_TYPE_INFER);
+        filteredParams.values().removeIf(p -> p.kind() == ParameterData.Kind.PARAM_FOR_TYPE_INFER
+                || p.kind() == ParameterData.Kind.INCLUDED_RECORD_REST);
         callActivityData.setParameters(filteredParams);
 
         Module module = context.workspaceManager().module(context.filePath()).orElse(null);
@@ -1430,7 +1435,14 @@ public class ActivityCallBuilder extends CallBuilder {
                 if (param.getKey() instanceof String paramName && !paramName.isEmpty() &&
                         param.getValue() instanceof Map<?, ?> paramProp) {
                     Property paramData = Property.convertToProperty(paramProp);
-                    if (paramData.value() != null && !paramData.value().toString().isEmpty()) {
+                    // The open rest never becomes a named argument, and a value that renders to nothing
+                    // (an empty map) must not leave `name = ` behind.
+                    if (ADDITIONAL_VALUES_KEY.equals(paramName) || isIncludedRecordRest(paramData)
+                            || paramData.value() == null || paramData.value().toString().isEmpty()
+                            || paramData.toSourceCode() == null || paramData.toSourceCode().isBlank()) {
+                        continue;
+                    }
+                    {
                         sourceBuilder.token()
                                 .keyword(SyntaxKind.COMMA_TOKEN)
                                 .name(paramName)
@@ -1441,6 +1453,11 @@ public class ActivityCallBuilder extends CallBuilder {
                 }
             }
         }
+    }
+
+    private static boolean isIncludedRecordRest(Property property) {
+        return property.codedata() != null
+                && ParameterData.Kind.INCLUDED_RECORD_REST.name().equals(property.codedata().kind());
     }
 
     public static Optional<String> getContextParamName(FunctionDefinitionNode functionNode,

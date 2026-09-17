@@ -400,42 +400,6 @@
                   "originalName": "stepId"
                 },
                 "defaultValue": "()"
-              },
-              "additionalValues": {
-                "metadata": {
-                  "label": "Additional Values",
-                  "description": "Capture key value pairs"
-                },
-                "types": [
-                  {
-                    "fieldType": "REPEATABLE_MAP",
-                    "ballerinaType": "anydata",
-                    "template": {
-                      "types": [
-                        {
-                          "fieldType": "EXPRESSION",
-                          "ballerinaType": "anydata",
-                          "selected": false
-                        }
-                      ],
-                      "optional": false,
-                      "editable": false,
-                      "advanced": false,
-                      "hidden": false
-                    },
-                    "selected": true
-                  }
-                ],
-                "value": {},
-                "placeholder": "{}",
-                "optional": true,
-                "editable": true,
-                "advanced": false,
-                "hidden": false,
-                "codedata": {
-                  "kind": "INCLUDED_RECORD_REST",
-                  "originalName": "Additional Values"
-                }
               }
             },
             "optional": false,
@@ -1660,42 +1624,6 @@
                   "originalName": "stepId"
                 },
                 "defaultValue": "()"
-              },
-              "additionalValues": {
-                "metadata": {
-                  "label": "Additional Values",
-                  "description": "Capture key value pairs"
-                },
-                "types": [
-                  {
-                    "fieldType": "REPEATABLE_MAP",
-                    "ballerinaType": "anydata",
-                    "template": {
-                      "types": [
-                        {
-                          "fieldType": "EXPRESSION",
-                          "ballerinaType": "anydata",
-                          "selected": false
-                        }
-                      ],
-                      "optional": false,
-                      "editable": false,
-                      "advanced": false,
-                      "hidden": false
-                    },
-                    "selected": true
-                  }
-                ],
-                "value": {},
-                "placeholder": "{}",
-                "optional": true,
-                "editable": true,
-                "advanced": false,
-                "hidden": false,
-                "codedata": {
-                  "kind": "INCLUDED_RECORD_REST",
-                  "originalName": "Additional Values"
-                }
               }
             },
             "optional": false,
