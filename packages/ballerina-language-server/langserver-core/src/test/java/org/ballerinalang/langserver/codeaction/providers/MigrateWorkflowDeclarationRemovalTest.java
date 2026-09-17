@@ -53,7 +53,8 @@ public class MigrateWorkflowDeclarationRemovalTest {
 
     @Test(dataProvider = "removals")
     public void removingAFieldKeepsTheMappingWellFormed(String source, String field, String expected) {
-        MappingConstructorExpressionNode mapping = (MappingConstructorExpressionNode) NodeParser.parseExpression(source);
+        MappingConstructorExpressionNode mapping =
+                (MappingConstructorExpressionNode) NodeParser.parseExpression(source);
         SpecificFieldNode target = null;
         for (MappingFieldNode f : mapping.fields()) {
             if (f instanceof SpecificFieldNode sf
