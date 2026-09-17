@@ -1175,7 +1175,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "maxIter"
             },
-            "defaultValue": "INFER_TOOL_COUNT"
+            "defaultValue": "\"INFER_TOOL_COUNT\""
           },
           "verbose": {
             "metadata": {
@@ -1254,7 +1254,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "\"NO_FILTER\"",
+            "placeholder": "\"LLM_FILTER\"",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -1263,7 +1263,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "toolLoadingStrategy"
             },
-            "defaultValue": "NO_FILTER"
+            "defaultValue": "\"LLM_FILTER\""
           },
           "executeToolCallsInParallel": {
             "metadata": {
@@ -1291,7 +1291,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "executeToolCallsInParallel"
             },
-            "defaultValue": "true"
+            "defaultValue": "false"
           },
           "credential": {
             "metadata": {

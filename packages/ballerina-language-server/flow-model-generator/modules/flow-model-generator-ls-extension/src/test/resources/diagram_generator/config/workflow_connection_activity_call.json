@@ -160,7 +160,7 @@
                   "kind": "INCLUDED_FIELD",
                   "originalName": "approvalPolicy"
                 },
-                "defaultValue": "NoApproval"
+                "defaultValue": "{userRoles: ()}"
               }
             },
             "optional": false,

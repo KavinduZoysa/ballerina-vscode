@@ -281,7 +281,7 @@
           "kind": "DEFAULTABLE",
           "originalName": "minCount"
         },
-        "defaultValue": "<int:Unsigned32>futures.length()",
+        "defaultValue": "0",
         "modified": true,
         "value": "1"
       },

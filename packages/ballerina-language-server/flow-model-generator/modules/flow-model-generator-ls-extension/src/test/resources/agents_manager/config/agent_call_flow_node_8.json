@@ -666,7 +666,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "sessionId"
             },
-            "defaultValue": "DEFAULT_SESSION_ID"
+            "defaultValue": "\"\""
           },
           "context": {
             "metadata": {
@@ -689,7 +689,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "context"
             },
-            "defaultValue": "new"
+            "defaultValue": "new ()"
           }
         },
         "flags": 1
@@ -886,7 +886,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "maxIter"
             },
-            "defaultValue": "INFER_TOOL_COUNT"
+            "defaultValue": "\"INFER_TOOL_COUNT\""
           },
           "verbose": {
             "metadata": {
@@ -965,7 +965,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "\"NO_FILTER\"",
+            "placeholder": "\"LLM_FILTER\"",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -974,7 +974,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "toolLoadingStrategy"
             },
-            "defaultValue": "NO_FILTER"
+            "defaultValue": "\"LLM_FILTER\""
           },
           "executeToolCallsInParallel": {
             "metadata": {
@@ -1002,7 +1002,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "executeToolCallsInParallel"
             },
-            "defaultValue": "true"
+            "defaultValue": "false"
           },
           "credential": {
             "metadata": {
