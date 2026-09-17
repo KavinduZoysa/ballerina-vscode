@@ -1297,8 +1297,8 @@ public class WorkflowUtil {
 
     /**
      * Adds the approval-gate pair a durable agent's gated capabilities share — a {@code requiresApproval}
-     * flag and the reviewer roles for the review it creates — as advanced, optional fields. The three
-     * capability forms (activity, tool, peer delegation) differ only in how they describe the thing
+     * flag and the reviewer roles for the review it creates — as advanced, optional fields. The two
+     * capability forms (activity, tool) differ only in how they describe the thing
      * being gated, which is what the two descriptions carry.
      *
      * @param nodeBuilder     the form being built
@@ -1599,23 +1599,44 @@ public class WorkflowUtil {
             }
         }
         if (!missing.isEmpty()) {
-            StringBuilder insertion = new StringBuilder();
-            boolean first = config.fields().isEmpty();
-            for (Map.Entry<String, String> entry : missing.entrySet()) {
-                if (!first) {
-                    insertion.append(", ");
-                }
-                insertion.append(entry.getKey()).append(": ").append(entry.getValue());
-                first = false;
-            }
-            LinePosition closeBrace = config.closeBrace().lineRange().startLine();
-            org.eclipse.lsp4j.Position position =
-                    new org.eclipse.lsp4j.Position(closeBrace.line(), closeBrace.offset());
-            edits.add(new org.eclipse.lsp4j.TextEdit(
-                    new org.eclipse.lsp4j.Range(position, position), insertion.toString()));
+            edits.add(appendConfigFields(config, missing));
         }
         Map<Path, List<org.eclipse.lsp4j.TextEdit>> result = new HashMap<>();
         result.put(declaration.filePath(), edits);
         return result;
+    }
+
+    // Missing fields follow the last one, each on its own line at the fields' indentation when the
+    // mapping is laid out that way; an empty or single-line mapping takes them inline.
+    private static org.eclipse.lsp4j.TextEdit appendConfigFields(MappingConstructorExpressionNode config,
+                                                                 Map<String, String> missing) {
+        StringBuilder insertion = new StringBuilder();
+        org.eclipse.lsp4j.Position position;
+        if (config.fields().isEmpty()) {
+            LinePosition closeBrace = config.closeBrace().lineRange().startLine();
+            position = new org.eclipse.lsp4j.Position(closeBrace.line(), closeBrace.offset());
+            appendFields(insertion, missing, ", ", false);
+        } else {
+            MappingFieldNode last = config.fields().get(config.fields().size() - 1);
+            LinePosition end = last.lineRange().endLine();
+            position = new org.eclipse.lsp4j.Position(end.line(), end.offset());
+            LinePosition start = last.lineRange().startLine();
+            boolean multiLine = start.line() != config.openBrace().lineRange().startLine().line();
+            appendFields(insertion, missing, multiLine ? ",\n" + " ".repeat(start.offset()) : ", ", true);
+        }
+        return new org.eclipse.lsp4j.TextEdit(new org.eclipse.lsp4j.Range(position, position),
+                insertion.toString());
+    }
+
+    private static void appendFields(StringBuilder insertion, Map<String, String> fields, String separator,
+                                     boolean leadWithSeparator) {
+        boolean first = !leadWithSeparator;
+        for (Map.Entry<String, String> entry : fields.entrySet()) {
+            if (!first) {
+                insertion.append(separator);
+            }
+            insertion.append(entry.getKey()).append(": ").append(entry.getValue());
+            first = false;
+        }
     }
 }
