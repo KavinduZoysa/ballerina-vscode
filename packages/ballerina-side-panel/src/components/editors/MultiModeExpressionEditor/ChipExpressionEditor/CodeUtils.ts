@@ -514,6 +514,31 @@ export const chipBoundaryClickHandler = EditorView.domEventHandlers({
     }
 });
 
+// A chip only stays "active" (live, directly-editable text) while the selection remains
+// inside its tracked range. If the selection moves elsewhere - a click on plain text, on a
+// different non-editable chip, or arrow-key navigation past the chip's boundary - without an
+// explicit commit (Enter) or the whole editor losing focus, neither of which fires here,
+// clear the active state so the chip re-collapses and tokenField.update stops skipping
+// LS-backed token refreshes on its account (see the isEditingChip check above).
+export const activeChipSelectionGuard = EditorView.updateListener.of((update) => {
+    if (!update.selectionSet || update.docChanged) return;
+
+    const activeStart = update.state.field(activeEditableTokenField, false);
+    if (activeStart === undefined) return;
+
+    const tokenState = update.state.field(tokenField, false);
+    if (!tokenState) return;
+
+    const activeRange = tokenState.tokens.find(token => token.start === activeStart)
+        ?? tokenState.compounds.find(compound => compound.start === activeStart);
+    if (!activeRange) return;
+
+    const { from, to } = update.state.selection.main;
+    if (from < activeRange.start || to > activeRange.end) {
+        update.view.dispatch({ effects: setActiveEditableTokenEffect.of(undefined) });
+    }
+});
+
 export const expressionEditorKeymap = [
     {
         // Commits the chip currently in edit mode (re-collapses it back into a chip); does
