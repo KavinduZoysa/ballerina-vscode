@@ -20,6 +20,7 @@ import React, { useState } from "react";
 import { PortWidget } from "@projectstorm/react-diagrams-core";
 import { CDAutomation, CDService, CDWorkflow, CDWorkflowEvent, CDWorkflowHumanTask, toIconDescriptor } from "@wso2/ballerina-core";
 import { Item, Menu, MenuItem, Popover, ImageWithFallback, Icon } from "@wso2/ui-toolkit";
+import { DurableAgentIcon } from "@wso2/bi-diagram";
 import { useDiagramContext } from "../../../DiagramContext";
 import { HttpIcon, TaskIcon } from "../../../../resources";
 import { MoreVertIcon } from "../../../../resources/icons/nodes/MoreVertIcon";
@@ -261,7 +262,7 @@ export function GeneralServiceWidget({ model, engine }: BaseNodeWidgetProps) {
         switch (model.type) {
             case "workflow":
                 return isDurableAgentWorkflow(model)
-                    ? <Icon name="bi-ai-agent" sx={{ fontSize: 24, width: 24, height: 24 }} />
+                    ? <DurableAgentIcon size={24} />
                     : <Icon name="bi-flowchart" sx={{ fontSize: 24, width: 24, height: 24 }} />;
             case "automation":
                 return <TaskIcon />;
