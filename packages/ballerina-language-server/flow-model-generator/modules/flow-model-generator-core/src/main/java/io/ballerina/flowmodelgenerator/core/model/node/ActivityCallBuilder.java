@@ -143,6 +143,8 @@ public class ActivityCallBuilder extends CallBuilder {
     public static final String RETRY_DELAY_KEY = "retryDelay";
     public static final String RETRY_BACKOFF_KEY = "retryBackoff";
     public static final String MAX_RETRY_DELAY_KEY = "maxRetryDelay";
+    // RetryBeforeReview requires maxRetries; the AutoRetry default stands in when the form leaves it blank.
+    public static final String DEFAULT_MAX_RETRIES = "3";
     // The review fields' wording. Each field is rendered twice — once as the dropdown's visible
     // sub-property and once as the root hidden property that stores its value — so the label and the
     // doc live here rather than inline at both call sites, where they had already drifted apart.
@@ -1339,7 +1341,12 @@ public class ActivityCallBuilder extends CallBuilder {
     // The RetryBeforeReview record: the automatic attempts, then the review that decides afterwards.
     private static String retryBeforeReviewRecordLiteral(Map<String, Property> properties) {
         List<String> fields = new ArrayList<>();
-        addRecordField(fields, properties, MAX_RETRIES_KEY);
+        // Without an attempt count the record is neither valid nor readable back as this policy.
+        if (trimmedValue(properties, MAX_RETRIES_KEY).isBlank()) {
+            fields.add(MAX_RETRIES_KEY + ": " + DEFAULT_MAX_RETRIES);
+        } else {
+            addRecordField(fields, properties, MAX_RETRIES_KEY);
+        }
         addRecordField(fields, properties, RETRY_DELAY_KEY);
         addRecordField(fields, properties, RETRY_BACKOFF_KEY);
         addRecordField(fields, properties, MAX_RETRY_DELAY_KEY);
