@@ -208,6 +208,49 @@ describe("CopilotMenu", () => {
         });
     });
 
+    // role="menu" promises a keyboard model; without it the role misleads assistive tech.
+    describe("keyboard", () => {
+        const key = async (name: string) => {
+            await act(async () => {
+                (document.activeElement ?? document.body).dispatchEvent(
+                    new KeyboardEvent("keydown", { key: name, bubbles: true })
+                );
+            });
+        };
+
+        it("puts focus on the first item when it opens", async () => {
+            await render();
+            await click(trigger());
+
+            expect(document.activeElement).toBe(items()[0]);
+        });
+
+        it("moves with the arrow keys and wraps", async () => {
+            await render();
+            await click(trigger());
+
+            await key("ArrowDown");
+            expect(document.activeElement).toBe(items()[1]);
+
+            await key("ArrowDown");
+            expect(document.activeElement).toBe(items()[0]);
+
+            await key("ArrowUp");
+            expect(document.activeElement).toBe(items()[items().length - 1]);
+        });
+
+        it("jumps to the ends with Home and End", async () => {
+            await render();
+            await click(trigger());
+
+            await key("End");
+            expect(document.activeElement).toBe(items()[items().length - 1]);
+
+            await key("Home");
+            expect(document.activeElement).toBe(items()[0]);
+        });
+    });
+
     it("closes on Escape", async () => {
         await render();
         await click(trigger());

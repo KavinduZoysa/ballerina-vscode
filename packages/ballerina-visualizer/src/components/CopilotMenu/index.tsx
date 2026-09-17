@@ -178,6 +178,28 @@ export function CopilotMenu({ icon = "ellipsis" }: { icon?: string } = {}) {
         };
     }, [open, rpcClient]);
 
+    const rows = () => Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>("[role='menuitem']") ?? []);
+
+    // role="menu" promises arrow-key navigation to assistive tech; Tab alone does not satisfy it.
+    const onMenuKeyDown = (event: React.KeyboardEvent) => {
+        const all = rows();
+        if (all.length === 0) {
+            return;
+        }
+        const current = all.indexOf(document.activeElement as HTMLButtonElement);
+        const step = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+        if (step !== 0) {
+            event.preventDefault();
+            const next = (current + step + all.length) % all.length;
+            all[next].focus();
+            return;
+        }
+        if (event.key === "Home" || event.key === "End") {
+            event.preventDefault();
+            (event.key === "Home" ? all[0] : all[all.length - 1]).focus();
+        }
+    };
+
     const close = () => {
         setOpen(false);
         triggerRef.current?.focus();
@@ -189,6 +211,12 @@ export function CopilotMenu({ icon = "ellipsis" }: { icon?: string } = {}) {
         setLevel("root");
         setOpen((wasOpen) => !wasOpen);
     };
+
+    useEffect(() => {
+        if (open) {
+            rows()[0]?.focus();
+        }
+    }, [open, level]);
 
     const recent = (threads ?? []).slice(0, RECENT_THREAD_LIMIT);
 
@@ -208,7 +236,13 @@ export function CopilotMenu({ icon = "ellipsis" }: { icon?: string } = {}) {
             </TriggerButton>
 
             {open && (
-                <Surface role="menu" aria-label="WSO2 Integrator Copilot" data-testid="copilot-menu" $dropUp={dropUp}>
+                <Surface
+                    role="menu"
+                    aria-label="More actions"
+                    data-testid="copilot-menu"
+                    $dropUp={dropUp}
+                    onKeyDown={onMenuKeyDown}
+                >
                     {level === "root" ? (
                         <>
                             <Row type="button" role="menuitem" onClick={() => setLevel("chats")}>
