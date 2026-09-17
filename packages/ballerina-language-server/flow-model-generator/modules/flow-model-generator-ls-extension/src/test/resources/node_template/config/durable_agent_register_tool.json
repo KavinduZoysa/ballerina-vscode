@@ -203,6 +203,60 @@
         "advanced": true,
         "hidden": false
       },
+      "approvalTitle": {
+        "metadata": {
+          "label": "Review Title",
+          "description": "Inbox summary of the review, e.g. \"Approve the refund\"; empty derives it from the capability"
+        },
+        "types": [
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string",
+            "selected": true
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "approvalDescription": {
+        "metadata": {
+          "label": "Review Description",
+          "description": "Context shown with the decision; empty derives it"
+        },
+        "types": [
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string",
+            "selected": true
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "approvalTimeout": {
+        "metadata": {
+          "label": "Review Timeout",
+          "description": "How long to wait for a decision, in days, hours and minutes, e.g. {days: 1, hours: 2, minutes: 30}; empty waits indefinitely"
+        },
+        "types": [
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "workflow:Duration",
+            "selected": true
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
       "checkError": {
         "metadata": {
           "label": "Check Error",
