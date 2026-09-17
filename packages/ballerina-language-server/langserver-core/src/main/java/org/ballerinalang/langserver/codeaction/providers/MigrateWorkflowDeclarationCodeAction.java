@@ -69,30 +69,40 @@ public class MigrateWorkflowDeclarationCodeAction implements DiagnosticBasedCode
         if (fieldOpt.isEmpty() || !(fieldOpt.get().parent() instanceof MappingConstructorExpressionNode mapping)) {
             return List.of();
         }
-        SpecificFieldNode field = fieldOpt.get();
+        Migration migration = migrate(mapping, fieldOpt.get());
+        return List.of(CodeActionUtil.createCodeAction(migration.title(), migration.edits(), context.fileUri(),
+                CodeActionKind.QuickFix));
+    }
+
+    /**
+     * The quick fix for one removed field: its title and the edits that rewrite the mapping.
+     *
+     * @param title the code action title
+     * @param edits the text edits, in no particular order
+     */
+    record Migration(String title, List<TextEdit> edits) {
+    }
+
+    // A `requiresApproval: true` becomes an approvalPolicy carrying the roles beside it; any other
+    // removed field, the flag when false included, is dropped.
+    static Migration migrate(MappingConstructorExpressionNode mapping, SpecificFieldNode field) {
         String name = fieldName(field);
         List<TextEdit> edits = new ArrayList<>();
-        String title;
         if (REQUIRES_APPROVAL.equals(name) || USER_ROLES.equals(name)) {
             Optional<SpecificFieldNode> flag = sibling(mapping, REQUIRES_APPROVAL);
             Optional<SpecificFieldNode> roles = sibling(mapping, USER_ROLES);
             boolean gated = flag.isPresent() && "true".equals(valueSource(flag.get()));
             if (gated) {
                 // The flag becomes the policy; the roles it named travel inside it.
-                String audience = roles.map(this::valueSource).orElse("()");
+                String audience = roles.map(MigrateWorkflowDeclarationCodeAction::valueSource).orElse("()");
                 edits.add(new TextEdit(PositionUtil.toRange(flag.get().lineRange()),
                         APPROVAL_POLICY + ": {" + USER_ROLES + ": " + audience + "}"));
                 roles.ifPresent(r -> edits.add(removal(mapping, r)));
-                title = REPLACE_TITLE;
-            } else {
-                edits.add(removal(mapping, field));
-                title = String.format(REMOVE_TITLE, name);
+                return new Migration(REPLACE_TITLE, edits);
             }
-        } else {
-            edits.add(removal(mapping, field));
-            title = String.format(REMOVE_TITLE, name);
         }
-        return List.of(CodeActionUtil.createCodeAction(title, edits, context.fileUri(), CodeActionKind.QuickFix));
+        edits.add(removal(mapping, field));
+        return new Migration(String.format(REMOVE_TITLE, name), edits);
     }
 
     @Override
@@ -125,7 +135,7 @@ public class MigrateWorkflowDeclarationCodeAction implements DiagnosticBasedCode
         return name.startsWith("'") ? name.substring(1) : name;
     }
 
-    private String valueSource(SpecificFieldNode field) {
+    private static String valueSource(SpecificFieldNode field) {
         return field.valueExpr().map(expr -> expr.toSourceCode().trim()).orElse("");
     }
 
