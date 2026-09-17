@@ -88,6 +88,175 @@
         "advanced": true,
         "hidden": false
       },
+      "users": {
+        "metadata": {
+          "label": "Users",
+          "description": "User id(s) permitted to decide, whatever their roles, e.g. \"alice\" or [\"alice\", \"bob\"]"
+        },
+        "types": [
+          {
+            "fieldType": "TEXT",
+            "ballerinaType": "string",
+            "selected": false
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string|string[]",
+            "selected": false
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "excludedUsers": {
+        "metadata": {
+          "label": "Excluded Users",
+          "description": "User id(s) that may not decide, whatever their roles"
+        },
+        "types": [
+          {
+            "fieldType": "TEXT",
+            "ballerinaType": "string",
+            "selected": false
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string|string[]",
+            "selected": false
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "excludedRoles": {
+        "metadata": {
+          "label": "Excluded Roles",
+          "description": "Role(s) that may not decide"
+        },
+        "types": [
+          {
+            "fieldType": "TEXT",
+            "ballerinaType": "string",
+            "selected": false
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string|string[]",
+            "selected": false
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "administratorRoles": {
+        "metadata": {
+          "label": "Administrator Roles",
+          "description": "Role(s) that administer the task: they see it, may reassign it, move its deadline, fail or decide it"
+        },
+        "types": [
+          {
+            "fieldType": "TEXT",
+            "ballerinaType": "string",
+            "selected": false
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string|string[]",
+            "selected": false
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "administratorUsers": {
+        "metadata": {
+          "label": "Administrator Users",
+          "description": "User id(s) that administer the task, whatever their roles"
+        },
+        "types": [
+          {
+            "fieldType": "TEXT",
+            "ballerinaType": "string",
+            "selected": false
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string|string[]",
+            "selected": false
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "approvalTitle": {
+        "metadata": {
+          "label": "Review Title",
+          "description": "Inbox summary of the review, e.g. \"Approve the refund\"; empty derives it from the capability"
+        },
+        "types": [
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string",
+            "selected": true
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "approvalDescription": {
+        "metadata": {
+          "label": "Review Description",
+          "description": "Context shown with the decision; empty derives it"
+        },
+        "types": [
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string",
+            "selected": true
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "approvalTimeout": {
+        "metadata": {
+          "label": "Review Timeout",
+          "description": "How long to wait for a decision, in days, hours and minutes, e.g. {days: 1, hours: 2, minutes: 30}; empty waits indefinitely"
+        },
+        "types": [
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "workflow:Duration",
+            "selected": true
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
       "checkError": {
         "metadata": {
           "label": "Check Error",

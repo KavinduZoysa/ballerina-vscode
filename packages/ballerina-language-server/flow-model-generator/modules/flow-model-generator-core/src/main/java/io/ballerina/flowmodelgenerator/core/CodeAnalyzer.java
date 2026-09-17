@@ -1509,26 +1509,25 @@ public class CodeAnalyzer extends NodeVisitor {
                 case "maxIter" -> addAgentCallProperty(DurableAgentRunBuilder.MAX_ITER_KEY,
                         "Maximum Iterations", "Maximum LLM reasoning iterations per turn",
                         valueExpr.toSourceCode().trim());
+                // approvalPolicy is composite: collectCapabilityFields explodes it into the gate flag
+                // and the audience fields the form shows.
                 case "activities" -> collectDeclaredCapabilities(valueExpr, "activity", "activity",
-                        Map.of("activity", "activity", "name", "name", "description", "description",
-                                "requiresApproval", "requiresApproval", "userRoles", "userRoles"), activities);
+                        Map.of("activity", "activity", "name", "name", "description", "description"), activities);
                 case "tools" -> collectDeclaredCapabilities(valueExpr, "tool", "tool",
-                        Map.of("tool", "tool", "name", "name", "description", "description",
-                                "requiresApproval", "requiresApproval", "userRoles", "userRoles"), agentTools);
+                        Map.of("tool", "tool", "name", "name", "description", "description"), agentTools);
                 // A peer is another durable agent this one delegates to, not a function it calls,
-                // and it has its own form — so it travels as its own capability kind. The source
-                // field is the keyword-escaped 'wait; field names are unescaped before this map
-                // is consulted.
+                // and it has its own form — so it travels as its own capability kind.
                 case "peers" -> collectDeclaredCapabilities(valueExpr, "peer", "agent",
-                        Map.of("agent", "agent", "name", "name", "description", "description",
-                                "wait", "wait", "callbackChannel", "callbackChannel",
-                                "requiresApproval", "requiresApproval", "userRoles", "userRoles"), peers);
+                        Map.of("agent", "agent", "description", "description",
+                                "allowedEvents", "allowedEvents"), peers);
                 case "events" -> collectDeclaredCapabilities(valueExpr, "event", null,
                         Map.of("name", "name", "request", "requestType", "response", "responseType",
                                 "cardinality", "cardinality"), updateEvents);
                 case "humanTasks" -> collectDeclaredCapabilities(valueExpr, "humanTask", null,
-                        Map.of("name", "taskName", "roles", "userRoles", "title", "title",
-                                "description", "description", "resultType", "resultType", "timeout", "timeout"),
+                        Map.of("name", "taskName", "roles", "userRoles", "userRoles", "userRoles",
+                                "users", "users", "excludedUsers", "excludedUsers", "excludedRoles", "excludedRoles",
+                                "title", "title", "description", "description", "resultType", "resultType",
+                                "timeout", "timeout"),
                         humanTasks);
                 default -> {
                 }
@@ -1602,6 +1601,15 @@ public class CodeAnalyzer extends NodeVisitor {
                                 retryForm.maxRetryDelay());
                         putIfNotBlank(values, ActivityCallBuilder.RETRY_USER_ROLES_KEY,
                                 retryForm.review().userRoles());
+                        putIfNotBlank(values, ActivityCallBuilder.RETRY_USERS_KEY, retryForm.review().users());
+                        putIfNotBlank(values, ActivityCallBuilder.RETRY_EXCLUDED_USERS_KEY,
+                                retryForm.review().excludedUsers());
+                        putIfNotBlank(values, ActivityCallBuilder.RETRY_EXCLUDED_ROLES_KEY,
+                                retryForm.review().excludedRoles());
+                        putIfNotBlank(values, ActivityCallBuilder.RETRY_ADMINISTRATOR_ROLES_KEY,
+                                retryForm.review().administratorRoles());
+                        putIfNotBlank(values, ActivityCallBuilder.RETRY_ADMINISTRATOR_USERS_KEY,
+                                retryForm.review().administratorUsers());
                         continue;
                     }
                     if ("activity".equals(capabilityType) && "bindings".equals(fieldName)
@@ -1615,6 +1623,11 @@ public class CodeAnalyzer extends NodeVisitor {
                                         bindingSpecific.valueExpr().get().toSourceCode().trim());
                             }
                         }
+                        continue;
+                    }
+                    // The gate is a composite too: it decomposes into the flag and the review fields.
+                    if (WorkflowUtil.APPROVAL_POLICY_FIELD.equals(fieldName)) {
+                        hydrateApprovalPolicy(specificField.valueExpr().get(), values);
                         continue;
                     }
                     String propertyKey = fieldToPropertyKey.get(fieldName);
@@ -1680,6 +1693,10 @@ public class CodeAnalyzer extends NodeVisitor {
             if ("name".equals(fieldName) || fieldName.equals(refField)) {
                 continue;
             }
+            if (WorkflowUtil.APPROVAL_POLICY_FIELD.equals(fieldName)) {
+                hydrateApprovalPolicy(specificField.valueExpr().get(), values);
+                continue;
+            }
             String propertyKey = fieldToPropertyKey.get(fieldName);
             if (propertyKey == null) {
                 continue;
@@ -1687,6 +1704,9 @@ public class CodeAnalyzer extends NodeVisitor {
             String rawValue = specificField.valueExpr().get().toSourceCode().trim();
             if ("cardinality".equals(fieldName)) {
                 values.put(propertyKey, WorkflowUtil.stripModulePrefix(rawValue));
+            } else if (ROLE_FIELDS.contains(fieldName)) {
+                // `userRoles: ()` says "only the named users decide"; the roles box stays empty for it.
+                values.put(propertyKey, nilAsBlank(stripQuotes(rawValue)));
             } else if (TEXT_MODE_CAPABILITY_FIELDS.contains(fieldName)) {
                 values.put(propertyKey, stripQuotes(rawValue));
             } else {
@@ -1695,9 +1715,40 @@ public class CodeAnalyzer extends NodeVisitor {
         }
     }
 
+    private static final Set<String> ROLE_FIELDS = Set.of("roles", "userRoles");
+    // The policy fields the gate form carries beside the flag, with the property key each hydrates into.
+    private static final Map<String, String> APPROVAL_POLICY_KEYS = Map.of(
+            "title", WorkflowUtil.APPROVAL_TITLE_KEY,
+            "description", WorkflowUtil.APPROVAL_DESCRIPTION_KEY,
+            "timeout", WorkflowUtil.APPROVAL_TIMEOUT_KEY);
     // Capability declaration fields whose values render in text-mode form fields.
     private static final Set<String> TEXT_MODE_CAPABILITY_FIELDS =
-            Set.of("name", "title", "description", "roles", "callbackChannel", "userRoles");
+            Set.of("name", "title", "description", "roles", "userRoles", "users", "excludedUsers", "excludedRoles",
+                    "administratorRoles", "administratorUsers");
+
+    // A review definition as the policy sets the gate flag and fills the audience fields; NoApproval,
+    // or a policy the form cannot read, leaves the gate off.
+    private static void hydrateApprovalPolicy(ExpressionNode policy, Map<String, String> values) {
+        if (policy.kind() != SyntaxKind.MAPPING_CONSTRUCTOR) {
+            return;
+        }
+        values.put("requiresApproval", "true");
+        for (MappingFieldNode field : ((MappingConstructorExpressionNode) policy).fields()) {
+            if (!(field instanceof SpecificFieldNode specific) || specific.valueExpr().isEmpty()) {
+                continue;
+            }
+            String key = specific.fieldName().toSourceCode().trim();
+            String raw = specific.valueExpr().get().toSourceCode().trim();
+            if (ROLE_FIELDS.contains(key)) {
+                putIfNotBlank(values, USER_ROLES_FIELD, nilAsBlank(stripQuotes(raw)));
+            } else if (WorkflowUtil.AUDIENCE_KEYS.contains(key)) {
+                putIfNotBlank(values, key, stripQuotes(raw));
+            } else if (APPROVAL_POLICY_KEYS.containsKey(key)) {
+                // Under the gate's own keys: the capability's description is a different field.
+                putIfNotBlank(values, APPROVAL_POLICY_KEYS.get(key), raw);
+            }
+        }
+    }
 
     private static void putIfNotBlank(Map<String, String> values, String key, String value) {
         if (value != null && !value.isBlank()) {
@@ -2395,18 +2446,34 @@ public class CodeAnalyzer extends NodeVisitor {
         if (rawValue != null && !rawValue.isBlank()) {
             String trimmed = rawValue.trim();
             if (trimmed.startsWith("{")) {
-                // Both policies are records; `userRoles` is what only a review has — the same
-                // rule the compiler plugin and the runtime apply.
+                // Three shapes share one union, told apart the way the compiler plugin and the
+                // runtime tell them: an audience makes a review, attempts make retries, both make
+                // retries followed by a review.
                 Map<String, String> fields = WorkflowUtil.parseRecordLiteral(rawValue);
-                if (fields.containsKey(USER_ROLES_FIELD)) {
-                    dropdownValue = ActivityCallBuilder.MANUAL_RETRY_VALUE;
+                boolean audience = fields.containsKey(USER_ROLES_FIELD)
+                        || fields.containsKey(WorkflowUtil.USERS_KEY);
+                // Every tuning field has a default, so any one of them alone still declares attempts.
+                boolean attempts = fields.containsKey(ActivityCallBuilder.MAX_RETRIES_KEY)
+                        || fields.containsKey(ActivityCallBuilder.RETRY_DELAY_KEY)
+                        || fields.containsKey(ActivityCallBuilder.RETRY_BACKOFF_KEY)
+                        || fields.containsKey(ActivityCallBuilder.MAX_RETRY_DELAY_KEY);
+                if (audience) {
+                    dropdownValue = attempts ? ActivityCallBuilder.RETRY_BEFORE_REVIEW_VALUE
+                            : ActivityCallBuilder.MANUAL_RETRY_VALUE;
                     review = new ActivityCallBuilder.ReviewFormValues(
-                            fields.getOrDefault(USER_ROLES_FIELD, ""),
+                            nilAsBlank(fields.getOrDefault(USER_ROLES_FIELD, "")),
+                            fields.getOrDefault(WorkflowUtil.USERS_KEY, ""),
+                            fields.getOrDefault(WorkflowUtil.EXCLUDED_USERS_KEY, ""),
+                            fields.getOrDefault(WorkflowUtil.EXCLUDED_ROLES_KEY, ""),
+                            fields.getOrDefault(WorkflowUtil.ADMINISTRATOR_ROLES_KEY, ""),
+                            fields.getOrDefault(WorkflowUtil.ADMINISTRATOR_USERS_KEY, ""),
                             reviewText(fields.get("title")),
                             reviewText(fields.get("description")),
                             fields.getOrDefault("timeout", ""));
                 } else {
                     dropdownValue = ActivityCallBuilder.AUTO_RETRY_VALUE;
+                }
+                if (attempts) {
                     maxRetries = fields.getOrDefault(ActivityCallBuilder.MAX_RETRIES_KEY, "");
                     retryDelay = fields.getOrDefault(ActivityCallBuilder.RETRY_DELAY_KEY, "");
                     retryBackoff = fields.getOrDefault(ActivityCallBuilder.RETRY_BACKOFF_KEY, "");
@@ -2435,6 +2502,11 @@ public class CodeAnalyzer extends NodeVisitor {
         }
         return new RetryPolicyForm(dropdownValue, maxRetries, retryDelay, retryBackoff,
                 maxRetryDelay, review);
+    }
+
+    // `userRoles: ()` says the users alone decide; the form shows that as an empty roles field.
+    private static String nilAsBlank(String value) {
+        return "()".equals(value.trim()) ? "" : value;
     }
 
     // Whether the retryPolicy source is a literal reviewer role (a string) or role list, the two

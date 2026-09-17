@@ -1,6 +1,6 @@
 {
   "source": "workflow_function/functions.bal",
-  "description": "Human Review with nobody named writes userRoles: () — the compiler then names the missing audience, rather than the form inventing one",
+  "description": "Generate activity call with retries followed by a review (retryPolicy = {maxRetries, userRoles})",
   "diagram": {
     "id": "1",
     "metadata": {
@@ -81,22 +81,43 @@
           "description": "Retry strategy to apply when the activity call fails"
         },
         "valueType": "DROPDOWN_CHOICE",
-        "value": "ManualRetry",
+        "value": "RetryBeforeReview",
         "optional": true,
         "editable": true,
         "advanced": false,
         "hidden": false
       },
-      "retryUserRoles": {
+      "maxRetries": {
         "metadata": {
-          "label": "Reviewer Roles",
-          "description": "Role(s) permitted to decide the human review"
+          "label": "Max Retries"
         },
         "valueType": "EXPRESSION",
-        "value": "",
+        "value": "2",
         "optional": true,
         "editable": true,
-        "advanced": false,
+        "advanced": true,
+        "hidden": false
+      },
+      "retryUserRoles": {
+        "metadata": {
+          "label": "Reviewer Roles"
+        },
+        "valueType": "TEXT",
+        "value": "ops",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "retryUsers": {
+        "metadata": {
+          "label": "Reviewers"
+        },
+        "valueType": "TEXT",
+        "value": "alice",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
         "hidden": false
       }
     },
@@ -115,7 +136,7 @@
             "character": 0
           }
         },
-        "newText": "\nint result = check context->callActivity(sendNotification, {time: 10, input: {message: \"Hello\", recipient: \"user@example.com\"}}, retryPolicy = {userRoles: ()});"
+        "newText": "\nint result = check context->callActivity(sendNotification, {time: 10, input: {message: \"Hello\", recipient: \"user@example.com\"}}, retryPolicy = {maxRetries: 2, userRoles: \"ops\", users: \"alice\"});"
       }
     ]
   }

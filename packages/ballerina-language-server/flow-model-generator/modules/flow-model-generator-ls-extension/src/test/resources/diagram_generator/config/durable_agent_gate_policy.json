@@ -1,41 +1,232 @@
 {
-  "source": "agent_with_test",
-  "description": "",
-  "flowModel": {
-    "fileName": "agent_with_test",
-    "nodes": [],
-    "connections": [
+  "start": {
+    "line": 33,
+    "offset": 0
+  },
+  "end": {
+    "line": 35,
+    "offset": 1
+  },
+  "source": "durable_agent_gate_policy.bal",
+  "description": "Durable agent box hydration of approval gates declared on list-form activities and tools: the flag, the audience (roles, users, exclusions) and the review title, description and timeout each land in their own form field, and the capability's own description is untouched",
+  "diagram": {
+    "fileName": "durable_agent_gate_policy.bal",
+    "nodes": [
       {
-        "id": "34805",
+        "id": "63686",
         "metadata": {
-          "label": "Model Provider",
-          "description": "Creates a default model provider based on the provided `wso2ProviderConfig`.",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png"
+          "label": "Configure Agent",
+          "description": "Configure the agent's role, instructions, model and reasoning limit",
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_workflow_0.10.0.png",
+          "data": {
+            "agentName": "paymentAgent",
+            "agentBox": true,
+            "agent": {
+              "role": "Payments",
+              "instructions": "Charge and refund orders."
+            },
+            "model": {
+              "name": "payModel",
+              "path": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
+              "type": "Wso2ModelProvider"
+            },
+            "activities": [
+              {
+                "name": "chargeCard",
+                "type": "activity",
+                "lineRange": {
+                  "fileName": "durable_agent_gate_policy.bal",
+                  "startLine": {
+                    "line": 24,
+                    "offset": 8
+                  },
+                  "endLine": {
+                    "line": 24,
+                    "offset": 196
+                  }
+                },
+                "values": {
+                  "activity": "chargeCard",
+                  "description": "Charges the card",
+                  "requiresApproval": "true",
+                  "userRoles": "[\"manager\"]",
+                  "users": "alice",
+                  "approvalTitle": "\"Approve the charge\"",
+                  "approvalTimeout": "{hours: 4}",
+                  "bindings.api": "payApi"
+                }
+              }
+            ],
+            "humanTasks": [],
+            "tools": [
+              {
+                "name": "refund",
+                "type": "tool",
+                "lineRange": {
+                  "fileName": "durable_agent_gate_policy.bal",
+                  "startLine": {
+                    "line": 27,
+                    "offset": 8
+                  },
+                  "endLine": {
+                    "line": 27,
+                    "offset": 121
+                  }
+                },
+                "values": {
+                  "tool": "refund",
+                  "requiresApproval": "true",
+                  "userRoles": "finance",
+                  "excludedUsers": "[\"bob\"]",
+                  "approvalDescription": "\"Approve the refund\""
+                }
+              }
+            ],
+            "events": [],
+            "peers": [],
+            "declaration": {
+              "fileName": "durable_agent_gate_policy.bal",
+              "startLine": {
+                "line": 20,
+                "offset": 0
+              },
+              "endLine": {
+                "line": 29,
+                "offset": 3
+              }
+            }
+          }
         },
         "codedata": {
-          "node": "MODEL_PROVIDER",
+          "node": "DURABLE_AGENT_RUN",
           "org": "ballerina",
-          "module": "ai",
-          "symbol": "getDefaultModelProvider",
+          "module": "workflow",
+          "packageName": "workflow",
+          "object": "DurableAgent",
+          "symbol": "buildAndRunAgent",
+          "version": "0.10.0",
           "lineRange": {
-            "fileName": "main.bal",
+            "fileName": "durable_agent_gate_policy.bal",
             "startLine": {
-              "line": 3,
-              "offset": 0
+              "line": 32,
+              "offset": 4
             },
             "endLine": {
-              "line": 3,
-              "offset": 85
+              "line": 32,
+              "offset": 74
             }
           },
-          "sourceCode": "final ai:Wso2ModelProvider customerSupportModel = check ai:getDefaultModelProvider();"
+          "sourceCode": "string instanceId = check paymentAgent.run(query = \"Charge order 42\");",
+          "parentSymbol": "paymentAgent"
         },
         "returning": false,
         "properties": {
+          "role": {
+            "metadata": {
+              "label": "Role",
+              "description": "Define the agent's primary function"
+            },
+            "types": [
+              {
+                "fieldType": "PROMPT",
+                "ballerinaType": "string",
+                "selected": true
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string",
+                "selected": false
+              }
+            ],
+            "value": "Payments",
+            "placeholder": "e.g., Customer Support Assistant",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "REQUIRED"
+            },
+            "defaultValue": ""
+          },
+          "instructions": {
+            "metadata": {
+              "label": "Instructions",
+              "description": "Detailed instructions for the agent"
+            },
+            "types": [
+              {
+                "fieldType": "PROMPT",
+                "ballerinaType": "string",
+                "selected": true
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string",
+                "selected": false
+              }
+            ],
+            "value": "Charge and refund orders.",
+            "placeholder": "e.g., You are a friendly assistant. Your goal is to...",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "REQUIRED"
+            },
+            "defaultValue": ""
+          },
+          "model": {
+            "metadata": {
+              "label": "Model",
+              "description": "The model provider used for the agent's LLM calls"
+            },
+            "types": [
+              {
+                "fieldType": "SINGLE_SELECT",
+                "ballerinaType": "ai:ModelProvider",
+                "options": [
+                  {
+                    "label": "payModel",
+                    "value": "payModel"
+                  }
+                ],
+                "selected": true
+              }
+            ],
+            "value": "payModel",
+            "placeholder": "Select a model provider",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": true,
+            "codedata": {
+              "kind": "REQUIRED",
+              "originalName": "model"
+            }
+          },
+          "query": {
+            "metadata": {
+              "label": "Query",
+              "description": "The initial user query for the agent"
+            },
+            "types": [
+              {
+                "fieldType": "EXPRESSION",
+                "selected": false
+              }
+            ],
+            "value": "\"Charge order 42\"",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": false
+          },
           "checkError": {
             "metadata": {
               "label": "Check Error",
-              "description": "Terminate on error"
+              "description": "Trigger error flow"
             },
             "types": [
               {
@@ -44,23 +235,6 @@
               }
             ],
             "value": true,
-            "optional": false,
-            "editable": false,
-            "advanced": true,
-            "hidden": true
-          },
-          "scope": {
-            "metadata": {
-              "label": "Connection Scope",
-              "description": "Scope of the connection, Global or Local"
-            },
-            "types": [
-              {
-                "fieldType": "ENUM",
-                "selected": true
-              }
-            ],
-            "value": "Global",
             "optional": false,
             "editable": true,
             "advanced": true,
@@ -77,21 +251,21 @@
                 "selected": true
               }
             ],
-            "value": "customerSupportModel",
+            "value": "instanceId",
             "optional": false,
             "editable": false,
             "advanced": false,
             "hidden": false,
             "codedata": {
               "lineRange": {
-                "fileName": "main.bal",
+                "fileName": "durable_agent_gate_policy.bal",
                 "startLine": {
-                  "line": 3,
-                  "offset": 27
+                  "line": 32,
+                  "offset": 11
                 },
                 "endLine": {
-                  "line": 3,
-                  "offset": 47
+                  "line": 32,
+                  "offset": 21
                 }
               }
             }
@@ -107,7 +281,7 @@
                 "selected": true
               }
             ],
-            "value": "ai:Wso2ModelProvider",
+            "value": "string",
             "placeholder": "var",
             "optional": false,
             "editable": true,
@@ -117,9 +291,11 @@
           }
         },
         "flags": 1
-      },
+      }
+    ],
+    "connections": [
       {
-        "id": "43712",
+        "id": "37759",
         "metadata": {
           "label": "HTTP",
           "description": "The HTTP client provides functionality to connect to remote HTTP services and perform requests using standard HTTP methods like GET, POST, PUT, DELETE, etc.\n",
@@ -132,17 +308,17 @@
           "object": "Client",
           "symbol": "init",
           "lineRange": {
-            "fileName": "main.bal",
+            "fileName": "durable_agent_gate_policy.bal",
             "startLine": {
-              "line": 12,
+              "line": 6,
               "offset": 0
             },
             "endLine": {
-              "line": 12,
-              "offset": 64
+              "line": 6,
+              "offset": 63
             }
           },
-          "sourceCode": "final http:Client httpClient = check new (\"http://example.com\");"
+          "sourceCode": "final http:Client payApi = check new (\"http://localhost:9090\");"
         },
         "returning": false,
         "properties": {
@@ -163,7 +339,7 @@
                 "selected": false
               }
             ],
-            "value": "\"http://example.com\"",
+            "value": "\"http://localhost:9090\"",
             "placeholder": "\"\"",
             "optional": false,
             "editable": true,
@@ -936,21 +1112,21 @@
                 "selected": true
               }
             ],
-            "value": "httpClient",
+            "value": "payApi",
             "optional": false,
             "editable": false,
             "advanced": false,
             "hidden": false,
             "codedata": {
               "lineRange": {
-                "fileName": "main.bal",
+                "fileName": "durable_agent_gate_policy.bal",
                 "startLine": {
-                  "line": 12,
+                  "line": 6,
                   "offset": 18
                 },
                 "endLine": {
-                  "line": 12,
-                  "offset": 28
+                  "line": 6,
+                  "offset": 24
                 }
               }
             }
@@ -978,335 +1154,198 @@
         "flags": 1
       },
       {
-        "id": "36861",
+        "id": "35800",
         "metadata": {
-          "label": "Agent",
-          "description": "Represents an agent.",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
-          "data": {
-            "agentInfo": {
-              "systemPrompt": {
-                "instructions": "You are a helpful assistant",
-                "role": "Customer Support Assistant"
-              },
-              "modelProvider": {
-                "presentation": {
-                  "name": "customerSupportModel",
-                  "path": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
-                  "type": "Wso2ModelProvider"
-                }
-              }
-            }
-          }
+          "label": "Model Provider",
+          "description": "Initializes a new `WSO2ModelProvider` instance.\n",
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png"
         },
         "codedata": {
-          "node": "AGENT",
+          "node": "MODEL_PROVIDER",
           "org": "ballerina",
           "module": "ai",
-          "packageName": "ai",
-          "object": "Agent",
+          "object": "Wso2ModelProvider",
           "symbol": "init",
-          "version": "1.15.0",
           "lineRange": {
-            "fileName": "main.bal",
+            "fileName": "durable_agent_gate_policy.bal",
             "startLine": {
-              "line": 5,
+              "line": 4,
               "offset": 0
             },
             "endLine": {
-              "line": 10,
-              "offset": 2
+              "line": 4,
+              "offset": 88
             }
           },
-          "sourceCode": "final ai:Agent mathTutorAgent = check new (\n    systemPrompt = {\n        role: string `Customer Support Assistant`,\n        instructions: string `You are a helpful assistant`\n    }, model = customerSupportModel\n);"
+          "sourceCode": "final ai:Wso2ModelProvider payModel = check new (\"http://localhost:9099\", \"test-token\");"
         },
         "returning": false,
         "properties": {
-          "systemPrompt": {
+          "serviceUrl": {
             "metadata": {
-              "label": "System Prompt",
-              "description": "The system prompt assigned to the agent"
+              "label": "Service URL",
+              "description": "The base URL of WSO2 intelligence API endpoint"
             },
             "types": [
               {
-                "fieldType": "RECORD_MAP_EXPRESSION",
-                "ballerinaType": "ai:SystemPrompt",
-                "typeMembers": [
-                  {
-                    "type": "SystemPrompt",
-                    "packageInfo": "ballerina:ai:1.15.0",
-                    "packageName": "ai",
-                    "kind": "RECORD_TYPE",
-                    "selected": true
-                  }
-                ],
+                "fieldType": "TEXT",
+                "ballerinaType": "string",
                 "selected": true
               },
               {
                 "fieldType": "EXPRESSION",
-                "ballerinaType": "ai:SystemPrompt",
+                "ballerinaType": "string",
                 "selected": false
               }
             ],
-            "value": "{\n        role: string `Customer Support Assistant`,\n        instructions: string `You are a helpful assistant`\n    }",
-            "placeholder": "{role: \"\", instructions: \"\"}",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": true,
-            "codedata": {
-              "kind": "INCLUDED_FIELD",
-              "originalName": "systemPrompt"
-            },
-            "defaultValue": "{role: \"\", instructions: \"\"}"
-          },
-          "model": {
-            "metadata": {
-              "label": "Model",
-              "description": "The model used by the agent"
-            },
-            "types": [
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "ai:ModelProvider",
-                "selected": true
-              }
-            ],
-            "value": "customerSupportModel",
-            "placeholder": "object {}",
+            "value": "\"http://localhost:9099\"",
+            "placeholder": "\"\"",
             "optional": false,
             "editable": true,
             "advanced": false,
             "hidden": false,
             "codedata": {
-              "kind": "INCLUDED_FIELD",
-              "originalName": "model"
-            },
-            "defaultValue": "object {}"
+              "kind": "REQUIRED",
+              "originalName": "serviceUrl"
+            }
           },
-          "tools": {
+          "accessToken": {
             "metadata": {
-              "label": "Tools",
-              "description": "The tools available for the agent"
+              "label": "Access Token",
+              "description": "The access token for authenticating API requests"
             },
             "types": [
               {
-                "fieldType": "REPEATABLE_LIST",
-                "ballerinaType": "(ai:BaseToolKit|ai:ToolConfig|ai:FunctionTool)[]",
-                "template": {
-                  "types": [
-                    {
-                      "fieldType": "RECORD_MAP_EXPRESSION",
-                      "ballerinaType": "ai:ToolConfig",
-                      "typeMembers": [
-                        {
-                          "type": "ToolConfig",
-                          "packageInfo": "ballerina:ai:1.15.0",
-                          "packageName": "ai",
-                          "kind": "RECORD_TYPE",
-                          "selected": false
-                        }
-                      ],
-                      "selected": false
-                    },
-                    {
-                      "fieldType": "EXPRESSION",
-                      "ballerinaType": "ai:BaseToolKit|ai:ToolConfig|ai:FunctionTool",
-                      "selected": false
-                    }
-                  ],
-                  "optional": false,
-                  "editable": false,
-                  "advanced": false,
-                  "hidden": false
-                },
-                "selected": false
+                "fieldType": "TEXT",
+                "ballerinaType": "string",
+                "selected": true
               },
               {
                 "fieldType": "EXPRESSION",
-                "ballerinaType": "(ai:BaseToolKit|ai:ToolConfig|ai:FunctionTool)[]",
+                "ballerinaType": "string",
                 "selected": false
               }
             ],
-            "placeholder": "[]",
-            "optional": true,
+            "value": "\"test-token\"",
+            "placeholder": "\"\"",
+            "optional": false,
             "editable": true,
             "advanced": false,
-            "hidden": true,
+            "hidden": false,
             "codedata": {
-              "kind": "INCLUDED_FIELD",
-              "originalName": "tools"
-            },
-            "defaultValue": "[]"
+              "kind": "REQUIRED",
+              "originalName": "accessToken"
+            }
           },
-          "maxIter": {
+          "temperature": {
             "metadata": {
-              "label": "Maximum Iterations",
-              "description": "The maximum number of reasoning-action cycles the agent performs to complete the task.\nA single cycle is one LLM call plus the execution of every tool call returned in\nthat response, so multiple tool calls from one response count as one iteration.\nDefaults to `max(number of tools, 10)` — i.e., at least 10, or more if the\nagent has more tools available."
+              "label": "Temperature",
+              "description": "The temperature for controlling randomness in the model's output"
             },
             "types": [
-              {
-                "fieldType": "SINGLE_SELECT",
-                "options": [
-                  {
-                    "label": "INFER_TOOL_COUNT",
-                    "value": "\"INFER_TOOL_COUNT\""
-                  }
-                ],
-                "selected": false
-              },
               {
                 "fieldType": "NUMBER",
-                "ballerinaType": "int",
+                "ballerinaType": "decimal",
                 "selected": false
               },
               {
                 "fieldType": "EXPRESSION",
-                "ballerinaType": "\"INFER_TOOL_COUNT\"|int",
+                "ballerinaType": "decimal",
                 "selected": false
               }
             ],
-            "placeholder": "\"INFER_TOOL_COUNT\"",
+            "placeholder": "0.0d",
             "optional": true,
             "editable": true,
             "advanced": false,
             "hidden": false,
             "codedata": {
-              "kind": "INCLUDED_FIELD",
-              "originalName": "maxIter"
+              "kind": "DEFAULTABLE",
+              "originalName": "temperature"
             },
-            "defaultValue": "\"INFER_TOOL_COUNT\""
+            "defaultValue": "0.0d"
           },
-          "verbose": {
+          "generatorConfig": {
             "metadata": {
-              "label": "Verbose",
-              "description": "Specifies whether verbose logging is enabled"
+              "label": "Generator Configuration",
+              "description": "Configuration for the `ModelProvider.generate()` method."
             },
             "types": [
               {
-                "fieldType": "FLAG",
-                "ballerinaType": "boolean",
-                "selected": false
-              },
-              {
                 "fieldType": "EXPRESSION",
-                "ballerinaType": "boolean",
+                "ballerinaType": "ai:GeneratorConfig & readonly",
                 "selected": false
               }
             ],
-            "placeholder": "false",
+            "placeholder": "{}",
             "optional": true,
             "editable": true,
             "advanced": false,
             "hidden": false,
             "codedata": {
-              "kind": "INCLUDED_FIELD",
-              "originalName": "verbose"
+              "kind": "DEFAULTABLE",
+              "originalName": "generatorConfig"
             },
-            "defaultValue": "false"
+            "defaultValue": "{}"
           },
-          "memory": {
+          "httpVersion": {
             "metadata": {
-              "label": "Memory",
-              "description": "The memory used by the agent to store and manage conversation history.\nDefaults to use an in-memory message store that trims on overflow, if unspecified."
-            },
-            "types": [
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "ai:Memory?",
-                "selected": false
-              }
-            ],
-            "placeholder": "()",
-            "optional": true,
-            "editable": true,
-            "advanced": true,
-            "hidden": true,
-            "codedata": {
-              "kind": "INCLUDED_FIELD",
-              "originalName": "memory"
-            },
-            "defaultValue": "()"
-          },
-          "toolLoadingStrategy": {
-            "metadata": {
-              "label": "Tool Loading Strategy",
-              "description": "Defines the strategies for loading tool schemas into an Agent.\nBy default, all tools are loaded without any filtering."
+              "label": "HTTP Version",
+              "description": "The HTTP version understood by the client"
             },
             "types": [
               {
                 "fieldType": "SINGLE_SELECT",
                 "options": [
                   {
-                    "label": "NO_FILTER",
-                    "value": "\"NO_FILTER\""
+                    "label": "HTTP_1_0",
+                    "value": "\"1.0\""
                   },
                   {
-                    "label": "LLM_FILTER",
-                    "value": "\"LLM_FILTER\""
+                    "label": "HTTP_1_1",
+                    "value": "\"1.1\""
+                  },
+                  {
+                    "label": "HTTP_2_0",
+                    "value": "\"2.0\""
                   }
                 ],
                 "selected": false
               },
               {
                 "fieldType": "EXPRESSION",
-                "ballerinaType": "ai:ToolLoadingStrategy",
+                "ballerinaType": "http:HttpVersion",
                 "selected": false
               }
             ],
-            "placeholder": "\"LLM_FILTER\"",
+            "placeholder": "\"2.0\"",
             "optional": true,
             "editable": true,
             "advanced": false,
             "hidden": false,
             "codedata": {
               "kind": "INCLUDED_FIELD",
-              "originalName": "toolLoadingStrategy"
+              "originalName": "httpVersion"
             },
-            "defaultValue": "\"LLM_FILTER\""
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "\"2.0\""
           },
-          "executeToolCallsInParallel": {
+          "http1Settings": {
             "metadata": {
-              "label": "Execute Tool Calls In Parallel",
-              "description": "Specifies whether multiple tool calls returned in a single LLM response are executed in parallel.\nIf `true`, all tool calls from one LLM response are executed concurrently;\notherwise, they are executed sequentially, one after another."
-            },
-            "types": [
-              {
-                "fieldType": "FLAG",
-                "ballerinaType": "boolean",
-                "selected": false
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "boolean",
-                "selected": false
-              }
-            ],
-            "placeholder": "false",
-            "optional": true,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "INCLUDED_FIELD",
-              "originalName": "executeToolCallsInParallel"
-            },
-            "defaultValue": "false"
-          },
-          "credential": {
-            "metadata": {
-              "label": "Agent Credential",
-              "description": "Optional authentication details of the agent."
+              "label": "HTTP1 Settings",
+              "description": "Configurations related to HTTP/1.x protocol"
             },
             "types": [
               {
                 "fieldType": "RECORD_MAP_EXPRESSION",
-                "ballerinaType": "ai:Credential",
+                "ballerinaType": "http:ClientHttp1Settings",
                 "typeMembers": [
                   {
-                    "type": "Credential",
-                    "packageInfo": "ballerina:ai:1.15.0",
-                    "packageName": "ai",
+                    "type": "ClientHttp1Settings",
+                    "packageInfo": "ballerina:http:2.17.1",
+                    "packageName": "http",
                     "kind": "RECORD_TYPE",
                     "selected": false
                   }
@@ -1315,20 +1354,471 @@
               },
               {
                 "fieldType": "EXPRESSION",
-                "ballerinaType": "ai:Credential",
+                "ballerinaType": "http:ClientHttp1Settings",
                 "selected": false
               }
             ],
-            "placeholder": "{id: \"\", secret: \"\"}",
+            "placeholder": "{}",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "http1Settings"
+            },
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "{}"
+          },
+          "http2Settings": {
+            "metadata": {
+              "label": "HTTP2 Settings",
+              "description": "Configurations related to HTTP/2 protocol"
+            },
+            "types": [
+              {
+                "fieldType": "RECORD_MAP_EXPRESSION",
+                "ballerinaType": "http:ClientHttp2Settings",
+                "typeMembers": [
+                  {
+                    "type": "ClientHttp2Settings",
+                    "packageInfo": "ballerina:http:2.17.1",
+                    "packageName": "http",
+                    "kind": "RECORD_TYPE",
+                    "selected": false
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "http:ClientHttp2Settings",
+                "selected": false
+              }
+            ],
+            "placeholder": "{}",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "http2Settings"
+            },
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "{}"
+          },
+          "timeout": {
+            "metadata": {
+              "label": "Timeout",
+              "description": "The maximum time to wait (in seconds) for a response before closing the connection"
+            },
+            "types": [
+              {
+                "fieldType": "NUMBER",
+                "ballerinaType": "decimal",
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "decimal",
+                "selected": false
+              }
+            ],
+            "placeholder": "0.0d",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "timeout"
+            },
+            "defaultValue": "0.0d"
+          },
+          "forwarded": {
+            "metadata": {
+              "label": "Forwarded",
+              "description": "The choice of setting `forwarded`/`x-forwarded` header"
+            },
+            "types": [
+              {
+                "fieldType": "TEXT",
+                "ballerinaType": "string",
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string",
+                "selected": false
+              }
+            ],
+            "placeholder": "\"\"",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "forwarded"
+            },
+            "defaultValue": "\"\""
+          },
+          "poolConfig": {
+            "metadata": {
+              "label": "Pool Configuration",
+              "description": "Configurations associated with request pooling"
+            },
+            "types": [
+              {
+                "fieldType": "RECORD_MAP_EXPRESSION",
+                "ballerinaType": "http:PoolConfiguration",
+                "typeMembers": [
+                  {
+                    "type": "PoolConfiguration",
+                    "packageInfo": "ballerina:http:2.17.1",
+                    "packageName": "http",
+                    "kind": "RECORD_TYPE",
+                    "selected": false
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "http:PoolConfiguration",
+                "selected": false
+              }
+            ],
+            "placeholder": "{}",
             "optional": true,
             "editable": true,
             "advanced": true,
             "hidden": false,
             "codedata": {
               "kind": "INCLUDED_FIELD",
-              "originalName": "credential"
+              "originalName": "poolConfig"
             },
-            "defaultValue": "{id: \"\", secret: \"\"}"
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "{}"
+          },
+          "cache": {
+            "metadata": {
+              "label": "Cache Configuration",
+              "description": "HTTP caching related configurations"
+            },
+            "types": [
+              {
+                "fieldType": "RECORD_MAP_EXPRESSION",
+                "ballerinaType": "http:CacheConfig",
+                "typeMembers": [
+                  {
+                    "type": "CacheConfig",
+                    "packageInfo": "ballerina:http:2.17.1",
+                    "packageName": "http",
+                    "kind": "RECORD_TYPE",
+                    "selected": false
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "http:CacheConfig",
+                "selected": false
+              }
+            ],
+            "placeholder": "{}",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "cache"
+            },
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "{}"
+          },
+          "compression": {
+            "metadata": {
+              "label": "Compression",
+              "description": "Specifies the way of handling compression (`accept-encoding`) header"
+            },
+            "types": [
+              {
+                "fieldType": "SINGLE_SELECT",
+                "options": [
+                  {
+                    "label": "AUTO",
+                    "value": "\"AUTO\""
+                  },
+                  {
+                    "label": "ALWAYS",
+                    "value": "\"ALWAYS\""
+                  },
+                  {
+                    "label": "NEVER",
+                    "value": "\"NEVER\""
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "http:Compression",
+                "selected": false
+              }
+            ],
+            "placeholder": "\"AUTO\"",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "compression"
+            },
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "\"AUTO\""
+          },
+          "circuitBreaker": {
+            "metadata": {
+              "label": "Circuit Breaker Configuration",
+              "description": "Configurations associated with the behaviour of the Circuit Breaker"
+            },
+            "types": [
+              {
+                "fieldType": "RECORD_MAP_EXPRESSION",
+                "ballerinaType": "http:CircuitBreakerConfig",
+                "typeMembers": [
+                  {
+                    "type": "CircuitBreakerConfig",
+                    "packageInfo": "ballerina:http:2.17.1",
+                    "packageName": "http",
+                    "kind": "RECORD_TYPE",
+                    "selected": false
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "http:CircuitBreakerConfig",
+                "selected": false
+              }
+            ],
+            "placeholder": "{}",
+            "optional": true,
+            "editable": true,
+            "advanced": true,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "circuitBreaker"
+            },
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "{}"
+          },
+          "retryConfig": {
+            "metadata": {
+              "label": "Retry Configuration",
+              "description": "Configurations associated with retrying"
+            },
+            "types": [
+              {
+                "fieldType": "RECORD_MAP_EXPRESSION",
+                "ballerinaType": "http:RetryConfig",
+                "typeMembers": [
+                  {
+                    "type": "RetryConfig",
+                    "packageInfo": "ballerina:http:2.17.1",
+                    "packageName": "http",
+                    "kind": "RECORD_TYPE",
+                    "selected": false
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "http:RetryConfig",
+                "selected": false
+              }
+            ],
+            "placeholder": "{}",
+            "optional": true,
+            "editable": true,
+            "advanced": true,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "retryConfig"
+            },
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "{}"
+          },
+          "responseLimits": {
+            "metadata": {
+              "label": "Response Limit Configuration",
+              "description": "Configurations associated with inbound response size limits"
+            },
+            "types": [
+              {
+                "fieldType": "RECORD_MAP_EXPRESSION",
+                "ballerinaType": "http:ResponseLimitConfigs",
+                "typeMembers": [
+                  {
+                    "type": "ResponseLimitConfigs",
+                    "packageInfo": "ballerina:http:2.17.1",
+                    "packageName": "http",
+                    "kind": "RECORD_TYPE",
+                    "selected": false
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "http:ResponseLimitConfigs",
+                "selected": false
+              }
+            ],
+            "placeholder": "{}",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "responseLimits"
+            },
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "{}"
+          },
+          "secureSocket": {
+            "metadata": {
+              "label": "Secure Socket Configuration",
+              "description": "SSL/TLS-related options"
+            },
+            "types": [
+              {
+                "fieldType": "RECORD_MAP_EXPRESSION",
+                "ballerinaType": "http:ClientSecureSocket",
+                "typeMembers": [
+                  {
+                    "type": "ClientSecureSocket",
+                    "packageInfo": "ballerina:http:2.17.1",
+                    "packageName": "http",
+                    "kind": "RECORD_TYPE",
+                    "selected": false
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "http:ClientSecureSocket",
+                "selected": false
+              }
+            ],
+            "placeholder": "{}",
+            "optional": true,
+            "editable": true,
+            "advanced": true,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "secureSocket"
+            },
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "{}"
+          },
+          "proxy": {
+            "metadata": {
+              "label": "Proxy Configuration",
+              "description": "Proxy server related options"
+            },
+            "types": [
+              {
+                "fieldType": "RECORD_MAP_EXPRESSION",
+                "ballerinaType": "http:ProxyConfig",
+                "typeMembers": [
+                  {
+                    "type": "ProxyConfig",
+                    "packageInfo": "ballerina:http:2.17.1",
+                    "packageName": "http",
+                    "kind": "RECORD_TYPE",
+                    "selected": false
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "http:ProxyConfig",
+                "selected": false
+              }
+            ],
+            "placeholder": "{}",
+            "optional": true,
+            "editable": true,
+            "advanced": true,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "proxy"
+            },
+            "imports": {
+              "http": "ballerina/http"
+            },
+            "defaultValue": "{}"
+          },
+          "validation": {
+            "metadata": {
+              "label": "Payload Validation",
+              "description": "Enables the inbound payload validation functionality which provided by the constraint package. Enabled by default"
+            },
+            "types": [
+              {
+                "fieldType": "FLAG",
+                "ballerinaType": "boolean",
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "boolean",
+                "selected": false
+              }
+            ],
+            "placeholder": "false",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "validation"
+            },
+            "defaultValue": "false"
           },
           "checkError": {
             "metadata": {
@@ -1364,62 +1854,6 @@
             "advanced": true,
             "hidden": true
           },
-          "role": {
-            "metadata": {
-              "label": "Role",
-              "description": "Define the agent's primary function"
-            },
-            "types": [
-              {
-                "fieldType": "PROMPT",
-                "ballerinaType": "string",
-                "selected": true
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": false
-              }
-            ],
-            "value": "Customer Support Assistant",
-            "placeholder": "e.g., Customer Support Assistant, Sales Advisor, Data Analyst",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "REQUIRED"
-            },
-            "defaultValue": ""
-          },
-          "instructions": {
-            "metadata": {
-              "label": "Instructions",
-              "description": "Detailed instructions for the agent"
-            },
-            "types": [
-              {
-                "fieldType": "PROMPT",
-                "ballerinaType": "string",
-                "selected": true
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": false
-              }
-            ],
-            "value": "You are a helpful assistant",
-            "placeholder": "e.g., You are a friendly assistant. Your goal is to...",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "REQUIRED"
-            },
-            "defaultValue": ""
-          },
           "variable": {
             "metadata": {
               "label": "Variable Name",
@@ -1431,134 +1865,21 @@
                 "selected": true
               }
             ],
-            "value": "mathTutorAgent",
+            "value": "payModel",
             "optional": false,
             "editable": false,
             "advanced": false,
             "hidden": false,
             "codedata": {
               "lineRange": {
-                "fileName": "main.bal",
+                "fileName": "durable_agent_gate_policy.bal",
                 "startLine": {
-                  "line": 5,
-                  "offset": 15
-                },
-                "endLine": {
-                  "line": 5,
-                  "offset": 29
-                }
-              }
-            }
-          },
-          "type": {
-            "metadata": {
-              "label": "Variable Type",
-              "description": "Type of the variable"
-            },
-            "types": [
-              {
-                "fieldType": "TYPE",
-                "selected": true
-              }
-            ],
-            "value": "ai:Agent",
-            "placeholder": "var",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {}
-          }
-        },
-        "flags": 1
-      },
-      {
-        "id": "33802",
-        "metadata": {
-          "label": "Model Provider",
-          "description": "Creates a default model provider based on the provided `wso2ProviderConfig`.",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png"
-        },
-        "codedata": {
-          "node": "MODEL_PROVIDER",
-          "org": "ballerina",
-          "module": "ai",
-          "symbol": "getDefaultModelProvider",
-          "lineRange": {
-            "fileName": "tests/tests.bal",
-            "startLine": {
-              "line": 2,
-              "offset": 0
-            },
-            "endLine": {
-              "line": 2,
-              "offset": 74
-            }
-          },
-          "sourceCode": "final ai:Wso2ModelProvider testModel = check ai:getDefaultModelProvider();"
-        },
-        "returning": false,
-        "properties": {
-          "checkError": {
-            "metadata": {
-              "label": "Check Error",
-              "description": "Terminate on error"
-            },
-            "types": [
-              {
-                "fieldType": "FLAG",
-                "selected": true
-              }
-            ],
-            "value": true,
-            "optional": false,
-            "editable": false,
-            "advanced": true,
-            "hidden": true
-          },
-          "scope": {
-            "metadata": {
-              "label": "Connection Scope",
-              "description": "Scope of the connection, Global or Local"
-            },
-            "types": [
-              {
-                "fieldType": "ENUM",
-                "selected": true
-              }
-            ],
-            "value": "Global",
-            "optional": false,
-            "editable": true,
-            "advanced": true,
-            "hidden": true
-          },
-          "variable": {
-            "metadata": {
-              "label": "Variable Name",
-              "description": "Name of the variable"
-            },
-            "types": [
-              {
-                "fieldType": "IDENTIFIER",
-                "selected": true
-              }
-            ],
-            "value": "testModel",
-            "optional": false,
-            "editable": false,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "lineRange": {
-                "fileName": "tests/tests.bal",
-                "startLine": {
-                  "line": 2,
+                  "line": 4,
                   "offset": 27
                 },
                 "endLine": {
-                  "line": 2,
-                  "offset": 36
+                  "line": 4,
+                  "offset": 35
                 }
               }
             }
@@ -1585,7 +1906,6 @@
         },
         "flags": 1
       }
-    ],
-    "variables": []
+    ]
   }
 }

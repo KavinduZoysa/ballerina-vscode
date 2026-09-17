@@ -1,18 +1,18 @@
 {
   "source": "workflow_function/agent.bal",
-  "description": "Register a gated tool: approval and reviewer roles emit a ToolDecl mapping entry",
+  "description": "A peer whose Allowed Events is a reference: the expression is written through as-is",
   "diagram": {
     "id": "1",
     "metadata": {
-      "label": "searchClaimDocs",
-      "description": "Register an AI tool the agent can call"
+      "label": "askClaimDesk",
+      "description": "Another durable agent this agent can delegate to, advertised to the model as a tool"
     },
     "codedata": {
-      "node": "DURABLE_AGENT_REGISTER_TOOL",
+      "node": "DURABLE_AGENT_PEER",
       "org": "ballerina",
       "module": "workflow",
       "object": "DurableAgent",
-      "symbol": "registerAgentTool",
+      "symbol": "agent",
       "parentSymbol": "claimAgent",
       "lineRange": {
         "fileName": "agent.bal",
@@ -29,34 +29,34 @@
     },
     "returning": false,
     "properties": {
-      "tool": {
+      "agent": {
         "metadata": {
-          "label": "Tool"
+          "label": "Peer Agent"
         },
         "valueType": "SINGLE_SELECT",
-        "value": "searchClaimDocs",
+        "value": "claimAgent",
         "optional": false,
         "editable": true,
         "advanced": false,
         "hidden": false
       },
-      "requiresApproval": {
+      "description": {
         "metadata": {
-          "label": "Requires Approval"
+          "label": "Description"
         },
-        "valueType": "FLAG",
-        "value": "true",
+        "valueType": "TEXT",
+        "value": "Asks the claim desk",
         "optional": true,
         "editable": true,
-        "advanced": true,
+        "advanced": false,
         "hidden": false
       },
-      "userRoles": {
+      "allowedEvents": {
         "metadata": {
-          "label": "Reviewer Roles"
+          "label": "Allowed Events"
         },
         "valueType": "EXPRESSION",
-        "value": "finance",
+        "value": "claimEvents",
         "optional": true,
         "editable": true,
         "advanced": true,
@@ -78,7 +78,7 @@
             "character": 0
           }
         },
-        "newText": "\n, tools: [{tool: searchClaimDocs, approvalPolicy: {userRoles: \"finance\"}}]"
+        "newText": "\n, peers: [{agent: claimAgent, description: \"Asks the claim desk\", allowedEvents: claimEvents}]"
       }
     ]
   }
