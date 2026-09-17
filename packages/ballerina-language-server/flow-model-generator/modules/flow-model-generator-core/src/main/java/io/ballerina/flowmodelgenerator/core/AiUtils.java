@@ -439,8 +439,11 @@ public class AiUtils {
     /**
      * Adds PROMPT to a property whose type is a union containing {@code ai:Prompt}
      * (e.g. {@code anydata|ai:Prompt|ai:Resume}), which the generic type resolution misses.
+     *
+     * @param defaultToPrompt selects PROMPT regardless of {@code original}'s value; used for a blank
+     *                        template where the value is just a generic placeholder, not real source
      */
-    public static Property addPromptTypeIfUnionMember(Property original) {
+    public static Property addPromptTypeIfUnionMember(Property original, boolean defaultToPrompt) {
         if (original.types() == null) {
             return original;
         }
@@ -450,7 +453,7 @@ public class AiUtils {
         if (alreadyHasPrompt || !unionHasPrompt) {
             return original;
         }
-        boolean isPromptValue = isBacktickTemplateValue(original.value());
+        boolean isPromptValue = defaultToPrompt || isBacktickTemplateValue(original.value());
         List<PropertyType> updatedTypes = new ArrayList<>();
         updatedTypes.add(new PropertyType(Property.ValueType.PROMPT, AI_PROMPT_TYPE, null, null, null, null,
                 null, isPromptValue));

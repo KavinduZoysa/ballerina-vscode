@@ -143,6 +143,7 @@ import io.ballerina.flowmodelgenerator.core.model.Property;
 import io.ballerina.flowmodelgenerator.core.model.node.ActivityCallBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.AgentBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.AgentCallBuilder;
+import io.ballerina.flowmodelgenerator.core.model.node.AgentRunBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.AssignBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.BinaryBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.CallBuilder;
@@ -4796,7 +4797,8 @@ public class CodeAnalyzer extends NodeVisitor {
                     callNode);
             AgentCallBuilder.postProcessTdProperty(nodeBuilder, key);
         });
-        AgentCallBuilder.fixQueryPromptType(nodeBuilder);
+        AgentCallBuilder.fixQueryPromptType(nodeBuilder, false);
+        AgentRunBuilder.fixQueryPromptType(nodeBuilder, false);
     }
 
     private static String deriveInferredType(String variableType, String returnType, String key) {

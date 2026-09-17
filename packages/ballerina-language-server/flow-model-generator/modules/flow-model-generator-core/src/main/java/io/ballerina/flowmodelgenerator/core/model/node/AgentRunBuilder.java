@@ -23,6 +23,7 @@ import io.ballerina.flowmodelgenerator.core.AiUtils;
 import io.ballerina.flowmodelgenerator.core.model.Codedata;
 import io.ballerina.flowmodelgenerator.core.model.FlowNode;
 import io.ballerina.flowmodelgenerator.core.model.Metadata;
+import io.ballerina.flowmodelgenerator.core.model.NodeBuilder;
 import io.ballerina.flowmodelgenerator.core.model.NodeKind;
 import io.ballerina.flowmodelgenerator.core.model.Property;
 import io.ballerina.flowmodelgenerator.core.model.SourceBuilder;
@@ -88,6 +89,7 @@ public class AgentRunBuilder extends CallBuilder {
     public void setConcreteTemplateData(TemplateContext context) {
         FlowNode callTemplate = getOrCreateCallFunctionTemplate(context);
         restoreFromTemplate(callTemplate);
+        fixQueryPromptType(this, true);
 
         Codedata contextCd = context.codedata();
         codedata().lineRange(contextCd.lineRange()).sourceCode(contextCd.sourceCode());
@@ -111,6 +113,28 @@ public class AgentRunBuilder extends CallBuilder {
 
     void callSuperSetConcreteTemplateData(TemplateContext context) {
         super.setConcreteTemplateData(context);
+    }
+
+    /**
+     * Post-processes the {@code query} property on an AGENT_RUN node builder, adding a PROMPT type option
+     * when its declared type is a union containing {@code ai:Prompt} (e.g. {@code anydata|ai:Prompt|ai:Resume}
+     * for a typed agent's {@code run}). Safe to call for any node builder — exits immediately when the
+     * conditions are not met.
+     *
+     * @param nodeBuilder     the node builder to update
+     * @param defaultToPrompt selects PROMPT by default, for a blank template where the query value is
+     *                        just a generic placeholder rather than a real value read from source
+     */
+    public static void fixQueryPromptType(NodeBuilder nodeBuilder, boolean defaultToPrompt) {
+        if (!(nodeBuilder instanceof AgentRunBuilder builder) || builder.formBuilder == null) {
+            return;
+        }
+        Map<String, Property> props = builder.formBuilder.build();
+        Property prop = props.get(QUERY);
+        if (prop == null) {
+            return;
+        }
+        props.put(QUERY, AiUtils.addPromptTypeIfUnionMember(prop, defaultToPrompt));
     }
 
     private void restoreFromTemplate(FlowNode template) {

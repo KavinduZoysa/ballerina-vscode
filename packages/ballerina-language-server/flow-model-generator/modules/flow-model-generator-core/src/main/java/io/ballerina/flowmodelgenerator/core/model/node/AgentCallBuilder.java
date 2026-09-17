@@ -110,7 +110,7 @@ public class AgentCallBuilder extends CallBuilder {
     public void setConcreteTemplateData(TemplateContext context) {
         FlowNode callTemplate = getOrCreateCallFunctionTemplate(context);
         restoreFromTemplate(callTemplate);
-        fixQueryPromptType(this);
+        fixQueryPromptType(this, true);
 
         Codedata contextCd = context.codedata();
         codedata().lineRange(contextCd.lineRange()).sourceCode(contextCd.sourceCode());
@@ -211,9 +211,11 @@ public class AgentCallBuilder extends CallBuilder {
      * for {@code ai:Agent}'s {@code run}). Safe to call for any node builder — exits immediately when the
      * conditions are not met.
      *
-     * @param nodeBuilder the node builder to update
+     * @param nodeBuilder     the node builder to update
+     * @param defaultToPrompt selects PROMPT by default, for a blank template where the query value is
+     *                        just a generic placeholder rather than a real value read from source
      */
-    public static void fixQueryPromptType(NodeBuilder nodeBuilder) {
+    public static void fixQueryPromptType(NodeBuilder nodeBuilder, boolean defaultToPrompt) {
         if (!(nodeBuilder instanceof AgentCallBuilder builder) || builder.formBuilder == null) {
             return;
         }
@@ -222,7 +224,7 @@ public class AgentCallBuilder extends CallBuilder {
         if (prop == null) {
             return;
         }
-        props.put(QUERY, AiUtils.addPromptTypeIfUnionMember(prop));
+        props.put(QUERY, AiUtils.addPromptTypeIfUnionMember(prop, defaultToPrompt));
     }
 
     private Set<String> getVisibleSymbolNames(TemplateContext context) {
