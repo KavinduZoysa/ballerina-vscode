@@ -153,12 +153,12 @@
             "types": [
               {
                 "fieldType": "REPEATABLE_LIST",
-                "ballerinaType": "$CompilationError$[]",
+                "ballerinaType": "mime:Entity[]",
                 "template": {
                   "types": [
                     {
                       "fieldType": "EXPRESSION",
-                      "ballerinaType": "$CompilationError$",
+                      "ballerinaType": "mime:Entity",
                       "selected": false
                     }
                   ],
@@ -463,12 +463,12 @@
             "types": [
               {
                 "fieldType": "REPEATABLE_LIST",
-                "ballerinaType": "$CompilationError$[]",
+                "ballerinaType": "mime:Entity[]",
                 "template": {
                   "types": [
                     {
                       "fieldType": "EXPRESSION",
-                      "ballerinaType": "$CompilationError$",
+                      "ballerinaType": "mime:Entity",
                       "selected": false
                     }
                   ],

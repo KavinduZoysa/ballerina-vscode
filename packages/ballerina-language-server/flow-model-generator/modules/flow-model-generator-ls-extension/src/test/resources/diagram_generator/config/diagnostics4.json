@@ -670,7 +670,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "indentation"
             },
-            "defaultValue": "4"
+            "defaultValue": "0"
           },
           "variable": {
             "metadata": {

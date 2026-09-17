@@ -260,8 +260,7 @@
                   },
                   "error": {
                     "metadata": {
-                      "label": "Error",
-                      "description": "The error struct to be logged"
+                      "label": "Error"
                     },
                     "types": [
                       {
@@ -278,7 +277,7 @@
                     "hidden": false,
                     "codedata": {
                       "kind": "DEFAULTABLE",
-                      "originalName": "'error"
+                      "originalName": "error"
                     },
                     "defaultValue": "()"
                   },
@@ -478,7 +477,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "",
+            "placeholder": "\"all\"",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -487,7 +486,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "acks"
             },
-            "defaultValue": "ACKS_SINGLE"
+            "defaultValue": "\"all\""
           },
           "compressionType": {
             "metadata": {
@@ -527,7 +526,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "",
+            "placeholder": "\"none\"",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -536,7 +535,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "compressionType"
             },
-            "defaultValue": "COMPRESSION_NONE"
+            "defaultValue": "\"none\""
           },
           "clientId": {
             "metadata": {
@@ -885,7 +884,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "\"SER_BYTE_ARRAY\"",
+            "placeholder": "\"SER_AVRO\"",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -894,7 +893,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "keySerializerType"
             },
-            "defaultValue": "SER_BYTE_ARRAY"
+            "defaultValue": "\"SER_AVRO\""
           },
           "valueSerializerType": {
             "metadata": {
@@ -922,7 +921,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "\"SER_BYTE_ARRAY\"",
+            "placeholder": "\"SER_AVRO\"",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -931,7 +930,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "valueSerializerType"
             },
-            "defaultValue": "SER_BYTE_ARRAY"
+            "defaultValue": "\"SER_AVRO\""
           },
           "additionalProperties": {
             "metadata": {
@@ -1537,7 +1536,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "{cert: }",
+            "placeholder": "{cert: {path: \"\", password: \"\"}}",
             "optional": true,
             "editable": true,
             "advanced": true,
@@ -1546,7 +1545,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "secureSocket"
             },
-            "defaultValue": "{cert: }"
+            "defaultValue": "{cert: {path: \"\", password: \"\"}}"
           },
           "auth": {
             "metadata": {
@@ -1619,7 +1618,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "",
+            "placeholder": "\"PLAINTEXT\"",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -1628,7 +1627,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "securityProtocol"
             },
-            "defaultValue": "PROTOCOL_PLAINTEXT"
+            "defaultValue": "\"PLAINTEXT\""
           },
           "checkError": {
             "metadata": {

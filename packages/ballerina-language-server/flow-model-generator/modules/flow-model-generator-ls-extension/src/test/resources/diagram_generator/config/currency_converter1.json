@@ -1911,7 +1911,7 @@
                     "selected": true
                   }
                 ],
-                "value": "redis:error|error|http:error|error",
+                "value": "redis:Error|error|http:ClientError|error",
                 "placeholder": "error",
                 "optional": false,
                 "editable": true,
@@ -2022,8 +2022,7 @@
                   },
                   "error": {
                     "metadata": {
-                      "label": "Error",
-                      "description": "The error struct to be logged"
+                      "label": "Error"
                     },
                     "types": [
                       {
@@ -2040,7 +2039,7 @@
                     "hidden": false,
                     "codedata": {
                       "kind": "DEFAULTABLE",
-                      "originalName": "'error"
+                      "originalName": "error"
                     },
                     "defaultValue": "()"
                   },
@@ -3145,7 +3144,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "connection"
             },
-            "defaultValue": "\"redis://localhost:6379\""
+            "defaultValue": "\"\""
           },
           "connectionPooling": {
             "metadata": {
