@@ -57,17 +57,19 @@
   // While the chip is still in edit mode, Backspace should delete a single
   // trailing character like normal text editing - not yank the whole chip,
   // which is the behavior for Backspace next to a chip that ISN'T being edited.
+  // The cursor sits right after the closing quote that was just typed, so the
+  // character Backspace removes is that closing quote, not the last letter.
   await window.keyboard.press('Backspace');
   await window.waitForTimeout(400);
 
   content = await frame.evaluate(() => document.querySelectorAll('.cm-content')[document.querySelectorAll('.cm-content').length - 1].textContent);
-  if (content !== 'getFullName("first nam",  )') {
+  if (content !== 'getFullName("first name,  )') {
     throw new Error(`Backspace while editing a chip should delete one character, not the whole chip: ${JSON.stringify(content)}`);
   }
   console.log('Backspace during edit removed a single character from the active chip');
 
   // Restore the deleted character before continuing.
-  await window.keyboard.type('e', { delay: 60 });
+  await window.keyboard.type('"', { delay: 60 });
   await window.waitForTimeout(400);
 
   content = await frame.evaluate(() => document.querySelectorAll('.cm-content')[document.querySelectorAll('.cm-content').length - 1].textContent);

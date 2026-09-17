@@ -197,16 +197,18 @@ export default function createTests() {
             // While the chip is still in edit mode, Backspace should delete a single
             // trailing character like normal text editing - not yank the whole chip,
             // which is the behavior for Backspace next to a chip that ISN'T being edited.
+            // The cursor sits right after the closing quote that was just typed, so the
+            // character Backspace removes is that closing quote, not the last letter.
             await page.page.keyboard.press('Backspace');
             await page.page.waitForTimeout(400);
 
             ({ text } = await readChips(frame));
             expect(text, 'Backspace while editing a chip should delete one character, not the whole chip')
-                .toBe('getFullName("first nam",  )');
+                .toBe('getFullName("first name,  )');
             logStep('Backspace during edit removed a single character from the active chip');
 
             // Restore the deleted character before continuing.
-            await page.page.keyboard.type('e', { delay: 60 });
+            await page.page.keyboard.type('"', { delay: 60 });
             await page.page.waitForTimeout(400);
 
             ({ text } = await readChips(frame));
