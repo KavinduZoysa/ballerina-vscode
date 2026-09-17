@@ -48,10 +48,7 @@ const LINK_MIN_CURVE_OFFSET = 20;
 /**
  * Below this vertical gap between a plain link's two ports, the curve's natural bow (however
  * gentle) reads as a faint, pointless wobble rather than a real S-curve - especially over a long
- * horizontal span, where even a few px of Y difference stays visible the whole way across. Mirrors
- * the orthogonal-line renderer's own STRAIGHT_TOLERANCE (see NodeLinkModel.ts on
- * fixes/component-diagram-v2), which snaps the equivalent near-level case dead flat instead of
- * leaving a faint diagonal.
+ * horizontal span, where even a few px of Y difference stays visible the whole way across.
  */
 const STRAIGHT_TOLERANCE = 8;
 
@@ -115,17 +112,24 @@ function buildBezierSegment(p0: Point2D, p1: Point2D): BezierSegment {
  * LINK_CURVATURE of the segment's height at the quarter points. See NodeLinkModel.test.ts for
  * numeric checks of all three claims.
  */
-function getBezierSegments(points: Point2D[]): BezierSegment[] {
-    // A plain port-to-port link (no avoidLinkObstructions detour) whose two ends are already
-    // near-level: skip the bow entirely by flattening both ends to their shared average Y first,
-    // rather than drawing the natural curve through their own slightly different Y's - see
-    // STRAIGHT_TOLERANCE. A multi-point detour's bend points are deliberately curved regardless of
-    // how close together they land, so this only ever applies to the 2-point case.
-    if (points.length === 2 && Math.abs(points[0].y - points[1].y) < STRAIGHT_TOLERANCE) {
-        const flatY = (points[0].y + points[1].y) / 2;
-        points = [{ x: points[0].x, y: flatY }, { x: points[1].x, y: flatY }];
+/**
+ * A plain port-to-port link (no avoidLinkObstructions detour) whose two ends are already
+ * near-level: flattens both ends to their shared average Y so the curve skips the bow entirely,
+ * rather than drawing it through their own slightly different Y's - see STRAIGHT_TOLERANCE. A
+ * multi-point detour's bend points are deliberately curved regardless of how close together they
+ * land, so this only ever applies to the 2-point case (identity otherwise).
+ */
+function flattenIfNearLevel(points: Point2D[]): Point2D[] {
+    if (points.length !== 2 || Math.abs(points[0].y - points[1].y) >= STRAIGHT_TOLERANCE) {
+        return points;
     }
-    return points.slice(1).map((point, index) => buildBezierSegment(points[index], point));
+    const flatY = (points[0].y + points[1].y) / 2;
+    return [{ x: points[0].x, y: flatY }, { x: points[1].x, y: flatY }];
+}
+
+function getBezierSegments(points: Point2D[]): BezierSegment[] {
+    const effectivePoints = flattenIfNearLevel(points);
+    return effectivePoints.slice(1).map((point, index) => buildBezierSegment(effectivePoints[index], point));
 }
 
 /**
