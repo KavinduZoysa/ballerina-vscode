@@ -70,7 +70,10 @@ export const setActiveEditableTokenEffect = StateEffect.define<number | undefine
 export const activeEditableTokenField = StateField.define<number | undefined>({
     create: () => undefined,
     update(value, tr) {
-        let mapped = value === undefined ? undefined : tr.changes.mapPos(value, 1);
+        // assoc=-1 so typing right at the tracked start extends the active chip backwards
+        // (mirrors tokenField's start mapping below) instead of excluding the new leading
+        // text from the highlighted box until the next LS-backed refresh.
+        let mapped = value === undefined ? undefined : tr.changes.mapPos(value, -1);
         for (const effect of tr.effects) {
             if (effect.is(setActiveEditableTokenEffect)) {
                 mapped = effect.value;
@@ -269,16 +272,20 @@ export const tokenField = StateField.define<TokenFieldState>({
         // started editing) extends its range instead of leaving each new character just
         // outside it - with assoc=-1 only the very first keystroke stayed inside the chip and
         // everything typed after landed as plain text next to it until the next LS-backed
-        // token refresh (e.g. on blur) recomputed the range from scratch.
+        // token refresh (e.g. on blur) recomputed the range from scratch. The start boundary
+        // uses assoc=-1 for the mirror-image reason: it keeps typing at the very start of a
+        // chip (e.g. after pressing Home) inside the tracked range instead of excluding it.
+        // Both boundaries must stay in sync with activeEditableTokenField's own mapping above
+        // so the "is this the active chip" comparisons in buildDecorations keep matching.
         let tokens = oldState.tokens.map(token => ({
             ...token,
-            start: tr.changes.mapPos(token.start, 1),
+            start: tr.changes.mapPos(token.start, -1),
             end: tr.changes.mapPos(token.end, 1)
         }));
 
         let compounds = oldState.compounds.map(compound => ({
             ...compound,
-            start: tr.changes.mapPos(compound.start, 1),
+            start: tr.changes.mapPos(compound.start, -1),
             end: tr.changes.mapPos(compound.end, 1)
         }));
 

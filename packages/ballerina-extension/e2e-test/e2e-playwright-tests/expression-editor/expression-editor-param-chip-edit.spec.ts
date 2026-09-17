@@ -194,6 +194,24 @@ export default function createTests() {
                 .toBe('getFullName("first name",  )');
             logStep('Typed "first name" landed fully inside the first param box; sibling placeholder untouched');
 
+            // While the chip is still in edit mode, Backspace should delete a single
+            // trailing character like normal text editing - not yank the whole chip,
+            // which is the behavior for Backspace next to a chip that ISN'T being edited.
+            await page.page.keyboard.press('Backspace');
+            await page.page.waitForTimeout(400);
+
+            ({ text } = await readChips(frame));
+            expect(text, 'Backspace while editing a chip should delete one character, not the whole chip')
+                .toBe('getFullName("first nam",  )');
+            logStep('Backspace during edit removed a single character from the active chip');
+
+            // Restore the deleted character before continuing.
+            await page.page.keyboard.type('e', { delay: 60 });
+            await page.page.waitForTimeout(400);
+
+            ({ text } = await readChips(frame));
+            expect(text).toBe('getFullName("first name",  )');
+
             // Commit with Enter - the chip should re-collapse showing the
             // finished value as ONE chip, not left as raw editable text.
             await page.page.keyboard.press('Enter');

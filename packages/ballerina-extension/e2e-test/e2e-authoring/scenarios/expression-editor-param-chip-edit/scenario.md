@@ -17,8 +17,11 @@ that landed at a chip's edge instead of its center.
    editor, insert a call to `getFullName(...)`, producing two placeholder argument chips.
 5. Click the first parameter chip and type a value containing a space (e.g. `"first name"`).
    Verify: the full typed text (including the space) lands inside that chip's tracked text, and
-   the second (still-placeholder) chip is untouched. Commit with Enter and verify the chip
-   re-collapses (shows the finished value, not raw editable text).
+   the second (still-placeholder) chip is untouched. While still in edit mode, press Backspace and
+   verify it deletes a single trailing character (not the whole chip) — this is a deliberate
+   behavior change from Backspace next to a chip that ISN'T being edited, which removes the whole
+   chip. Retype the character, then commit with Enter and verify the chip re-collapses (shows the
+   finished value, not raw editable text).
 6. Click the second parameter chip as close to its edge as possible (not dead center) to exercise
    the boundary-click fallback, type a value (e.g. `"last name"`), and commit by moving focus away
    instead of pressing Enter.

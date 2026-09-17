@@ -54,6 +54,27 @@
   }
   console.log('typed "first name" landed fully inside the first param box; sibling placeholder untouched');
 
+  // While the chip is still in edit mode, Backspace should delete a single
+  // trailing character like normal text editing - not yank the whole chip,
+  // which is the behavior for Backspace next to a chip that ISN'T being edited.
+  await window.keyboard.press('Backspace');
+  await window.waitForTimeout(400);
+
+  content = await frame.evaluate(() => document.querySelectorAll('.cm-content')[document.querySelectorAll('.cm-content').length - 1].textContent);
+  if (content !== 'getFullName("first nam",  )') {
+    throw new Error(`Backspace while editing a chip should delete one character, not the whole chip: ${JSON.stringify(content)}`);
+  }
+  console.log('Backspace during edit removed a single character from the active chip');
+
+  // Restore the deleted character before continuing.
+  await window.keyboard.type('e', { delay: 60 });
+  await window.waitForTimeout(400);
+
+  content = await frame.evaluate(() => document.querySelectorAll('.cm-content')[document.querySelectorAll('.cm-content').length - 1].textContent);
+  if (content !== 'getFullName("first name",  )') {
+    throw new Error(`restoring the deleted character failed: ${JSON.stringify(content)}`);
+  }
+
   // Commit with Enter - the chip should re-collapse showing the finished
   // value as ONE chip (not left as raw editable text, not split in two).
   await window.keyboard.press('Enter');
