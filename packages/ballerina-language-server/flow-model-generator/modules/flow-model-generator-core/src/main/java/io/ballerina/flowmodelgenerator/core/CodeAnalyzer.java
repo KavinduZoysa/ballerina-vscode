@@ -602,9 +602,13 @@ public class CodeAnalyzer extends NodeVisitor {
             if (initAssignment.isPresent()) {
                 Optional<ImplicitNewExpressionNode> newExprOpt = getNewExpr(initAssignment.get().expression());
                 if (newExprOpt.isPresent()) {
+                    ImplicitNewExpressionNode implicitNewExpr = newExprOpt.get();
                     agentData.put(Property.SCOPE_KEY,
                             new AiUtils.AgentPropertyValue(Property.SERVICE_INIT_SCOPE, Property.ValueType.EXPRESSION));
-                    genAgentData(newExprOpt.get(), classSymbol, agentData, true);
+                    SeparatedNodeList<FunctionArgumentNode> argumentNodes = implicitNewExpr.parenthesizedArgList()
+                            .map(ParenthesizedArgList::arguments)
+                            .orElse(null);
+                    genAgentData(implicitNewExpr, argumentNodes, classSymbol, agentData, true);
                 }
             }
         } else {
@@ -643,9 +647,13 @@ public class CodeAnalyzer extends NodeVisitor {
                     scopeNode = scopeNode.parent();
                 }
                 Optional<ImplicitNewExpressionNode> newExpressionNodeOpt = getNewExpr(initializerExpr);
-                newExpressionNodeOpt.ifPresent(
-                        implicitNewExpressionNode -> genAgentData(implicitNewExpressionNode, classSymbol, agentData,
-                                true));
+                newExpressionNodeOpt.ifPresent(implicitNewExpressionNode -> {
+                    SeparatedNodeList<FunctionArgumentNode> argumentNodes = implicitNewExpressionNode
+                            .parenthesizedArgList()
+                            .map(ParenthesizedArgList::arguments)
+                            .orElse(null);
+                    genAgentData(implicitNewExpressionNode, argumentNodes, classSymbol, agentData, true);
+                });
             }
         }
     }
@@ -734,10 +742,10 @@ public class CodeAnalyzer extends NodeVisitor {
         return Optional.empty();
     }
 
-    private void genAgentData(ImplicitNewExpressionNode newExpressionNode, ClassSymbol classSymbol,
+    private void genAgentData(NewExpressionNode newExpressionNode,
+                              SeparatedNodeList<FunctionArgumentNode> argumentNodes, ClassSymbol classSymbol,
                               Map<String, AiUtils.AgentPropertyValue> agentData, boolean includeCallProperties) {
-        Optional<ParenthesizedArgList> argList = newExpressionNode.parenthesizedArgList();
-        if (argList.isEmpty()) {
+        if (argumentNodes == null) {
             return;
         }
         ExpressionNode toolsArg = null;
@@ -746,7 +754,7 @@ public class CodeAnalyzer extends NodeVisitor {
         ExpressionNode memory = null;
         Map<String, Object> agentInfo = new HashMap<>();
 
-        for (FunctionArgumentNode arg : argList.get().arguments()) {
+        for (FunctionArgumentNode arg : argumentNodes) {
             if (arg instanceof NamedArgumentNode namedArgumentNode) {
                 String argumentName = namedArgumentNode.argumentName().name().text();
                 switch (argumentName) {
@@ -3886,9 +3894,7 @@ public class CodeAnalyzer extends NodeVisitor {
 
         if (kind == NodeKind.AGENT) {
             AgentBuilder.hideAgentConfigProperties(nodeBuilder);
-            if (newExpressionNode instanceof ImplicitNewExpressionNode implicitAgentExpr) {
-                genAgentData(implicitAgentExpr, classSymbol, new HashMap<>(), false);
-            }
+            genAgentData(newExpressionNode, argumentNodes, classSymbol, new HashMap<>(), false);
         }
 
         if (kind == NodeKind.TYPED_AGENT) {
