@@ -26,6 +26,20 @@ import { ambientBorderColor } from "./orbTheme";
 
 /** Floating orb geometry, shared with the mini chat for anchor-relative placement. */
 export const ORB_SIZE = 56;
+
+/**
+ * Hover/focus lift shared by every clickable orb. Must stay above the ambient sphere pulse's own 1.13
+ * peak, or the lift is indistinguishable from the idle animation.
+ */
+export const ORB_HOVER_BRIGHTNESS = 1.18;
+
+export const ORB_GLOW_CLASS = "orb-glow";
+
+/** Scopes the lift to the orb so sibling chrome in the same button is left alone. */
+export const OrbGlow = styled.span`
+    display: block;
+    transition: filter 0.2s ease;
+`;
 export const EDGE_MARGIN = 20;
 
 export type Anchor = "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right";

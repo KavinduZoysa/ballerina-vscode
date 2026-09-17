@@ -29,7 +29,10 @@ import {
     ANCHOR_STORAGE_KEY,
     EDGE_MARGIN,
     loadAnchor,
+    ORB_GLOW_CLASS,
+    ORB_HOVER_BRIGHTNESS,
     ORB_SIZE,
+    OrbGlow,
     activeStateLabel,
     subscribeAgentRunStatus,
     subscribeOrbSuppressed,
@@ -230,11 +233,15 @@ const OrbButton = styled.button<{ state: AgentRunState }>`
     cursor: grab;
     outline-offset: 4px;
     touch-action: none;
-    opacity: ${(props: Pick<OrbStyleProps, "state">) => (props.state === "idle" ? 0.85 : 1)};
-    transition: opacity 0.3s ease, transform 0.2s ease;
+    transition: transform 0.2s ease;
     &:hover {
-        opacity: 1;
         transform: scale(1.06);
+    }
+    // On the wrapper, not the button: breathe/bloom animate the button's own transform and would
+    // override a rule set here.
+    &:hover .${ORB_GLOW_CLASS},
+    &:focus-visible .${ORB_GLOW_CLASS} {
+        filter: brightness(${ORB_HOVER_BRIGHTNESS});
     }
     &:active {
         cursor: grabbing;
@@ -530,7 +537,9 @@ export function AgentStatusOrb() {
                 title={label ? `WSO2 Integrator Copilot — ${label}` : "WSO2 Integrator Copilot"}
                 aria-label={label ? `WSO2 Integrator Copilot: ${label}. Click to open the mini chat, double-click for the chat panel.` : "Click to open the WSO2 Integrator Copilot mini chat, double-click for the chat panel"}
             >
-                <CopilotOrb state={state} colors={colors} size={ORB_SIZE} />
+                <OrbGlow className={ORB_GLOW_CLASS}>
+                    <CopilotOrb state={state} colors={colors} size={ORB_SIZE} />
+                </OrbGlow>
             </OrbButton>
         </Wrapper>
         </>
