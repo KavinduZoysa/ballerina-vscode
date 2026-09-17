@@ -437,6 +437,45 @@ public class AiUtils {
     }
 
     /**
+     * Adds PROMPT to a property whose type is a union containing {@code ai:Prompt}
+     * (e.g. {@code anydata|ai:Prompt|ai:Resume}), which the generic type resolution misses.
+     */
+    public static Property addPromptTypeIfUnionMember(Property original) {
+        if (original.types() == null) {
+            return original;
+        }
+        boolean alreadyHasPrompt = original.types().stream().anyMatch(t -> t.fieldType() == Property.ValueType.PROMPT);
+        boolean unionHasPrompt = original.types().stream().anyMatch(t -> t.ballerinaType() != null
+                && List.of(t.ballerinaType().split("\\|")).contains(AI_PROMPT_TYPE));
+        if (alreadyHasPrompt || !unionHasPrompt) {
+            return original;
+        }
+        List<PropertyType> updatedTypes = new ArrayList<>(original.types());
+        updatedTypes.add(0, new PropertyType(Property.ValueType.PROMPT, AI_PROMPT_TYPE, null, null, null, null,
+                null, false));
+        return new Property(
+                original.metadata(),
+                updatedTypes,
+                original.value(),
+                original.oldValue(),
+                null,
+                original.optional(),
+                original.editable(),
+                original.advanced(),
+                original.hidden(),
+                original.modified(),
+                original.diagnostics(),
+                original.codedata(),
+                original.advancedValue(),
+                original.imports(),
+                original.defaultValue(),
+                original.comment(),
+                original.dynamicFormFields(),
+                original.itemOptions()
+        );
+    }
+
+    /**
      * Adds a property to a NodeBuilder by copying all attributes from an existing property with an optional custom
      * value.
      *

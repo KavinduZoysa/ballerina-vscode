@@ -4729,6 +4729,7 @@ public class CodeAnalyzer extends NodeVisitor {
                     callNode);
             AgentCallBuilder.postProcessTdProperty(nodeBuilder, key);
         });
+        AgentCallBuilder.fixQueryPromptType(nodeBuilder);
     }
 
     private static String deriveInferredType(String variableType, String returnType, String key) {
