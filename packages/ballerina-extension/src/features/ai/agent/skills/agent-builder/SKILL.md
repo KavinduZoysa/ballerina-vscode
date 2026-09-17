@@ -237,8 +237,15 @@ final <Toolkit> <toolkitVar> = check new ("<serverUrl>", auth = {token: "<bearer
 ```
 
 ```ballerina
-final <Toolkit> <toolkitVar> = check new ("<serverUrl>", auth = {username: "<user>", password: "<password>"});
+final <Toolkit> <toolkitVar> = check new ("<serverUrl>",
+        auth = {tokenUrl: "<tokenUrl>", clientId: "<clientId>", clientSecret: "<clientSecret>"});
 ```
+
+That last form is `http:OAuth2ClientCredentialsGrantConfig` (client ID / client secret grant).
+`tokenUrl`, `clientId` and `clientSecret` are the only fields shown here; it also has `scopes`,
+`defaultTokenExpTime`, `clockSkew`, `optionalParams`, `credentialBearer` and `clientConfig` for
+further tuning, check the resolved `ballerina/http` version for their defaults before adding one
+rather than assuming it is required.
 
 `auth` is only one of many fields on `config`, build it as its own value to combine several at
 once (`timeout`, `httpVersion`, and the rest of the transport settings), then spread it into the
