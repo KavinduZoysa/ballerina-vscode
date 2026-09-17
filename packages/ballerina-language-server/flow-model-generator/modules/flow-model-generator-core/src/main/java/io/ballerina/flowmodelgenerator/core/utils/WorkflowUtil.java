@@ -514,7 +514,8 @@ public class WorkflowUtil {
      * node it was declared at.
      *
      * @param name   the capability's name
-     * @param config the mapping that configures it
+     * @param config the mapping that configures it, {@code null} when the entry's value is not
+     *               written inline as a mapping — a reference to a shared config constant, say
      * @param node   the declaration node, for a location a reader can navigate to
      */
     public record CapabilityEntry(String name, MappingConstructorExpressionNode config, Node node) {
@@ -535,14 +536,18 @@ public class WorkflowUtil {
         List<CapabilityEntry> entries = new ArrayList<>();
         if (value instanceof MappingConstructorExpressionNode keyed) {
             for (MappingFieldNode field : keyed.fields()) {
-                if (!(field instanceof SpecificFieldNode entry) || entry.valueExpr().isEmpty()
-                        || !(entry.valueExpr().get() instanceof MappingConstructorExpressionNode config)) {
+                if (!(field instanceof SpecificFieldNode entry) || entry.valueExpr().isEmpty()) {
                     continue;
                 }
-                String name = literalOrIdentifier(entry.fieldName().toSourceCode().trim());
-                if (!name.isEmpty()) {
-                    entries.add(new CapabilityEntry(name, config, entry));
+                String name = capabilityName(entry.fieldName().toSourceCode().trim());
+                if (name.isBlank()) {
+                    continue;
                 }
+                // The key names a capability even when its config is a reference rather than an
+                // inline mapping; dropping the entry would hide a capability that exists.
+                MappingConstructorExpressionNode config =
+                        entry.valueExpr().get() instanceof MappingConstructorExpressionNode inline ? inline : null;
+                entries.add(new CapabilityEntry(name, config, entry));
             }
             return entries;
         }
@@ -554,10 +559,11 @@ public class WorkflowUtil {
                 for (MappingFieldNode field : config.fields()) {
                     if (field instanceof SpecificFieldNode entry && entry.valueExpr().isPresent()
                             && "name".equals(entry.fieldName().toSourceCode().trim())) {
-                        String name = literalOrIdentifier(entry.valueExpr().get().toSourceCode().trim());
-                        if (!name.isEmpty()) {
+                        String name = capabilityName(entry.valueExpr().get().toSourceCode().trim());
+                        if (!name.isBlank()) {
                             entries.add(new CapabilityEntry(name, config, item));
                         }
+                        break;
                     }
                 }
             }
@@ -565,8 +571,15 @@ public class WorkflowUtil {
         return entries;
     }
 
-    // A capability name as written: a string literal carries escapes, a quoted identifier a prefix.
-    private static String literalOrIdentifier(String source) {
+    /**
+     * A capability name as the declaration means it, from the source that spells it: a string
+     * literal carries escapes, a quoted identifier a {@code '} prefix. Every reader of a
+     * declaration normalizes the same way, or the same capability reads under two names.
+     *
+     * @param source the key or {@code name} value as written
+     * @return the capability name it denotes
+     */
+    public static String capabilityName(String source) {
         if (source.length() >= 2 && source.startsWith("\"") && source.endsWith("\"")) {
             return unescapeLiteralBody(source.substring(1, source.length() - 1));
         }

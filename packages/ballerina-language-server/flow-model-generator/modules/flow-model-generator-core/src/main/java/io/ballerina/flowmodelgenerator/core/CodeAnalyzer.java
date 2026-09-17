@@ -1634,7 +1634,7 @@ public class CodeAnalyzer extends NodeVisitor {
                         values.put(propertyKey, value);
                     }
                     if ("name".equals(fieldName)) {
-                        declaredName = stripQuotes(rawValue);
+                        declaredName = WorkflowUtil.capabilityName(rawValue);
                     } else if (refField != null && refField.equals(fieldName)) {
                         refName = rawValue;
                     }
@@ -1651,23 +1651,18 @@ public class CodeAnalyzer extends NodeVisitor {
     // its key is the name — `{chat: {request: string, response: string}}`. The key takes the place
     // of the list form's `name` field, so the config records have no `name` of their own. The
     // whole `key: {...}` field is the entry's range, which is what an edit-save rewrites.
+    // WorkflowUtil.capabilityEntries decides what an entry is and what it is called, so the panel
+    // and the overview cannot disagree about either.
     private void collectKeyedCapabilities(MappingConstructorExpressionNode mapping, String capabilityType,
                                           String refField, Map<String, String> fieldToPropertyKey,
                                           List<AgentCapabilityData> out) {
-        for (MappingFieldNode entry : mapping.fields()) {
-            if (!(entry instanceof SpecificFieldNode specificEntry) || specificEntry.valueExpr().isEmpty()) {
-                continue;
-            }
-            String name = stripQuotes(specificEntry.fieldName().toSourceCode().trim());
-            if (name.isBlank()) {
-                continue;
-            }
+        for (WorkflowUtil.CapabilityEntry entry : WorkflowUtil.capabilityEntries(mapping)) {
             Map<String, String> values = new LinkedHashMap<>();
-            values.put(fieldToPropertyKey.getOrDefault("name", "name"), name);
-            if (specificEntry.valueExpr().get() instanceof MappingConstructorExpressionNode config) {
-                collectCapabilityFields(config, capabilityType, refField, fieldToPropertyKey, values);
+            values.put(fieldToPropertyKey.getOrDefault("name", "name"), entry.name());
+            if (entry.config() != null) {
+                collectCapabilityFields(entry.config(), capabilityType, refField, fieldToPropertyKey, values);
             }
-            out.add(new AgentCapabilityData(name, capabilityType, entry.lineRange(), values));
+            out.add(new AgentCapabilityData(entry.name(), capabilityType, entry.node().lineRange(), values));
         }
     }
 
@@ -1681,7 +1676,7 @@ public class CodeAnalyzer extends NodeVisitor {
             if (!(field instanceof SpecificFieldNode specificField) || specificField.valueExpr().isEmpty()) {
                 continue;
             }
-            String fieldName = specificField.fieldName().toSourceCode().trim();
+            String fieldName = ParamUtils.removeLeadingSingleQuote(specificField.fieldName().toSourceCode().trim());
             if ("name".equals(fieldName) || fieldName.equals(refField)) {
                 continue;
             }

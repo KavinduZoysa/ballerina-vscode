@@ -13,6 +13,10 @@ final workflow:DurableAgent deskAgent = check new ({
     },
     humanTasks: {
         escalation: {userRoles: "support-lead", title: "Escalated case"},
-        signoff: {userRoles: "manager"}
+        signoff: {userRoles: "manager"},
+        audit: auditTask
     }
 });
+
+# A task whose configuration is shared rather than written inline: the key still names it.
+final workflow:HumanTaskDefinition auditTask = {userRoles: "auditor"};

@@ -483,6 +483,9 @@ public class DesignModelGenerator {
 
     private static String getMappingRawField(
             MappingConstructorExpressionNode mapping, String fieldName) {
+        if (mapping == null) {
+            return null;
+        }
         for (MappingFieldNode field : mapping.fields()) {
             if (field instanceof SpecificFieldNode specificField
                     && fieldName.equals(specificField.fieldName().toSourceCode().trim())

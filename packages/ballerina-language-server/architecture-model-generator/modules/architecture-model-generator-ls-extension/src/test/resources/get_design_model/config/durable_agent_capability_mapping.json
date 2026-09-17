@@ -22,7 +22,7 @@
           "dependentFunctions": [],
           "dependentConnection": [],
           "kind": "Model Provider",
-          "uuid": "55162f10-fc1b-b15f-39b7-1b0c86d35f66",
+          "uuid": "128f3b02-83a9-81fc-b968-597e14274ba1",
           "enableFlowModel": true,
           "sortText": "agent.bal3"
         }
@@ -39,7 +39,7 @@
               "offset": 0
             },
             "endLine": {
-              "line": 17,
+              "line": 18,
               "offset": 3
             }
           },
@@ -88,15 +88,29 @@
                   "offset": 39
                 }
               }
+            },
+            {
+              "name": "audit",
+              "location": {
+                "filePath": "$PROJECT_ROOT/src/test/resources/get_design_model/source/project_18/agent.bal",
+                "startLine": {
+                  "line": 16,
+                  "offset": 8
+                },
+                "endLine": {
+                  "line": 16,
+                  "offset": 24
+                }
+              }
             }
           ],
           "activities": [],
           "connections": [
-            "55162f10-fc1b-b15f-39b7-1b0c86d35f66"
+            "128f3b02-83a9-81fc-b968-597e14274ba1"
           ],
           "invalidSendDataServices": [],
           "invalidSendDataFunctions": [],
-          "uuid": "21ae6caa-188d-3a95-502e-8a18c561abe3",
+          "uuid": "ef4d23eb-b2ca-33bf-8a20-48e49edc645d",
           "enableFlowModel": true,
           "sortText": "agent.bal5"
         }
