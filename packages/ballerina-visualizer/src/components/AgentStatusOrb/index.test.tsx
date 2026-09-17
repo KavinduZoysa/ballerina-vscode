@@ -88,7 +88,7 @@ describe("AgentStatusOrb idle invite", () => {
     const invite = () =>
         container.querySelector(`input[placeholder="${INVITE_PLACEHOLDER}"]`) as HTMLInputElement | null;
     /** The box carrying the fade, and the bridge deciding whether the pointer can reach it. */
-    const box = () => invite()!.parentElement as HTMLElement;
+    const box = () => container.querySelector('[data-testid="invite-shell"]') as HTMLElement;
     const bridge = () => box().parentElement as HTMLElement;
     const clearButton = () =>
         container.querySelector('button[aria-label="Clear the message"]') as HTMLButtonElement | null;
