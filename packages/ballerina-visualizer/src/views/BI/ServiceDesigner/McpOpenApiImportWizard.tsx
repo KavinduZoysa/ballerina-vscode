@@ -207,7 +207,7 @@ function applyMcpImportConfiguration(serviceModel: ServiceInitModel, config: Mcp
 
 type WizardStep = "configure" | "tools";
 
-const IMPORT_STEPS = ["Source", "Configure", "Tools"];
+const IMPORT_STEPS = ["Configure", "Tools"];
 
 export interface McpOpenApiImportWizardProps {
     /** The service model after the Source step's form values (incl. the chosen spec path) were applied. */
@@ -323,13 +323,13 @@ export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
     return (
         <SelectionContainer>
             <ImportStepperWrapper>
-                <Stepper steps={IMPORT_STEPS} currentStep={step === "configure" ? 1 : 2} alignment="flex-start" />
+                <Stepper steps={IMPORT_STEPS} currentStep={step === "configure" ? 0 : 1} alignment="flex-start" />
             </ImportStepperWrapper>
             {step === "configure" ? (
                 <>
                     <HeaderWrapper>
                         <FormHeader
-                            title={`Configure ${model.displayName}`}
+                            title={`Configure ${model.displayName} from OpenAPI Spec`}
                             subtitle="Review and adjust the service details generated from your OpenAPI specification."
                         />
                     </HeaderWrapper>

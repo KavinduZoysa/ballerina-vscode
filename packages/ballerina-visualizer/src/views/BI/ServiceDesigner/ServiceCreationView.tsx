@@ -457,7 +457,7 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
                                                         serverValidationErrors={serverValidationErrors}
                                                         preserveFieldOrder={true}
                                                         recordTypeFields={recordTypeFields}
-                                                        submitText="Create"
+                                                        submitText={isMcpOpenApiImport ? "Next" : "Create"}
                                                     />
                                                 </NestedFormWrapper>
                                             )}
