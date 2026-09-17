@@ -2420,7 +2420,10 @@ const AIChat: React.FC = () => {
     }
 
     async function handleSwitchThread(threadId: string): Promise<void> {
-        await rpcClient.getAiPanelRpcClient().switchThread({ threadId });
+        const switched = await rpcClient.getAiPanelRpcClient().switchThread({ threadId });
+        if (!switched) {
+            return;
+        }
 
         // Reload messages and checkpoints for the newly active thread in parallel
         const [msgs, checkpoints] = await Promise.all([
