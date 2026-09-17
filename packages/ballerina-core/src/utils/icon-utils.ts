@@ -16,6 +16,9 @@
  * under the License.
  */
 
+import type { IconDescriptor } from "../interfaces/extended-lang-client";
+import { isLightTheme } from "./theme-utils";
+
 /** Matches the root `<svg>` start tag, with or without a namespace prefix (`<svg:svg ...>`). */
 const SVG_ROOT_START = /^<(?:[A-Za-z_][\w.-]*:)?svg[\s/>]/i;
 
@@ -134,4 +137,19 @@ export function toSvgDataUri(svg?: string, color?: string): string | undefined {
     }
     const painted = color && SAFE_COLOR.test(color) ? tintSvg(root, color) : root;
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(painted)}`;
+}
+
+/**
+ * Picks the SVG a connector's {@link IconDescriptor} should render under the active VS Code theme
+ * and returns it as an `<img>`-ready data URI, or `undefined` when the descriptor carries no usable
+ * SVG.
+ *
+ * A connector may ship only one of the pair. The other theme's document is then used rather than
+ * nothing: an icon drawn for the opposite background still reads as the connector's mark, which the
+ * generic kind glyph that would otherwise appear does not.
+ */
+export function toThemedSvgDataUri(descriptor?: IconDescriptor): string | undefined {
+    const preferred = isLightTheme() ? descriptor?.light : descriptor?.dark;
+    const alternate = isLightTheme() ? descriptor?.dark : descriptor?.light;
+    return toSvgDataUri(preferred ?? alternate, descriptor?.color);
 }

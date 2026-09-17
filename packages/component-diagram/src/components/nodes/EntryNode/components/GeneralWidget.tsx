@@ -18,7 +18,7 @@
 
 import React, { useState } from "react";
 import { PortWidget } from "@projectstorm/react-diagrams-core";
-import { CDAutomation, CDService, CDWorkflow, CDWorkflowEvent, CDWorkflowHumanTask, isLightTheme, toIconDescriptor, toSvgDataUri } from "@wso2/ballerina-core";
+import { CDAutomation, CDService, CDWorkflow, CDWorkflowEvent, CDWorkflowHumanTask, toIconDescriptor, toThemedSvgDataUri } from "@wso2/ballerina-core";
 import { Item, Menu, MenuItem, Popover, ImageWithFallback, Icon } from "@wso2/ui-toolkit";
 import { useDiagramContext } from "../../../DiagramContext";
 import { HttpIcon, TaskIcon } from "../../../../resources";
@@ -120,7 +120,7 @@ function getServiceIcon(service: CDService) {
         return <HttpIcon />;
     }
     const descriptor = toIconDescriptor(service.icon);
-    const svgDataUri = toSvgDataUri(isLightTheme() ? descriptor?.light : descriptor?.dark, descriptor?.color);
+    const svgDataUri = toThemedSvgDataUri(descriptor);
     const urlIcon = <ImageWithFallback imageUrl={descriptor?.url ?? ""} fallbackEl={<HttpIcon />} />;
     if (svgDataUri) {
         return <ImageWithFallback imageUrl={svgDataUri} fallbackEl={urlIcon} />;

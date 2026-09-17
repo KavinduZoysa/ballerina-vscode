@@ -17,7 +17,7 @@
  */
 
 import { toIconDescriptor } from "../interfaces/extended-lang-client";
-import { normalizeSvgDocument, toSvgDataUri } from "../utils/icon-utils";
+import { normalizeSvgDocument, toSvgDataUri, toThemedSvgDataUri } from "../utils/icon-utils";
 
 const decode = (dataUri: string | undefined) =>
     decodeURIComponent((dataUri ?? "").replace("data:image/svg+xml;charset=utf-8,", ""));
@@ -134,6 +134,63 @@ describe("toSvgDataUri", () => {
         expect(toSvgDataUri(undefined)).toBeUndefined();
         expect(toSvgDataUri("")).toBeUndefined();
         expect(toSvgDataUri("not an svg at all")).toBeUndefined();
+    });
+});
+
+describe("toThemedSvgDataUri", () => {
+    const light = '<svg xmlns="http://www.w3.org/2000/svg" id="light"><path d="M0,0"/></svg>';
+    const dark = '<svg xmlns="http://www.w3.org/2000/svg" id="dark"><path d="M0,0"/></svg>';
+
+    /**
+     * `isLightTheme` reads nothing but `document.body.classList`, and this package's suite runs in
+     * jest's node environment, so a stand-in for that one call is enough to drive theme selection
+     * without pulling jsdom into the package.
+     */
+    const setTheme = (themeClass: string) => {
+        (globalThis as any).document = { body: { classList: { contains: (c: string) => c === themeClass } } };
+    };
+
+    afterEach(() => {
+        delete (globalThis as any).document;
+    });
+
+    it.each([
+        ["vscode-light", light],
+        ["vscode-high-contrast-light", light],
+        ["vscode-dark", dark],
+        ["vscode-high-contrast", dark],
+    ])("renders the %s document under that theme", (themeClass, expected) => {
+        setTheme(themeClass);
+
+        expect(decode(toThemedSvgDataUri({ light, dark }))).toBe(expected);
+    });
+
+    it("falls back to the other theme's document when the active one is missing", () => {
+        // A connector shipping only `metadata/icons/light.svg` still shows its own mark in a dark
+        // theme; the alternative is the generic kind glyph, which identifies nothing.
+        setTheme("vscode-dark");
+
+        expect(decode(toThemedSvgDataUri({ light }))).toBe(light);
+    });
+
+    it("tints the selected document with the descriptor's brand color", () => {
+        setTheme("vscode-light");
+
+        expect(decode(toThemedSvgDataUri({ light, dark, color: "#FF9900" })))
+            .toContain('<style>*:not([fill="none"]){fill:#FF9900 !important}</style>');
+    });
+
+    it("normalizes a prologue the descriptor has not been through toIconDescriptor for", () => {
+        setTheme("vscode-light");
+
+        expect(decode(toThemedSvgDataUri({ light: withPrologue(light) }))).toBe(light);
+    });
+
+    it("returns undefined for a descriptor with no theme SVG, leaving url/glyph to take over", () => {
+        setTheme("vscode-light");
+
+        expect(toThemedSvgDataUri({ url: "https://example.com/ftp.png" })).toBeUndefined();
+        expect(toThemedSvgDataUri(undefined)).toBeUndefined();
     });
 });
 
