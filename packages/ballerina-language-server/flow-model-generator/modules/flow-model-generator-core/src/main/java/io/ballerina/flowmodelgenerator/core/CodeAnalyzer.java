@@ -1606,6 +1606,10 @@ public class CodeAnalyzer extends NodeVisitor {
                                 retryForm.review().excludedUsers());
                         putIfNotBlank(values, ActivityCallBuilder.RETRY_EXCLUDED_ROLES_KEY,
                                 retryForm.review().excludedRoles());
+                        putIfNotBlank(values, ActivityCallBuilder.RETRY_ADMINISTRATOR_ROLES_KEY,
+                                retryForm.review().administratorRoles());
+                        putIfNotBlank(values, ActivityCallBuilder.RETRY_ADMINISTRATOR_USERS_KEY,
+                                retryForm.review().administratorUsers());
                         continue;
                     }
                     if ("activity".equals(capabilityType) && "bindings".equals(fieldName)
@@ -1710,7 +1714,8 @@ public class CodeAnalyzer extends NodeVisitor {
 
     // Capability declaration fields whose values render in text-mode form fields.
     private static final Set<String> TEXT_MODE_CAPABILITY_FIELDS =
-            Set.of("name", "title", "description", "roles", "userRoles", "users", "excludedUsers", "excludedRoles");
+            Set.of("name", "title", "description", "roles", "userRoles", "users", "excludedUsers", "excludedRoles",
+                    "administratorRoles", "administratorUsers");
 
     // A review definition as the policy sets the gate flag and fills the audience fields; NoApproval,
     // or a policy the form cannot read, leaves the gate off.
@@ -2440,6 +2445,8 @@ public class CodeAnalyzer extends NodeVisitor {
                             fields.getOrDefault(WorkflowUtil.USERS_KEY, ""),
                             fields.getOrDefault(WorkflowUtil.EXCLUDED_USERS_KEY, ""),
                             fields.getOrDefault(WorkflowUtil.EXCLUDED_ROLES_KEY, ""),
+                            fields.getOrDefault(WorkflowUtil.ADMINISTRATOR_ROLES_KEY, ""),
+                            fields.getOrDefault(WorkflowUtil.ADMINISTRATOR_USERS_KEY, ""),
                             reviewText(fields.get("title")),
                             reviewText(fields.get("description")),
                             fields.getOrDefault("timeout", ""));

@@ -131,6 +131,8 @@ public class ActivityCallBuilder extends CallBuilder {
     public static final String RETRY_USERS_KEY = "retryUsers";
     public static final String RETRY_EXCLUDED_USERS_KEY = "retryExcludedUsers";
     public static final String RETRY_EXCLUDED_ROLES_KEY = "retryExcludedRoles";
+    public static final String RETRY_ADMINISTRATOR_ROLES_KEY = "retryAdministratorRoles";
+    public static final String RETRY_ADMINISTRATOR_USERS_KEY = "retryAdministratorUsers";
     // The rest of the ReviewTaskDefinition record. A review is declared exactly as a human task is,
     // so the form offers the same fields — each optional, each falling back to what the
     // reviewed activity implies when left empty.
@@ -151,6 +153,11 @@ public class ActivityCallBuilder extends CallBuilder {
     private static final String RETRY_EXCLUDED_USERS_DOC = "User id(s) that may not decide the review";
     private static final String RETRY_EXCLUDED_ROLES_LABEL = "Excluded Roles";
     private static final String RETRY_EXCLUDED_ROLES_DOC = "Role(s) that may not decide the review";
+    private static final String RETRY_ADMINISTRATOR_ROLES_LABEL = "Administrator Roles";
+    private static final String RETRY_ADMINISTRATOR_ROLES_DOC =
+            "Role(s) that administer the review: they see it, may reassign it, move its deadline or decide it";
+    private static final String RETRY_ADMINISTRATOR_USERS_LABEL = "Administrator Users";
+    private static final String RETRY_ADMINISTRATOR_USERS_DOC = "User id(s) that administer the review";
     private static final String RETRY_USER_ROLES_DOC =
             "Role(s) permitted to decide the human review, e.g. \"manager\" or [\"finance\", "
                     + "\"manager\"]. Leave empty to allow any role.";
@@ -696,22 +703,28 @@ public class ActivityCallBuilder extends CallBuilder {
      * derives it from the activity being reviewed, which is why the form must not invent a
      * value for it.
      *
-     * @param userRoles   role(s) permitted to decide the review
+     * @param userRoles          role(s) permitted to decide the review
+     * @param users              user id(s) permitted to decide, whatever their roles
+     * @param excludedUsers      user id(s) that may not decide
+     * @param excludedRoles      role(s) that may not decide
+     * @param administratorRoles role(s) that administer the review
+     * @param administratorUsers user id(s) that administer the review
      * @param title       inbox summary, or empty to derive it
      * @param description context shown with the decision, or empty to derive it
      * @param timeout     how long to wait for a decision, or empty to wait indefinitely
      */
     public record ReviewFormValues(String userRoles, String users, String excludedUsers, String excludedRoles,
+                                   String administratorRoles, String administratorUsers,
                                    ReviewText title, ReviewText description, String timeout) {
 
         /** A review with nothing declared — the form's starting state. */
         public static ReviewFormValues empty() {
-            return new ReviewFormValues("", "", "", "", ReviewText.empty(), ReviewText.empty(), "");
+            return new ReviewFormValues("", "", "", "", "", "", ReviewText.empty(), ReviewText.empty(), "");
         }
 
         /** Only the roles were read, as the pre-record form could express. */
         public static ReviewFormValues ofRoles(String userRoles) {
-            return new ReviewFormValues(userRoles == null ? "" : userRoles, "", "", "",
+            return new ReviewFormValues(userRoles == null ? "" : userRoles, "", "", "", "", "",
                     ReviewText.empty(), ReviewText.empty(), "");
         }
     }
@@ -812,6 +825,10 @@ public class ActivityCallBuilder extends CallBuilder {
                 buildReviewerRolesSubProperty(RETRY_EXCLUDED_USERS_LABEL, RETRY_EXCLUDED_USERS_DOC));
         manualRetryFields.put(RETRY_EXCLUDED_ROLES_KEY,
                 buildReviewerRolesSubProperty(RETRY_EXCLUDED_ROLES_LABEL, RETRY_EXCLUDED_ROLES_DOC));
+        manualRetryFields.put(RETRY_ADMINISTRATOR_ROLES_KEY,
+                buildReviewerRolesSubProperty(RETRY_ADMINISTRATOR_ROLES_LABEL, RETRY_ADMINISTRATOR_ROLES_DOC));
+        manualRetryFields.put(RETRY_ADMINISTRATOR_USERS_KEY,
+                buildReviewerRolesSubProperty(RETRY_ADMINISTRATOR_USERS_LABEL, RETRY_ADMINISTRATOR_USERS_DOC));
         // Title and description offer a plain-text box as well as the expression editor, so a
         // wording typed as text is quoted on save while a reference to one is written as it stands.
         manualRetryFields.put(RETRY_TITLE_KEY,
@@ -862,6 +879,10 @@ public class ActivityCallBuilder extends CallBuilder {
                 RETRY_EXCLUDED_USERS_LABEL, RETRY_EXCLUDED_USERS_DOC, "string|string[]", review.excludedUsers());
         addHiddenRetrySubFieldProperty(nodeBuilder, RETRY_EXCLUDED_ROLES_KEY,
                 RETRY_EXCLUDED_ROLES_LABEL, RETRY_EXCLUDED_ROLES_DOC, "string|string[]", review.excludedRoles());
+        addHiddenRetrySubFieldProperty(nodeBuilder, RETRY_ADMINISTRATOR_ROLES_KEY, RETRY_ADMINISTRATOR_ROLES_LABEL,
+                RETRY_ADMINISTRATOR_ROLES_DOC, "string|string[]", review.administratorRoles());
+        addHiddenRetrySubFieldProperty(nodeBuilder, RETRY_ADMINISTRATOR_USERS_KEY, RETRY_ADMINISTRATOR_USERS_LABEL,
+                RETRY_ADMINISTRATOR_USERS_DOC, "string|string[]", review.administratorUsers());
         addHiddenReviewTextProperty(nodeBuilder, RETRY_TITLE_KEY,
                 RETRY_TITLE_LABEL, RETRY_TITLE_DOC, review.title());
         addHiddenReviewTextProperty(nodeBuilder, RETRY_DESCRIPTION_KEY,
@@ -1055,6 +1076,7 @@ public class ActivityCallBuilder extends CallBuilder {
                 Property.CHECK_ERROR_KEY, ADVANCED_PARAM_KEY, RETRY_POLICY_PARAM,
                 MAX_RETRIES_KEY, RETRY_DELAY_KEY, RETRY_BACKOFF_KEY, MAX_RETRY_DELAY_KEY, RETRY_USER_ROLES_KEY,
                 RETRY_USERS_KEY, RETRY_EXCLUDED_USERS_KEY, RETRY_EXCLUDED_ROLES_KEY,
+                RETRY_ADMINISTRATOR_ROLES_KEY, RETRY_ADMINISTRATOR_USERS_KEY,
                 // The rest of the ReviewTaskDefinition record: form storage, never activity arguments.
                 RETRY_TITLE_KEY, RETRY_DESCRIPTION_KEY, RETRY_TIMEOUT_KEY);
         populateActivityCallArg(sourceBuilder, properties, excludedKeys);
@@ -1331,6 +1353,8 @@ public class ActivityCallBuilder extends CallBuilder {
         addAudienceField(fields, properties, RETRY_USERS_KEY, WorkflowUtil.USERS_KEY);
         addAudienceField(fields, properties, RETRY_EXCLUDED_USERS_KEY, WorkflowUtil.EXCLUDED_USERS_KEY);
         addAudienceField(fields, properties, RETRY_EXCLUDED_ROLES_KEY, WorkflowUtil.EXCLUDED_ROLES_KEY);
+        addAudienceField(fields, properties, RETRY_ADMINISTRATOR_ROLES_KEY, WorkflowUtil.ADMINISTRATOR_ROLES_KEY);
+        addAudienceField(fields, properties, RETRY_ADMINISTRATOR_USERS_KEY, WorkflowUtil.ADMINISTRATOR_USERS_KEY);
         addQuotedRecordField(fields, properties, RETRY_TITLE_KEY, "title");
         addQuotedRecordField(fields, properties, RETRY_DESCRIPTION_KEY, "description");
         String timeout = trimmedValue(properties, RETRY_TIMEOUT_KEY);

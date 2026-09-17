@@ -1206,6 +1206,11 @@ public class WorkflowUtil {
     public static final String USERS_KEY = "users";
     public static final String EXCLUDED_USERS_KEY = "excludedUsers";
     public static final String EXCLUDED_ROLES_KEY = "excludedRoles";
+    public static final String ADMINISTRATOR_ROLES_KEY = "administratorRoles";
+    public static final String ADMINISTRATOR_USERS_KEY = "administratorUsers";
+    /** The audience fields beside the roles, in the order the literal writes them. */
+    public static final List<String> AUDIENCE_KEYS = List.of(USERS_KEY, EXCLUDED_USERS_KEY, EXCLUDED_ROLES_KEY,
+            ADMINISTRATOR_ROLES_KEY, ADMINISTRATOR_USERS_KEY);
     private static final String USERS_LABEL = "Users";
     private static final String USERS_DOC = "User id(s) permitted to decide, whatever their roles, "
             + "e.g. \"alice\" or [\"alice\", \"bob\"]";
@@ -1213,6 +1218,11 @@ public class WorkflowUtil {
     private static final String EXCLUDED_USERS_DOC = "User id(s) that may not decide, whatever their roles";
     private static final String EXCLUDED_ROLES_LABEL = "Excluded Roles";
     private static final String EXCLUDED_ROLES_DOC = "Role(s) that may not decide";
+    private static final String ADMINISTRATOR_ROLES_LABEL = "Administrator Roles";
+    private static final String ADMINISTRATOR_ROLES_DOC =
+            "Role(s) that administer the task: they see it, may reassign it, move its deadline, fail or decide it";
+    private static final String ADMINISTRATOR_USERS_LABEL = "Administrator Users";
+    private static final String ADMINISTRATOR_USERS_DOC = "User id(s) that administer the task, whatever their roles";
 
     /**
      * Adds the approval-gate pair a durable agent's gated capabilities share — a {@code requiresApproval}
@@ -1267,6 +1277,8 @@ public class WorkflowUtil {
         addAudienceProperty(nodeBuilder, USERS_KEY, USERS_LABEL, USERS_DOC);
         addAudienceProperty(nodeBuilder, EXCLUDED_USERS_KEY, EXCLUDED_USERS_LABEL, EXCLUDED_USERS_DOC);
         addAudienceProperty(nodeBuilder, EXCLUDED_ROLES_KEY, EXCLUDED_ROLES_LABEL, EXCLUDED_ROLES_DOC);
+        addAudienceProperty(nodeBuilder, ADMINISTRATOR_ROLES_KEY, ADMINISTRATOR_ROLES_LABEL, ADMINISTRATOR_ROLES_DOC);
+        addAudienceProperty(nodeBuilder, ADMINISTRATOR_USERS_KEY, ADMINISTRATOR_USERS_LABEL, ADMINISTRATOR_USERS_DOC);
     }
 
     private static void addAudienceProperty(NodeBuilder nodeBuilder, String key, String label, String doc) {
@@ -1315,7 +1327,7 @@ public class WorkflowUtil {
         List<String> fields = new ArrayList<>();
         String roles = audienceSource(sourceBuilder, userRolesKey);
         fields.add("userRoles: " + (roles.isBlank() ? "()" : roles));
-        for (String key : List.of(USERS_KEY, EXCLUDED_USERS_KEY, EXCLUDED_ROLES_KEY)) {
+        for (String key : AUDIENCE_KEYS) {
             String value = audienceSource(sourceBuilder, key);
             if (!value.isBlank()) {
                 fields.add(key + ": " + value);

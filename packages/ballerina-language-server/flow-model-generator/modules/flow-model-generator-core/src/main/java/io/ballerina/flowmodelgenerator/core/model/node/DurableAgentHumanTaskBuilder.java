@@ -235,8 +235,7 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
         StringBuilder entry = new StringBuilder("{name: ").append(WorkflowUtil.constantNameLiteral(name))
                 .append(", userRoles: ").append(roles.isBlank() ? "()" : roles);
-        for (String key : List.of(WorkflowUtil.USERS_KEY, WorkflowUtil.EXCLUDED_USERS_KEY,
-                WorkflowUtil.EXCLUDED_ROLES_KEY)) {
+        for (String key : WorkflowUtil.AUDIENCE_KEYS) {
             String value = WorkflowUtil.audienceSource(sourceBuilder, key);
             if (!value.isBlank()) {
                 entry.append(", ").append(key).append(": ").append(value);

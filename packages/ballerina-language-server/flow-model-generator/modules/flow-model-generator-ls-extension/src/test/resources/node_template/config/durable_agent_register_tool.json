@@ -157,6 +157,52 @@
         "advanced": true,
         "hidden": false
       },
+      "administratorRoles": {
+        "metadata": {
+          "label": "Administrator Roles",
+          "description": "Role(s) that administer the task: they see it, may reassign it, move its deadline, fail or decide it"
+        },
+        "types": [
+          {
+            "fieldType": "TEXT",
+            "ballerinaType": "string",
+            "selected": false
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string|string[]",
+            "selected": false
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
+      "administratorUsers": {
+        "metadata": {
+          "label": "Administrator Users",
+          "description": "User id(s) that administer the task, whatever their roles"
+        },
+        "types": [
+          {
+            "fieldType": "TEXT",
+            "ballerinaType": "string",
+            "selected": false
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string|string[]",
+            "selected": false
+          }
+        ],
+        "placeholder": "",
+        "optional": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false
+      },
       "checkError": {
         "metadata": {
           "label": "Check Error",
