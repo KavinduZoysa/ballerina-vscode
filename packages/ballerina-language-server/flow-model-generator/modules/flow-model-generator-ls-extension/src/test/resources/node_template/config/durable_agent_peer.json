@@ -34,12 +34,7 @@
         "types": [
           {
             "fieldType": "SINGLE_SELECT",
-            "options": [
-              {
-                "label": "billingAgent",
-                "value": "billingAgent"
-              }
-            ],
+            "options": [],
             "selected": true
           }
         ],

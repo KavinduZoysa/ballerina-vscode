@@ -1368,19 +1368,30 @@ public class WorkflowUtil {
      */
     public static List<String> approvalDetailFields(SourceBuilder sourceBuilder) {
         List<String> fields = new ArrayList<>();
-        String title = trimmedProperty(sourceBuilder, APPROVAL_TITLE_KEY);
+        String title = reviewTextSource(sourceBuilder, APPROVAL_TITLE_KEY);
         if (!title.isBlank()) {
-            fields.add("title: " + quoteIfPlain(title));
+            fields.add("title: " + title);
         }
-        String description = trimmedProperty(sourceBuilder, APPROVAL_DESCRIPTION_KEY);
+        String description = reviewTextSource(sourceBuilder, APPROVAL_DESCRIPTION_KEY);
         if (!description.isBlank()) {
-            fields.add("description: " + quoteIfPlain(description));
+            fields.add("description: " + description);
         }
         String timeout = trimmedProperty(sourceBuilder, APPROVAL_TIMEOUT_KEY);
         if (!timeout.isBlank()) {
             fields.add("timeout: " + timeout);
         }
         return fields;
+    }
+
+    // A review's title or description as source: an expression passes through, plain text is quoted.
+    private static String reviewTextSource(SourceBuilder sourceBuilder, String key) {
+        return sourceBuilder.getProperty(key).map(property -> {
+            String value = property.value() == null ? "" : property.value().toString().trim();
+            if (value.isBlank()) {
+                return "";
+            }
+            return isExpressionModeSelected(property) ? value : quoteIfPlain(value);
+        }).orElse("");
     }
 
     private static String trimmedProperty(SourceBuilder sourceBuilder, String key) {

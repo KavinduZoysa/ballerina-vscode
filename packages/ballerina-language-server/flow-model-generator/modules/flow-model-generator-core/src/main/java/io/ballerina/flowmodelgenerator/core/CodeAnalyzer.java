@@ -1506,8 +1506,17 @@ public class CodeAnalyzer extends NodeVisitor {
                 }
                 // The reasoning cap is part of the declaration, so the configuration form has to
                 // show the declared value rather than opening blank on it.
+                case "inputType" -> addAgentCallProperty(DurableAgentRunBuilder.INPUT_TYPE_KEY,
+                        DurableAgentRunBuilder.INPUT_TYPE_LABEL, DurableAgentRunBuilder.INPUT_TYPE_DOC,
+                        valueExpr.toSourceCode().trim());
+                case "eventTimeout" -> addAgentCallProperty(DurableAgentRunBuilder.EVENT_TIMEOUT_KEY,
+                        DurableAgentRunBuilder.EVENT_TIMEOUT_LABEL, DurableAgentRunBuilder.EVENT_TIMEOUT_DOC,
+                        valueExpr.toSourceCode().trim());
+                case "maxEventWaits" -> addAgentCallProperty(DurableAgentRunBuilder.MAX_EVENT_WAITS_KEY,
+                        DurableAgentRunBuilder.MAX_EVENT_WAITS_LABEL, DurableAgentRunBuilder.MAX_EVENT_WAITS_DOC,
+                        valueExpr.toSourceCode().trim());
                 case "maxIter" -> addAgentCallProperty(DurableAgentRunBuilder.MAX_ITER_KEY,
-                        "Maximum Iterations", "Maximum LLM reasoning iterations per turn",
+                        DurableAgentRunBuilder.MAX_ITER_LABEL, DurableAgentRunBuilder.MAX_ITER_DOC,
                         valueExpr.toSourceCode().trim());
                 // approvalPolicy is composite: collectCapabilityFields explodes it into the gate flag
                 // and the audience fields the form shows.
@@ -1524,10 +1533,14 @@ public class CodeAnalyzer extends NodeVisitor {
                         Map.of("name", "name", "request", "requestType", "response", "responseType",
                                 "cardinality", "cardinality"), updateEvents);
                 case "humanTasks" -> collectDeclaredCapabilities(valueExpr, "humanTask", null,
-                        Map.of("name", "taskName", "roles", "userRoles", "userRoles", "userRoles",
-                                "users", "users", "excludedUsers", "excludedUsers", "excludedRoles", "excludedRoles",
-                                "title", "title", "description", "description", "resultType", "resultType",
-                                "timeout", "timeout"),
+                        Map.ofEntries(Map.entry("name", "taskName"), Map.entry("roles", "userRoles"),
+                                Map.entry("userRoles", "userRoles"), Map.entry("users", "users"),
+                                Map.entry("excludedUsers", "excludedUsers"),
+                                Map.entry("excludedRoles", "excludedRoles"),
+                                Map.entry("administratorRoles", "administratorRoles"),
+                                Map.entry("administratorUsers", "administratorUsers"), Map.entry("title", "title"),
+                                Map.entry("description", "description"), Map.entry("resultType", "resultType"),
+                                Map.entry("timeout", "timeout")),
                         humanTasks);
                 default -> {
                 }
