@@ -217,9 +217,10 @@ export function FunctionForm(props: FunctionFormProps) {
             if (!isMountedRef.current || !response?.length) return;
             console.log("Identifier Updated: ", response);
 
-            const artifact = response.length > 1
-                ? response.find(res => res.name === functionName || res.context === functionName)
-                : response[0];
+            // Only this function's own update matters: rebuilding the fields for another artifact,
+            // such as a type just created from the input type field, would discard what was typed.
+            if (!functionName) return;
+            const artifact = response.find(res => res.name === functionName || res.context === functionName);
             if (!artifact?.name) return;
 
             const changedFunctionNode = await rpcClient
