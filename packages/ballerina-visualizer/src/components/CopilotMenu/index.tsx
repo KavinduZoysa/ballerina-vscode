@@ -155,7 +155,11 @@ export function CopilotMenu({ icon = "ellipsis" }: { icon?: string } = {}) {
     // Re-read on every open: the composer outlives the menu, so a chat started elsewhere would
     // otherwise never appear, and one failed call would read as "no chats" for good.
     useEffect(() => {
-        if (!open || !rpcClient) {
+        if (!open) {
+            return;
+        }
+        if (!rpcClient) {
+            setThreadsFailed(true);
             return;
         }
         let cancelled = false;
@@ -205,8 +209,25 @@ export function CopilotMenu({ icon = "ellipsis" }: { icon?: string } = {}) {
         triggerRef.current?.focus();
     };
 
+    /** The menu is clipped by the nearest scrolling ancestor, which need not reach the window edge. */
+    const spaceBelow = () => {
+        const root = rootRef.current;
+        if (!root) {
+            return window.innerHeight;
+        }
+        let node = root.parentElement;
+        while (node) {
+            const overflow = getComputedStyle(node).overflowY;
+            if (overflow === "auto" || overflow === "scroll") {
+                return node.getBoundingClientRect().bottom - root.getBoundingClientRect().bottom;
+            }
+            node = node.parentElement;
+        }
+        return window.innerHeight - root.getBoundingClientRect().bottom;
+    };
+
     const toggle = () => {
-        const below = window.innerHeight - (rootRef.current?.getBoundingClientRect().bottom ?? 0);
+        const below = spaceBelow();
         setDropUp(below < MENU_CLEARANCE);
         setLevel("root");
         setOpen((wasOpen) => !wasOpen);

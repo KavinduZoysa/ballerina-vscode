@@ -166,6 +166,8 @@ const InviteHitBridge = styled.div<InviteVisibility>`
 
 const InviteShell = styled.div<InviteVisibility>`
     border-radius: 10px;
+    // Hidden it still animates, on every view that hosts an orb.
+    ${(props: InviteVisibility) => (props.visible ? "" : "& * { animation-play-state: paused; }")}
     box-shadow: 0 4px 14px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
     opacity: ${(props: InviteVisibility) => (props.visible ? 1 : 0)};
     transform: translateX(${(props: InviteVisibility) => (props.visible ? "0" : "6px")});
