@@ -138,7 +138,7 @@
         "metadata": {
           "label": "run",
           "description": "Executes the agent for a given user query.",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.13.0.png",
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
           "data": {
             "agentInfo": {
               "systemPrompt": {
@@ -148,7 +148,7 @@
               "modelProvider": {
                 "presentation": {
                   "name": "myModel",
-                  "path": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.13.0.png",
+                  "path": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
                   "type": "Wso2ModelProvider"
                 }
               }
@@ -162,7 +162,7 @@
           "packageName": "ai",
           "object": "Agent",
           "symbol": "run",
-          "version": "1.13.0",
+          "version": "1.15.0",
           "lineRange": {
             "fileName": "agents.bal",
             "startLine": {
@@ -184,7 +184,7 @@
               "packageName": "ai",
               "object": "Agent",
               "symbol": "init",
-              "version": "1.13.0",
+              "version": "1.15.0",
               "lineRange": {
                 "fileName": "agents.bal",
                 "startLine": {
@@ -218,7 +218,7 @@
                 "typeMembers": [
                   {
                     "type": "SystemPrompt",
-                    "packageInfo": "ballerina:ai:1.13.0",
+                    "packageInfo": "ballerina:ai:1.15.0",
                     "packageName": "ai",
                     "kind": "RECORD_TYPE",
                     "selected": false
@@ -285,7 +285,7 @@
                       "typeMembers": [
                         {
                           "type": "ToolConfig",
-                          "packageInfo": "ballerina:ai:1.13.0",
+                          "packageInfo": "ballerina:ai:1.15.0",
                           "packageName": "ai",
                           "kind": "RECORD_TYPE",
                           "selected": false
@@ -489,7 +489,7 @@
                 "typeMembers": [
                   {
                     "type": "Credential",
-                    "packageInfo": "ballerina:ai:1.13.0",
+                    "packageInfo": "ballerina:ai:1.15.0",
                     "packageName": "ai",
                     "kind": "RECORD_TYPE",
                     "selected": false
@@ -710,17 +710,12 @@
             },
             "types": [
               {
-                "fieldType": "TEXT",
-                "ballerinaType": "string",
-                "selected": true
-              },
-              {
                 "fieldType": "RECORD_MAP_EXPRESSION",
                 "ballerinaType": "ai:Resume",
                 "typeMembers": [
                   {
                     "type": "Resume",
-                    "packageInfo": "ballerina:ai:1.13.0",
+                    "packageInfo": "ballerina:ai:1.15.0",
                     "packageName": "ai",
                     "kind": "RECORD_TYPE",
                     "selected": false
@@ -730,12 +725,12 @@
               },
               {
                 "fieldType": "EXPRESSION",
-                "ballerinaType": "string|ai:Prompt|ai:Resume",
+                "ballerinaType": "anydata|ai:Prompt|ai:Resume",
                 "selected": false
               }
             ],
             "value": "\"What's the weather in London?\"",
-            "placeholder": "\"\"",
+            "placeholder": "{}",
             "optional": false,
             "editable": true,
             "advanced": false,
@@ -771,7 +766,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "sessionId"
             },
-            "defaultValue": "\"\""
+            "defaultValue": "DEFAULT_SESSION_ID"
           },
           "context": {
             "metadata": {
@@ -794,7 +789,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "context"
             },
-            "defaultValue": "new ()"
+            "defaultValue": "new"
           }
         },
         "flags": 1
@@ -806,7 +801,7 @@
         "metadata": {
           "label": "Model Provider",
           "description": "Creates a default model provider based on the provided `wso2ProviderConfig`.",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.13.0.png"
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png"
         },
         "codedata": {
           "node": "MODEL_PROVIDER",
@@ -919,7 +914,7 @@
         "metadata": {
           "label": "Agent",
           "description": "Represents an agent.",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.13.0.png",
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
           "data": {
             "agentInfo": {
               "systemPrompt": {
@@ -929,7 +924,7 @@
               "modelProvider": {
                 "presentation": {
                   "name": "myModel",
-                  "path": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.13.0.png",
+                  "path": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
                   "type": "Wso2ModelProvider"
                 }
               }
@@ -943,7 +938,7 @@
           "packageName": "ai",
           "object": "Agent",
           "symbol": "init",
-          "version": "1.13.0",
+          "version": "1.15.0",
           "lineRange": {
             "fileName": "agents.bal",
             "startLine": {
@@ -995,7 +990,7 @@
                 "typeMembers": [
                   {
                     "type": "SystemPrompt",
-                    "packageInfo": "ballerina:ai:1.13.0",
+                    "packageInfo": "ballerina:ai:1.15.0",
                     "packageName": "ai",
                     "kind": "RECORD_TYPE",
                     "selected": true
@@ -1038,7 +1033,7 @@
                       "typeMembers": [
                         {
                           "type": "ToolConfig",
-                          "packageInfo": "ballerina:ai:1.13.0",
+                          "packageInfo": "ballerina:ai:1.15.0",
                           "packageName": "ai",
                           "kind": "RECORD_TYPE",
                           "selected": false
@@ -1112,7 +1107,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "maxIter"
             },
-            "defaultValue": "\"INFER_TOOL_COUNT\""
+            "defaultValue": "INFER_TOOL_COUNT"
           },
           "verbose": {
             "metadata": {
@@ -1191,7 +1186,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "\"LLM_FILTER\"",
+            "placeholder": "\"NO_FILTER\"",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -1200,7 +1195,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "toolLoadingStrategy"
             },
-            "defaultValue": "\"LLM_FILTER\""
+            "defaultValue": "NO_FILTER"
           },
           "executeToolCallsInParallel": {
             "metadata": {
@@ -1228,7 +1223,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "executeToolCallsInParallel"
             },
-            "defaultValue": "false"
+            "defaultValue": "true"
           },
           "credential": {
             "metadata": {
@@ -1242,7 +1237,7 @@
                 "typeMembers": [
                   {
                     "type": "Credential",
-                    "packageInfo": "ballerina:ai:1.13.0",
+                    "packageInfo": "ballerina:ai:1.15.0",
                     "packageName": "ai",
                     "kind": "RECORD_TYPE",
                     "selected": false
