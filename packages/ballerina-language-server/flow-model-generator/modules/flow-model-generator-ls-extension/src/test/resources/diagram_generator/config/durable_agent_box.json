@@ -46,7 +46,7 @@
         "metadata": {
           "label": "Configure Agent",
           "description": "Configure the agent's role, instructions, model and reasoning limit",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_workflow_0.9.0.png",
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_workflow_0.10.0.png",
           "data": {
             "agentName": "travelAgent",
             "agentBox": true,
@@ -56,7 +56,7 @@
             },
             "model": {
               "name": "deskModel",
-              "path": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.13.0.png",
+              "path": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
               "type": "Wso2ModelProvider"
             },
             "activities": [
@@ -169,7 +169,7 @@
           "packageName": "workflow",
           "object": "DurableAgent",
           "symbol": "buildAndRunAgent",
-          "version": "0.9.0",
+          "version": "0.10.0",
           "lineRange": {
             "fileName": "durable_agent_box.bal",
             "startLine": {
@@ -379,7 +379,7 @@
         "metadata": {
           "label": "Send Agent Data Event",
           "description": "Send a data event to a running durable agent and read its answer for that turn",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_workflow_0.9.0.png",
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_workflow_0.10.0.png",
           "data": {
             "agentName": "travelAgent",
             "waits": false,
@@ -393,7 +393,7 @@
           "packageName": "workflow",
           "object": "DurableAgent",
           "symbol": "sendData",
-          "version": "0.9.0",
+          "version": "0.10.0",
           "lineRange": {
             "fileName": "durable_agent_box.bal",
             "startLine": {
@@ -535,7 +535,7 @@
         "metadata": {
           "label": "Get Data Event Result",
           "description": "Read the agent's answer for a sent data event by its correlation token",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_workflow_0.9.0.png",
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_workflow_0.10.0.png",
           "data": {
             "agentName": "travelAgent",
             "waits": true,
@@ -549,7 +549,7 @@
           "packageName": "workflow",
           "object": "DurableAgent",
           "symbol": "waitForDataResult",
-          "version": "0.9.0",
+          "version": "0.10.0",
           "lineRange": {
             "fileName": "durable_agent_box.bal",
             "startLine": {
@@ -1551,7 +1551,7 @@
         "metadata": {
           "label": "Model Provider",
           "description": "Initializes a new `WSO2ModelProvider` instance.\n",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.13.0.png"
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png"
         },
         "codedata": {
           "node": "MODEL_PROVIDER",
@@ -1656,7 +1656,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "temperature"
             },
-            "defaultValue": "0.0d"
+            "defaultValue": "DEFAULT_TEMPERATURE"
           },
           "generatorConfig": {
             "metadata": {
@@ -1679,7 +1679,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "generatorConfig"
             },
-            "defaultValue": "{}"
+            "defaultValue": "DEFAULT_GENERATOR_CONFIG"
           },
           "httpVersion": {
             "metadata": {
@@ -1723,7 +1723,7 @@
             "imports": {
               "http": "ballerina/http"
             },
-            "defaultValue": "\"2.0\""
+            "defaultValue": "http:HTTP_2_0"
           },
           "http1Settings": {
             "metadata": {
@@ -1831,7 +1831,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "timeout"
             },
-            "defaultValue": "0.0d"
+            "defaultValue": "60"
           },
           "forwarded": {
             "metadata": {
@@ -1859,7 +1859,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "forwarded"
             },
-            "defaultValue": "\"\""
+            "defaultValue": "\"disable\""
           },
           "poolConfig": {
             "metadata": {
@@ -1971,7 +1971,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "\"AUTO\"",
+            "placeholder": "",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -1983,7 +1983,7 @@
             "imports": {
               "http": "ballerina/http"
             },
-            "defaultValue": "\"AUTO\""
+            "defaultValue": "http:COMPRESSION_AUTO"
           },
           "circuitBreaker": {
             "metadata": {
@@ -2211,7 +2211,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "validation"
             },
-            "defaultValue": "false"
+            "defaultValue": "true"
           },
           "checkError": {
             "metadata": {

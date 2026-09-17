@@ -985,7 +985,7 @@
           "stepId": {
             "metadata": {
               "label": "Step Id",
-              "description": "Identity of this step within the workflow, reported by every execution of it and\nmatching a node of the descriptor's graph — so a run can be traced back to the\nexact call that ran, the one in the `if` arm rather than the `else`. Name it\n(`stepId = \"charge-card\"`) for a step you want to follow: a chosen id survives\nedits that shift the generated `<activity>#<ordinal>`. Must be a constant string;\nan id another step already has is suffixed, with a warning."
+              "description": "Identity of this step within the workflow, matching a node of the descriptor\ngraph. A constant string; defaults to `<activity>#<ordinal>`"
             },
             "types": [
               {
@@ -1009,6 +1009,53 @@
               "originalName": "stepId"
             },
             "defaultValue": "()"
+          },
+          "approvalPolicy": {
+            "metadata": {
+              "label": "Approval Policy",
+              "description": "Whether a person approves the call before it runs, and who"
+            },
+            "types": [
+              {
+                "fieldType": "RECORD_MAP_EXPRESSION",
+                "ballerinaType": "workflow:ReviewTaskDefinition",
+                "typeMembers": [
+                  {
+                    "type": "ReviewTaskDefinition",
+                    "packageInfo": "ballerina:workflow:0.10.0",
+                    "packageName": "workflow",
+                    "kind": "RECORD_TYPE",
+                    "selected": false
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "SINGLE_SELECT",
+                "options": [
+                  {
+                    "label": "()",
+                    "value": "()"
+                  }
+                ],
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "workflow:ApprovalPolicy",
+                "selected": false
+              }
+            ],
+            "placeholder": "",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "INCLUDED_FIELD",
+              "originalName": "approvalPolicy"
+            },
+            "defaultValue": "null"
           }
         },
         "optional": false,

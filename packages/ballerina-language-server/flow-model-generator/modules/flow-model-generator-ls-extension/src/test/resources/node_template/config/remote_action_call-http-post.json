@@ -86,12 +86,12 @@
         "types": [
           {
             "fieldType": "REPEATABLE_LIST",
-            "ballerinaType": "mime:Entity[]",
+            "ballerinaType": "$CompilationError$[]",
             "template": {
               "types": [
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "mime:Entity",
+                  "ballerinaType": "$CompilationError$",
                   "selected": false
                 }
               ],
