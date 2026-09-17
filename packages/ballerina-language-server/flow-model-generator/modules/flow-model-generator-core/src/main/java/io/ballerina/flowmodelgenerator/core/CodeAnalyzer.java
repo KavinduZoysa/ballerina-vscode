@@ -1897,14 +1897,14 @@ public class CodeAnalyzer extends NodeVisitor {
         SeparatedNodeList<FunctionArgumentNode> args = remoteMethodCallActionNode.arguments();
 
         // Step 1: The two policies become dropdowns of their own; the remaining options (stepId) stay
-        // plain root fields, as the creation form lays them out.
+        // in the advanced section, as the creation form lays them out.
         Map<String, Property> currentProps = nodeBuilder.properties().build();
         String rawRetryPolicyValue = rawPropertyValue(currentProps, ActivityCallBuilder.RETRY_POLICY_PARAM);
         String rawApprovalPolicyValue = rawPropertyValue(currentProps, ApprovalPolicyForm.KEY);
         currentProps.keySet().removeIf(EXCLUDED_CALL_ACTIVITY_PARAMS::contains);
         Map<String, Property> savedOptionProps = new LinkedHashMap<>();
         currentProps.forEach((key, property) ->
-                savedOptionProps.put(key, Property.Builder.copyFrom(property).advanced(false).build()));
+                savedOptionProps.put(key, Property.Builder.copyFrom(property).advanced(true).build()));
         currentProps.clear();
 
         // Step 2: Get activity function params directly from the symbol (avoids expensive
@@ -2004,7 +2004,8 @@ public class CodeAnalyzer extends NodeVisitor {
         // The flag mirrors the template so an existing statement round-trips: a call written without
         // `check` comes back with the box cleared instead of being silently rewritten with it.
         ActivityCallBuilder.addCheckErrorProperty(nodeBuilder, isCheckedCall(remoteMethodCallActionNode));
-        // After the activity's inputs come the options and the policies, as the creation form lays them out.
+        // After the activity's inputs come the policies and the advanced options, as the creation form
+        // lays them out.
         nodeBuilder.properties().build().putAll(savedOptionProps);
         addNormalizedPolicyProperties(rawApprovalPolicyValue, rawRetryPolicyValue);
     }
@@ -2287,14 +2288,14 @@ public class CodeAnalyzer extends NodeVisitor {
                         && property.codedata().kind().equals(ParameterData.Kind.PARAM_FOR_TYPE_INFER.name()))
                 .findFirst()
                 .orElse(null);
-        // The policies are restored as their dropdowns; the remaining options (stepId) as plain fields.
+        // The policies are restored as their dropdowns; the remaining options (stepId) as advanced fields.
         String rawRetryPolicyValue = rawPropertyValue(currentProps, ActivityCallBuilder.RETRY_POLICY_PARAM);
         String rawApprovalPolicyValue = rawPropertyValue(currentProps, ApprovalPolicyForm.KEY);
         Map<String, Property> savedOptionProps = new LinkedHashMap<>();
         for (Map.Entry<String, Property> entry : currentProps.entrySet()) {
             if (!EXCLUDED_CALL_ACTIVITY_PARAMS.contains(entry.getKey())) {
                 savedOptionProps.put(entry.getKey(),
-                        Property.Builder.copyFrom(entry.getValue()).advanced(false).build());
+                        Property.Builder.copyFrom(entry.getValue()).advanced(true).build());
             }
         }
         currentProps.clear();

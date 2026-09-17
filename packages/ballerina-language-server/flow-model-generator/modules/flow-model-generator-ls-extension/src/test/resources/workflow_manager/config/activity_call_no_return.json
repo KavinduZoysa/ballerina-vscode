@@ -70,7 +70,7 @@
         "value": "true",
         "optional": true,
         "editable": true,
-        "advanced": false,
+        "advanced": true,
         "hidden": false,
         "dynamicFormFields": {
           "true": {},
@@ -132,7 +132,7 @@
         "placeholder": "()",
         "optional": true,
         "editable": true,
-        "advanced": false,
+        "advanced": true,
         "hidden": false,
         "codedata": {
           "kind": "DEFAULTABLE",
@@ -886,7 +886,7 @@
                 }
               ],
               "value": "",
-              "optional": true,
+              "optional": false,
               "editable": true,
               "advanced": false,
               "hidden": false

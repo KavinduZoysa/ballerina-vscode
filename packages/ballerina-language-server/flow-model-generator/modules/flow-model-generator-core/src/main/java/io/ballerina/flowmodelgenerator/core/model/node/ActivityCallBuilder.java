@@ -33,6 +33,7 @@ import io.ballerina.compiler.syntax.tree.SeparatedNodeList;
 import io.ballerina.compiler.syntax.tree.SyntaxKind;
 import io.ballerina.compiler.syntax.tree.UnionTypeDescriptorNode;
 import io.ballerina.flowmodelgenerator.core.Constants;
+import io.ballerina.flowmodelgenerator.core.UserFacingException;
 import io.ballerina.flowmodelgenerator.core.model.Codedata;
 import io.ballerina.flowmodelgenerator.core.model.FlowNode;
 import io.ballerina.flowmodelgenerator.core.model.ItemOption;
@@ -141,8 +142,13 @@ public class ActivityCallBuilder extends CallBuilder {
     public static final String RETRY_DELAY_KEY = "retryDelay";
     public static final String RETRY_BACKOFF_KEY = "retryBackoff";
     public static final String MAX_RETRY_DELAY_KEY = "maxRetryDelay";
-    // RetryBeforeReview requires maxRetries; the AutoRetry default stands in when the form leaves it blank.
-    public static final String DEFAULT_MAX_RETRIES = "3";
+    // Messages of the checks the form runs before writing a policy. Neither shape can be written
+    // with the field missing, and filling it in silently would declare something nobody asked for:
+    // a review nobody can decide, or an attempt count the author never chose.
+    private static final String NO_ATTEMPTS_MESSAGE =
+            "Retry, then Review needs an attempt count: fill in Max Retries";
+    private static final String NO_REVIEWER_MESSAGE =
+            "A review needs someone who may decide it: fill in Reviewer Roles, Reviewers, or both";
     // The review fields' wording. Each field is rendered twice — once as the dropdown's visible
     // sub-property and once as the root hidden property that stores its value — so the label and the
     // doc live here rather than inline at both call sites, where they had already drifted apart.
@@ -396,6 +402,7 @@ public class ActivityCallBuilder extends CallBuilder {
                 .value(String.valueOf(checkError))
                 .editable(true)
                 .optional(true)
+                .advanced(true)
                 .dynamicFormFields(dynamicFields)
                 .stepOut()
                 .addProperty(Property.CHECK_ERROR_KEY);
@@ -874,6 +881,10 @@ public class ActivityCallBuilder extends CallBuilder {
         // Retry, then review: the automatic attempts first, then the review that decides when they
         // are spent — both sets of fields, in that order.
         Map<String, Property> retryBeforeReviewFields = new LinkedHashMap<>(autoRetryFields);
+        // The record declares maxRetries without a default here, so the form marks it required
+        // rather than accepting an empty box and inventing a number on save.
+        retryBeforeReviewFields.put(MAX_RETRIES_KEY,
+                buildRetrySubProperty("Max Retries", MAX_RETRIES_DOC, "int", false));
         retryBeforeReviewFields.putAll(manualRetryFields);
         dynamicFields.put(RETRY_BEFORE_REVIEW_VALUE, retryBeforeReviewFields);
         if (opaquePolicy) {
@@ -1069,8 +1080,8 @@ public class ActivityCallBuilder extends CallBuilder {
     }
 
     /**
-     * Adds the remaining {@code callActivity} options (the step id) as plain fields in the
-     * signature's order. There is no advanced section: the form shows what the call declares.
+     * Adds the remaining {@code callActivity} options — the step id — to the form's advanced
+     * section. The two policies are fields of their own, ahead of these.
      *
      * @param context          the template context
      * @param builder          the form being built
@@ -1090,7 +1101,7 @@ public class ActivityCallBuilder extends CallBuilder {
         for (String key : filteredParams.keySet()) {
             Property property = properties.get(key);
             if (property != null) {
-                properties.put(key, Property.Builder.copyFrom(property).advanced(false).build());
+                properties.put(key, Property.Builder.copyFrom(property).advanced(true).build());
             }
         }
     }
@@ -1452,14 +1463,13 @@ public class ActivityCallBuilder extends CallBuilder {
     }
 
     // The RetryBeforeReview record: the automatic attempts, then the review that decides afterwards.
-    private static String retryBeforeReviewRecordLiteral(Map<String, Property> properties) {
+    static String retryBeforeReviewRecordLiteral(Map<String, Property> properties) {
         List<String> fields = new ArrayList<>();
         // Without an attempt count the record is neither valid nor readable back as this policy.
         if (trimmedValue(properties, MAX_RETRIES_KEY).isBlank()) {
-            fields.add(MAX_RETRIES_KEY + ": " + DEFAULT_MAX_RETRIES);
-        } else {
-            addRecordField(fields, properties, MAX_RETRIES_KEY);
+            throw new UserFacingException(NO_ATTEMPTS_MESSAGE);
         }
+        addRecordField(fields, properties, MAX_RETRIES_KEY);
         addRecordField(fields, properties, RETRY_DELAY_KEY);
         addRecordField(fields, properties, RETRY_BACKOFF_KEY);
         addRecordField(fields, properties, MAX_RETRY_DELAY_KEY);
@@ -1480,9 +1490,12 @@ public class ActivityCallBuilder extends CallBuilder {
         // The audience fields offer both a text and an expression mode, so roleSource — not the raw
         // value — is what reads either one back as source.
         String roles = WorkflowUtil.roleSource(properties.get(keys.userRoles()));
-        // userRoles is required by the record, so the literal always carries it; with nobody named the
-        // compiler rejects the policy with a message naming the field — better than a review that
-        // decides nothing.
+        String users = WorkflowUtil.roleSource(properties.get(keys.users()));
+        // A review with neither roles nor users creates a task nobody can act on, so the form refuses
+        // it. `userRoles: ()` stays legal beside named users: it says those users alone decide.
+        if (roles.isBlank() && users.isBlank()) {
+            throw new UserFacingException(NO_REVIEWER_MESSAGE);
+        }
         fields.add("userRoles: " + (roles.isBlank() ? "()" : roles));
         addAudienceField(fields, properties, keys.users(), WorkflowUtil.USERS_KEY);
         addAudienceField(fields, properties, keys.excludedUsers(), WorkflowUtil.EXCLUDED_USERS_KEY);

@@ -866,7 +866,7 @@
                 }
               ],
               "value": "",
-              "optional": true,
+              "optional": false,
               "editable": true,
               "advanced": false,
               "hidden": false

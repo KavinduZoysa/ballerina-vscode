@@ -1,6 +1,6 @@
 {
   "source": "workflow_function/functions.bal",
-  "description": "Retries followed by a review with the attempt count left blank: RetryBeforeReview requires maxRetries, so the AutoRetry default is written and the policy reopens as itself",
+  "description": "Human Review scoped to named users: the roles box is empty, so userRoles is written as nil beside the users who alone decide",
   "diagram": {
     "id": "1",
     "metadata": {
@@ -81,43 +81,34 @@
           "description": "Retry strategy to apply when the activity call fails"
         },
         "valueType": "DROPDOWN_CHOICE",
-        "value": "RetryBeforeReview",
+        "value": "ManualRetry",
         "optional": true,
         "editable": true,
         "advanced": false,
         "hidden": false
       },
-      "maxRetries": {
+      "retryUserRoles": {
         "metadata": {
-          "label": "Max Retries"
+          "label": "Reviewer Roles",
+          "description": "Role(s) permitted to decide the human review"
         },
         "valueType": "EXPRESSION",
         "value": "",
         "optional": true,
         "editable": true,
-        "advanced": true,
-        "hidden": false
-      },
-      "retryUserRoles": {
-        "metadata": {
-          "label": "Reviewer Roles"
-        },
-        "valueType": "TEXT",
-        "value": "ops",
-        "optional": true,
-        "editable": true,
-        "advanced": true,
+        "advanced": false,
         "hidden": false
       },
       "retryUsers": {
         "metadata": {
-          "label": "Reviewers"
+          "label": "Reviewers",
+          "description": "Role(s) permitted to decide the human review"
         },
-        "valueType": "TEXT",
+        "valueType": "EXPRESSION",
         "value": "alice",
         "optional": true,
         "editable": true,
-        "advanced": true,
+        "advanced": false,
         "hidden": false
       }
     },
@@ -136,7 +127,7 @@
             "character": 0
           }
         },
-        "newText": "\nint result = check context->callActivity(sendNotification, {time: 10, input: {message: \"Hello\", recipient: \"user@example.com\"}}, retryPolicy = {maxRetries: 3, userRoles: \"ops\", users: \"alice\"});"
+        "newText": "\nint result = check context->callActivity(sendNotification, {time: 10, input: {message: \"Hello\", recipient: \"user@example.com\"}}, retryPolicy = {userRoles: (), users: \"alice\"});"
       }
     ]
   }
