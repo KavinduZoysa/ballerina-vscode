@@ -44,6 +44,12 @@ runs:
 
     - name: Set Up Ballerina
       uses: ./.github/actions/setup-ballerina
+      # TEMPORARY: 2201.14.0 has no installer on dist.ballerina.io yet (HTTP 403), so
+      # install the latest ballerina-distribution CI artifact instead. The build still
+      # compiles against the ballerinaLangVersion artifacts from GitHub Packages.
+      # Revert once 2201.14.0 is published to the CDN.
+      with:
+        distributionVersion: nightly
 
     # The build resolves Ballerina packages into a build-owned home
     # (build/ballerina_dependencies/home) rather than ~/.ballerina, and the
