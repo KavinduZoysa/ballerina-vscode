@@ -450,9 +450,15 @@ public class AiUtils {
         if (alreadyHasPrompt || !unionHasPrompt) {
             return original;
         }
-        List<PropertyType> updatedTypes = new ArrayList<>(original.types());
-        updatedTypes.add(0, new PropertyType(Property.ValueType.PROMPT, AI_PROMPT_TYPE, null, null, null, null,
-                null, false));
+        boolean isPromptValue = isBacktickTemplateValue(original.value());
+        List<PropertyType> updatedTypes = new ArrayList<>();
+        updatedTypes.add(new PropertyType(Property.ValueType.PROMPT, AI_PROMPT_TYPE, null, null, null, null,
+                null, isPromptValue));
+        for (PropertyType type : original.types()) {
+            updatedTypes.add(new PropertyType(type.fieldType(), type.ballerinaType(), type.scope(), type.options(),
+                    type.template(), type.typeMembers(), type.recordSelectorType(),
+                    isPromptValue ? false : type.selected()));
+        }
         return new Property(
                 original.metadata(),
                 updatedTypes,
@@ -473,6 +479,14 @@ public class AiUtils {
                 original.dynamicFormFields(),
                 original.itemOptions()
         );
+    }
+
+    private static boolean isBacktickTemplateValue(Object value) {
+        if (!(value instanceof String str)) {
+            return false;
+        }
+        String trimmed = str.trim();
+        return trimmed.startsWith("`") || trimmed.matches("(?s)^string\\s*`.*`$");
     }
 
     /**
