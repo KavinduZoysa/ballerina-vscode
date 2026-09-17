@@ -208,7 +208,9 @@ public class DurableAgentPeerBuilder extends CallBuilder {
         if (!description.isBlank()) {
             entry.append(", description: ").append(WorkflowUtil.quoteIfPlain(description));
         }
-        if (!allowedEvents.isBlank() && !"[]".equals(allowedEvents)) {
+        // `[ ]` or a line-broken empty list from the expression editor is still no events.
+        boolean noEvents = allowedEvents.replaceAll("[\\[\\]\\s]", "").isEmpty();
+        if (!noEvents) {
             entry.append(", allowedEvents: ").append(allowedEvents);
         }
         entry.append("}");

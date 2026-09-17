@@ -1625,6 +1625,11 @@ public class CodeAnalyzer extends NodeVisitor {
                         }
                         continue;
                     }
+                    // The gate is a composite too: it decomposes into the flag and the review fields.
+                    if (WorkflowUtil.APPROVAL_POLICY_FIELD.equals(fieldName)) {
+                        hydrateApprovalPolicy(specificField.valueExpr().get(), values);
+                        continue;
+                    }
                     String propertyKey = fieldToPropertyKey.get(fieldName);
                     if (propertyKey != null) {
                         // The cardinality enum may be module-qualified in source (workflow:SINGLE_EVENT);
@@ -1693,7 +1698,6 @@ public class CodeAnalyzer extends NodeVisitor {
             if ("name".equals(fieldName) || fieldName.equals(refField)) {
                 continue;
             }
-            String rawValue = specificField.valueExpr().get().toSourceCode().trim();
             if (WorkflowUtil.APPROVAL_POLICY_FIELD.equals(fieldName)) {
                 hydrateApprovalPolicy(specificField.valueExpr().get(), values);
                 continue;
@@ -1702,8 +1706,12 @@ public class CodeAnalyzer extends NodeVisitor {
             if (propertyKey == null) {
                 continue;
             }
+            String rawValue = specificField.valueExpr().get().toSourceCode().trim();
             if ("cardinality".equals(fieldName)) {
                 values.put(propertyKey, WorkflowUtil.stripModulePrefix(rawValue));
+            } else if (ROLE_FIELDS.contains(fieldName)) {
+                // `userRoles: ()` says "only the named users decide"; the roles box stays empty for it.
+                values.put(propertyKey, nilAsBlank(stripQuotes(rawValue)));
             } else if (TEXT_MODE_CAPABILITY_FIELDS.contains(fieldName)) {
                 values.put(propertyKey, stripQuotes(rawValue));
             } else {
@@ -1712,6 +1720,12 @@ public class CodeAnalyzer extends NodeVisitor {
         }
     }
 
+    private static final Set<String> ROLE_FIELDS = Set.of("roles", "userRoles");
+    // The policy fields the gate form carries beside the flag, with the property key each hydrates into.
+    private static final Map<String, String> APPROVAL_POLICY_KEYS = Map.of(
+            "title", WorkflowUtil.APPROVAL_TITLE_KEY,
+            "description", WorkflowUtil.APPROVAL_DESCRIPTION_KEY,
+            "timeout", WorkflowUtil.APPROVAL_TIMEOUT_KEY);
     // Capability declaration fields whose values render in text-mode form fields.
     private static final Set<String> TEXT_MODE_CAPABILITY_FIELDS =
             Set.of("name", "title", "description", "roles", "userRoles", "users", "excludedUsers", "excludedRoles",
@@ -1725,11 +1739,18 @@ public class CodeAnalyzer extends NodeVisitor {
         }
         values.put("requiresApproval", "true");
         for (MappingFieldNode field : ((MappingConstructorExpressionNode) policy).fields()) {
-            if (field instanceof SpecificFieldNode specific && specific.valueExpr().isPresent()) {
-                String key = specific.fieldName().toSourceCode().trim();
-                if (TEXT_MODE_CAPABILITY_FIELDS.contains(key)) {
-                    putIfNotBlank(values, key, stripQuotes(specific.valueExpr().get().toSourceCode().trim()));
-                }
+            if (!(field instanceof SpecificFieldNode specific) || specific.valueExpr().isEmpty()) {
+                continue;
+            }
+            String key = specific.fieldName().toSourceCode().trim();
+            String raw = specific.valueExpr().get().toSourceCode().trim();
+            if (ROLE_FIELDS.contains(key)) {
+                putIfNotBlank(values, USER_ROLES_FIELD, nilAsBlank(stripQuotes(raw)));
+            } else if (WorkflowUtil.AUDIENCE_KEYS.contains(key)) {
+                putIfNotBlank(values, key, stripQuotes(raw));
+            } else if (APPROVAL_POLICY_KEYS.containsKey(key)) {
+                // Under the gate's own keys: the capability's description is a different field.
+                putIfNotBlank(values, APPROVAL_POLICY_KEYS.get(key), raw);
             }
         }
     }
@@ -2436,7 +2457,11 @@ public class CodeAnalyzer extends NodeVisitor {
                 Map<String, String> fields = WorkflowUtil.parseRecordLiteral(rawValue);
                 boolean audience = fields.containsKey(USER_ROLES_FIELD)
                         || fields.containsKey(WorkflowUtil.USERS_KEY);
-                boolean attempts = fields.containsKey(ActivityCallBuilder.MAX_RETRIES_KEY);
+                // Every tuning field has a default, so any one of them alone still declares attempts.
+                boolean attempts = fields.containsKey(ActivityCallBuilder.MAX_RETRIES_KEY)
+                        || fields.containsKey(ActivityCallBuilder.RETRY_DELAY_KEY)
+                        || fields.containsKey(ActivityCallBuilder.RETRY_BACKOFF_KEY)
+                        || fields.containsKey(ActivityCallBuilder.MAX_RETRY_DELAY_KEY);
                 if (audience) {
                     dropdownValue = attempts ? ActivityCallBuilder.RETRY_BEFORE_REVIEW_VALUE
                             : ActivityCallBuilder.MANUAL_RETRY_VALUE;

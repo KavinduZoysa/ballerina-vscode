@@ -1208,6 +1208,18 @@ public class WorkflowUtil {
     public static final String EXCLUDED_ROLES_KEY = "excludedRoles";
     public static final String ADMINISTRATOR_ROLES_KEY = "administratorRoles";
     public static final String ADMINISTRATOR_USERS_KEY = "administratorUsers";
+    /** Property keys of the review details a gate form carries beside its audience. */
+    public static final String APPROVAL_TITLE_KEY = "approvalTitle";
+    public static final String APPROVAL_DESCRIPTION_KEY = "approvalDescription";
+    public static final String APPROVAL_TIMEOUT_KEY = "approvalTimeout";
+    private static final String APPROVAL_TITLE_LABEL = "Review Title";
+    private static final String APPROVAL_TITLE_DOC = "Inbox summary of the review, e.g. \"Approve the refund\"; "
+            + "empty derives it from the capability";
+    private static final String APPROVAL_DESCRIPTION_LABEL = "Review Description";
+    private static final String APPROVAL_DESCRIPTION_DOC = "Context shown with the decision; empty derives it";
+    private static final String APPROVAL_TIMEOUT_LABEL = "Review Timeout";
+    private static final String APPROVAL_TIMEOUT_DOC = "How long to wait for a decision, in days, hours and "
+            + "minutes, e.g. {days: 1, hours: 2, minutes: 30}; empty waits indefinitely";
     /** The audience fields beside the roles, in the order the literal writes them. */
     public static final List<String> AUDIENCE_KEYS = List.of(USERS_KEY, EXCLUDED_USERS_KEY, EXCLUDED_ROLES_KEY,
             ADMINISTRATOR_ROLES_KEY, ADMINISTRATOR_USERS_KEY);
@@ -1265,6 +1277,56 @@ public class WorkflowUtil {
                 .stepOut()
                 .addProperty(userRolesKey);
         addAudienceProperties(nodeBuilder);
+        addExpressionProperty(nodeBuilder, APPROVAL_TITLE_KEY, APPROVAL_TITLE_LABEL, APPROVAL_TITLE_DOC, "string");
+        addExpressionProperty(nodeBuilder, APPROVAL_DESCRIPTION_KEY, APPROVAL_DESCRIPTION_LABEL,
+                APPROVAL_DESCRIPTION_DOC, "string");
+        addExpressionProperty(nodeBuilder, APPROVAL_TIMEOUT_KEY, APPROVAL_TIMEOUT_LABEL, APPROVAL_TIMEOUT_DOC,
+                "workflow:Duration");
+    }
+
+    private static void addExpressionProperty(NodeBuilder nodeBuilder, String key, String label, String doc,
+                                              String ballerinaType) {
+        nodeBuilder.properties().custom()
+                .metadata()
+                    .label(label)
+                    .description(doc)
+                    .stepOut()
+                .type().fieldType(Property.ValueType.EXPRESSION).ballerinaType(ballerinaType).selected(true).stepOut()
+                .placeholder("")
+                .editable(true)
+                .optional(true)
+                .advanced(true)
+                .stepOut()
+                .addProperty(key);
+    }
+
+    /**
+     * The review details a gate form holds, rendered as {@code name: value} fields: a plain title or
+     * description is quoted, a timeout is written as the expression it is.
+     *
+     * @param sourceBuilder the source builder holding the form values
+     * @return the rendered fields, possibly empty
+     */
+    public static List<String> approvalDetailFields(SourceBuilder sourceBuilder) {
+        List<String> fields = new ArrayList<>();
+        String title = trimmedProperty(sourceBuilder, APPROVAL_TITLE_KEY);
+        if (!title.isBlank()) {
+            fields.add("title: " + quoteIfPlain(title));
+        }
+        String description = trimmedProperty(sourceBuilder, APPROVAL_DESCRIPTION_KEY);
+        if (!description.isBlank()) {
+            fields.add("description: " + quoteIfPlain(description));
+        }
+        String timeout = trimmedProperty(sourceBuilder, APPROVAL_TIMEOUT_KEY);
+        if (!timeout.isBlank()) {
+            fields.add("timeout: " + timeout);
+        }
+        return fields;
+    }
+
+    private static String trimmedProperty(SourceBuilder sourceBuilder, String key) {
+        return sourceBuilder.getProperty(key)
+                .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
     }
 
     /**
@@ -1309,7 +1371,7 @@ public class WorkflowUtil {
         boolean gated = sourceBuilder.getProperty(approvalKey)
                 .map(p -> p.value() != null && "true".equals(p.value().toString()))
                 .orElse(false);
-        return gated ? reviewAudienceLiteral(sourceBuilder, userRolesKey, List.of()) : "";
+        return gated ? reviewAudienceLiteral(sourceBuilder, userRolesKey, approvalDetailFields(sourceBuilder)) : "";
     }
 
     /**
@@ -1324,6 +1386,20 @@ public class WorkflowUtil {
      */
     public static String reviewAudienceLiteral(SourceBuilder sourceBuilder, String userRolesKey,
                                                List<String> moreFields) {
+        List<String> fields = reviewAudienceFields(sourceBuilder, userRolesKey);
+        fields.addAll(moreFields);
+        return "{" + String.join(", ", fields) + "}";
+    }
+
+    /**
+     * The audience fields as {@code name: value} source — {@code userRoles} always ({@code ()} when only
+     * users decide), the others when set — for a literal that leads with other fields.
+     *
+     * @param sourceBuilder the source builder holding the form values
+     * @param userRolesKey  property key of the reviewer roles
+     * @return the rendered fields, {@code userRoles} first
+     */
+    public static List<String> reviewAudienceFields(SourceBuilder sourceBuilder, String userRolesKey) {
         List<String> fields = new ArrayList<>();
         String roles = audienceSource(sourceBuilder, userRolesKey);
         fields.add("userRoles: " + (roles.isBlank() ? "()" : roles));
@@ -1333,8 +1409,7 @@ public class WorkflowUtil {
                 fields.add(key + ": " + value);
             }
         }
-        fields.addAll(moreFields);
-        return "{" + String.join(", ", fields) + "}";
+        return fields;
     }
 
     /**

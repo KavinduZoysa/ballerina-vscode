@@ -233,13 +233,9 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
         String timeout = sourceBuilder.getProperty(TIMEOUT_KEY)
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
-        StringBuilder entry = new StringBuilder("{name: ").append(WorkflowUtil.constantNameLiteral(name))
-                .append(", userRoles: ").append(roles.isBlank() ? "()" : roles);
-        for (String key : WorkflowUtil.AUDIENCE_KEYS) {
-            String value = WorkflowUtil.audienceSource(sourceBuilder, key);
-            if (!value.isBlank()) {
-                entry.append(", ").append(key).append(": ").append(value);
-            }
+        StringBuilder entry = new StringBuilder("{name: ").append(WorkflowUtil.constantNameLiteral(name));
+        for (String field : WorkflowUtil.reviewAudienceFields(sourceBuilder, USER_ROLES_KEY)) {
+            entry.append(", ").append(field);
         }
         if (!resultType.isBlank()) {
             entry.append(", resultType: ").append(resultType);

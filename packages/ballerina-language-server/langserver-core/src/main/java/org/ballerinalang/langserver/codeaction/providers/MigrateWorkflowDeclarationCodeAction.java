@@ -130,7 +130,7 @@ public class MigrateWorkflowDeclarationCodeAction implements DiagnosticBasedCode
     }
 
     // Removes the field with the comma that separated it, so the mapping stays well-formed.
-    private static TextEdit removal(MappingConstructorExpressionNode mapping, SpecificFieldNode field) {
+    static TextEdit removal(MappingConstructorExpressionNode mapping, SpecificFieldNode field) {
         SeparatedNodeList<MappingFieldNode> fields = mapping.fields();
         int index = 0;
         while (index < fields.size() && fields.get(index) != field) {
