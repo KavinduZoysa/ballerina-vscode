@@ -18,7 +18,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FunctionNode, LineRange, NodeKind, NodeProperties, NodePropertyKey, DIRECTORY_MAP, EVENT_TYPE, getPrimaryInputType, isTemplateType, RecordTypeField } from "@wso2/ballerina-core";
-import { Button, Codicon, Typography, View, ViewContent } from "@wso2/ui-toolkit";
+import { Button, Codicon, ThemeColors, Typography, View, ViewContent } from "@wso2/ui-toolkit";
 import styled from "@emotion/styled";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { FormField, FormImports, FormValues, Parameter } from "@wso2/ballerina-side-panel";
@@ -26,12 +26,22 @@ import ArtifactForm from "../Forms/ArtifactForm";
 import { TitleBar } from "../../../components/TitleBar";
 import { TopNavigationBar } from "../../../components/TopNavigationBar";
 import { FormHeader } from "../../../components/FormHeader";
+import { DownloadIcon } from "../../../components/DownloadIcon";
 import { convertConfig, getImportsForProperty, orderFormFields, DURABLE_AGENT_FORM_ORDER } from "../../../utils/bi";
 import { BodyText, LoadingContainer, TopBar } from "../../styles";
 import { LoadingRing } from "../../../components/Loader";
 
 // Default (auto-numbered) name offered by the Durable Agentic Workflow creation form.
 const DURABLE_AGENT_DEFAULT_NAME = "durableAgenticWorkflow";
+
+// The package the workflow artifacts are built from, pulled from Central the first time one of
+// them is created in a project.
+const WORKFLOW_PACKAGE_NAME = "workflow";
+
+// How long the plain loader is shown before switching to the "package is being pulled" status.
+// A cached package responds well within this, so the message only appears on an actual pull.
+// Matches ServiceCreationView / useServiceInitModel.
+const PACKAGE_PULL_MESSAGE_DELAY = 3000;
 
 const FormContainer = styled.div`
     display: flex;
@@ -44,6 +54,20 @@ const Container = styled.div`
     display: "flex";
     flex-direction: "column";
     gap: 10;
+`;
+
+const StatusCard = styled.div`
+    padding: 16px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+
+    & > svg {
+        font-size: 24px;
+        color: ${ThemeColors.ON_SURFACE};
+    }
 `;
 
 
@@ -71,6 +95,7 @@ export function FunctionForm(props: FunctionFormProps) {
     const [formSubtitle, setFormSubtitle] = useState<string>("");
     const [saving, setSaving] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isPullingPackage, setIsPullingPackage] = useState<boolean>(false);
     const [recordTypeFields] = useState<RecordTypeField[]>([]);
 
     const fileName = filePath.split(/[\\/]/).pop();
@@ -88,6 +113,19 @@ export function FunctionForm(props: FunctionFormProps) {
     useEffect(() => {
         functionNodeRef.current = functionNode;
     }, [functionNode]);
+
+    // Building the node template for a workflow artifact pulls ballerina/workflow from Central the
+    // first time, which leaves the user on a bare spinner for a long while. Tell them what the wait
+    // is, the same way the service artifacts do.
+    const pullsWorkflowPackage = isWorkflow || isDurableAgent || isActivity;
+    useEffect(() => {
+        if (!isLoading || !pullsWorkflowPackage) {
+            setIsPullingPackage(false);
+            return;
+        }
+        const timer = setTimeout(() => setIsPullingPackage(true), PACKAGE_PULL_MESSAGE_DELAY);
+        return () => clearTimeout(timer);
+    }, [isLoading, pullsWorkflowPackage]);
 
     const hideTypeDescriptionField = (flowNode: FunctionNode): FunctionNode => {
         if (flowNode?.properties?.typeDescription) {
@@ -678,7 +716,16 @@ export function FunctionForm(props: FunctionFormProps) {
                     />
                     {(isLoading || (saving && !functionName)) && (
                         <LoadingContainer>
-                            <LoadingRing message={saving ? `Creating the ${formType.current.toLowerCase()}...` : undefined} />
+                            {isPullingPackage && !saving ? (
+                                <StatusCard>
+                                    <DownloadIcon color={ThemeColors.ON_SURFACE} />
+                                    <Typography variant="body2">
+                                        Please wait while the {WORKFLOW_PACKAGE_NAME} package is being pulled...
+                                    </Typography>
+                                </StatusCard>
+                            ) : (
+                                <LoadingRing message={saving ? `Creating the ${formType.current.toLowerCase()}...` : undefined} />
+                            )}
                         </LoadingContainer>
                     )}
                     {/* While a new artifact is being created the form is replaced by the loader:
