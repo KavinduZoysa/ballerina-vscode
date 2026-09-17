@@ -90,7 +90,7 @@ export type { PanelRoute } from "./utils/panelNav";
 import WelcomeMessage from "./Welcome";
 import { getOnboardingOpens, incrementOnboardingOpens, convertToUIMessages, isContainsSyntaxError } from "./utils/utils";
 import { applyGenerationStatus, deriveReviewBarState, PanelMessage } from "./utils/reviewBarState";
-import { backTooltipFor, PanelRoute } from "./utils/panelNav";
+import { backTooltipFor, isNavigationPrompt, PanelRoute, routeInitialPrompt } from "./utils/panelNav";
 import { upsertToolResult,
     serializeStream, parseStream, appendToLastEntry, upsertComponent, upsertRequestCard,
     buildRequestCardData, buildPlanItem, applyPlanApprovalResolution, appendAbortMarker, applyTaskWriteResult,
@@ -649,15 +649,20 @@ const AIChat: React.FC = () => {
                 .getDefaultPrompt()
                 .then(async (defaultPrompt: AIPanelPrompt) => {
                     if (defaultPrompt) {
-                        // Opened straight onto a surface or a thread rather than with something to send.
-                        if (defaultPrompt.type === 'view') {
-                            rpcClient.getAiPanelRpcClient().clearInitialPrompt();
-                            pushPanel(defaultPrompt.view);
-                            return;
-                        }
-                        if (defaultPrompt.type === 'thread') {
-                            rpcClient.getAiPanelRpcClient().clearInitialPrompt();
-                            void handleSwitchThread(defaultPrompt.threadId);
+                        if (isNavigationPrompt(defaultPrompt)) {
+                            const route = routeInitialPrompt(defaultPrompt);
+                            if (route.kind === 'view') {
+                                rpcClient.getAiPanelRpcClient().clearInitialPrompt();
+                                pushPanel(route.view);
+                            } else if (route.kind === 'thread') {
+                                // Cleared only once the switch lands: a refused one would otherwise
+                                // drop the request with the panel still on the previous thread.
+                                void handleSwitchThread(route.threadId).then((switched) => {
+                                    if (switched) {
+                                        rpcClient.getAiPanelRpcClient().clearInitialPrompt();
+                                    }
+                                });
+                            }
                             return;
                         }
 
@@ -2419,10 +2424,10 @@ const AIChat: React.FC = () => {
         }
     }
 
-    async function handleSwitchThread(threadId: string): Promise<void> {
+    async function handleSwitchThread(threadId: string): Promise<boolean> {
         const switched = await rpcClient.getAiPanelRpcClient().switchThread({ threadId });
         if (!switched) {
-            return;
+            return false;
         }
 
         // Reload messages and checkpoints for the newly active thread in parallel
