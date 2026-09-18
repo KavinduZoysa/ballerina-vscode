@@ -115,26 +115,12 @@ public class AgentRunBuilder extends CallBuilder {
         super.setConcreteTemplateData(context);
     }
 
-    /**
-     * Post-processes the {@code query} property on an AGENT_RUN node builder, adding a PROMPT type option
-     * when its declared type is a union containing {@code ai:Prompt} (e.g. {@code anydata|ai:Prompt|ai:Resume}
-     * for a typed agent's {@code run}). Safe to call for any node builder — exits immediately when the
-     * conditions are not met.
-     *
-     * @param nodeBuilder     the node builder to update
-     * @param defaultToPrompt selects PROMPT by default, for a blank template where the query value is
-     *                        just a generic placeholder rather than a real value read from source
-     */
+    /** Adds PROMPT to the query property on an AGENT_RUN node builder; no-op for any other builder. */
     public static void fixQueryPromptType(NodeBuilder nodeBuilder, boolean defaultToPrompt) {
         if (!(nodeBuilder instanceof AgentRunBuilder builder) || builder.formBuilder == null) {
             return;
         }
-        Map<String, Property> props = builder.formBuilder.build();
-        Property prop = props.get(QUERY);
-        if (prop == null) {
-            return;
-        }
-        props.put(QUERY, AiUtils.addPromptTypeIfUnionMember(prop, defaultToPrompt));
+        AiUtils.fixQueryPromptType(builder.formBuilder.build(), defaultToPrompt);
     }
 
     private void restoreFromTemplate(FlowNode template) {

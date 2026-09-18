@@ -3955,7 +3955,13 @@ public class CodeAnalyzer extends NodeVisitor {
 
         if (kind == NodeKind.AGENT) {
             AgentBuilder.hideAgentConfigProperties(nodeBuilder);
-            genAgentData(newExpressionNode, argumentNodes, classSymbol, new HashMap<>(), false);
+            if (argumentNodes == null) {
+                // Drop the reserved slots so the placeholders don't leak into the output.
+                nodeBuilder.properties().removeProperty(AgentCallBuilder.ROLE)
+                        .removeProperty(AgentCallBuilder.INSTRUCTIONS);
+            } else {
+                genAgentData(newExpressionNode, argumentNodes, classSymbol, new HashMap<>(), false);
+            }
         }
 
         if (kind == NodeKind.TYPED_AGENT) {

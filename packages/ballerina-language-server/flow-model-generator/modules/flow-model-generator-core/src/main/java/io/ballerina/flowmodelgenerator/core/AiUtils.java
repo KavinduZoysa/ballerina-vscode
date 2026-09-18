@@ -193,6 +193,7 @@ public class AiUtils {
 
     public static final String MEMORY_DEFAULT_VALUE = "10";
     public static final String AI_PROMPT_TYPE = "ai:Prompt";
+    private static final String QUERY_KEY = "query";
 
     private static final String AGENT_INFO_KEY = "agentInfo";
     private static final String CONNECTION_DATA_KEY = "connection";
@@ -436,6 +437,15 @@ public class AiUtils {
         );
     }
 
+    // Takes the raw property map, not a NodeBuilder, since formBuilder needs a same-class cast to reach.
+    public static void fixQueryPromptType(Map<String, Property> props, boolean defaultToPrompt) {
+        Property prop = props.get(QUERY_KEY);
+        if (prop == null) {
+            return;
+        }
+        props.put(QUERY_KEY, addPromptTypeIfUnionMember(prop, defaultToPrompt));
+    }
+
     /**
      * Adds PROMPT to a property whose type is a union containing {@code ai:Prompt}
      * (e.g. {@code anydata|ai:Prompt|ai:Resume}), which the generic type resolution misses.
@@ -467,7 +477,7 @@ public class AiUtils {
                 updatedTypes,
                 original.value(),
                 original.oldValue(),
-                null,
+                isPromptValue ? null : original.placeholder(),
                 original.optional(),
                 original.editable(),
                 original.advanced(),

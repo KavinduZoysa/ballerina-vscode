@@ -735,6 +735,7 @@
               }
             ],
             "value": "\"What's the weather in London?\"",
+            "placeholder": "{}",
             "optional": false,
             "editable": true,
             "advanced": false,
