@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { validateWorkflowAudience } from "./workflowAudienceValidation";
 import { RefObject, useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import {
     EVENT_TYPE,
@@ -1295,6 +1296,19 @@ export const FlowNodeForm = forwardRef<FormExpressionEditorRef, FlowNodeFormProp
     };
 
     const handleFormValidation = async (data: FormValues, dirtyFields?: any): Promise<boolean> => {
+        // A task naming nobody is refused when the source is generated, which is after the save has
+        // left the panel. Catching it here keeps the panel open with what was typed.
+        const audienceError = validateWorkflowAudience(data, node?.codedata?.node);
+        if (audienceError) {
+            setBaseFields((previous) =>
+                previous.map((field) =>
+                    field.key === audienceError.fieldKey
+                        ? { ...field, diagnostics: [{ message: audienceError.message, severity: "ERROR" }] }
+                        : field
+                )
+            );
+            return false;
+        }
         if (node && targetLineRange && !skipFormValidation) {
             const validationData = buildValidationData(data);
             const updatedNode = mergeFormDataWithFlowNode(validationData, targetLineRange, dirtyFields);
