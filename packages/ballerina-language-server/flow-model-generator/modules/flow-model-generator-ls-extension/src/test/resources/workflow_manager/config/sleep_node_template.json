@@ -80,7 +80,7 @@
         "placeholder": "()",
         "optional": true,
         "editable": true,
-        "advanced": false,
+        "advanced": true,
         "hidden": false,
         "codedata": {
           "kind": "DEFAULTABLE",

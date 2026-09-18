@@ -13,7 +13,36 @@
     "fileName": "durable_agent_gate_policy.bal",
     "nodes": [
       {
-        "id": "63686",
+        "id": "66899",
+        "metadata": {
+          "label": "Start",
+          "data": {
+            "kind": "Function",
+            "label": "drivePaymentAgent",
+            "isServiceFunction": false,
+            "return": "error?"
+          }
+        },
+        "codedata": {
+          "node": "EVENT_START",
+          "lineRange": {
+            "fileName": "durable_agent_gate_policy.bal",
+            "startLine": {
+              "line": 34,
+              "offset": 44
+            },
+            "endLine": {
+              "line": 36,
+              "offset": 1
+            }
+          },
+          "sourceCode": "function drivePaymentAgent() returns error? {\n    string instanceId = check paymentAgent.run(query = \"Charge order 42\");\n}"
+        },
+        "returning": false,
+        "flags": 0
+      },
+      {
+        "id": "66662",
         "metadata": {
           "label": "Configure Agent",
           "description": "Configure the agent's role, instructions, model and reasoning limit",
@@ -37,20 +66,20 @@
                 "lineRange": {
                   "fileName": "durable_agent_gate_policy.bal",
                   "startLine": {
-                    "line": 24,
+                    "line": 27,
                     "offset": 8
                   },
                   "endLine": {
-                    "line": 24,
+                    "line": 27,
                     "offset": 196
                   }
                 },
                 "values": {
                   "activity": "chargeCard",
                   "description": "Charges the card",
-                  "requiresApproval": "true",
-                  "userRoles": "[\"manager\"]",
-                  "users": "alice",
+                  "approvalPolicy": "HumanApproval",
+                  "approvalUserRoles": "[\"manager\"]",
+                  "approvalUsers": "\"alice\"",
                   "approvalTitle": "\"Approve the charge\"",
                   "approvalTimeout": "{hours: 4}",
                   "bindings.api": "payApi"
@@ -65,19 +94,20 @@
                 "lineRange": {
                   "fileName": "durable_agent_gate_policy.bal",
                   "startLine": {
-                    "line": 27,
+                    "line": 30,
                     "offset": 8
                   },
                   "endLine": {
-                    "line": 27,
-                    "offset": 121
+                    "line": 30,
+                    "offset": 141
                   }
                 },
                 "values": {
                   "tool": "refund",
-                  "requiresApproval": "true",
-                  "userRoles": "finance",
-                  "excludedUsers": "[\"bob\"]",
+                  "approvalPolicy": "HumanApproval",
+                  "approvalUserRoles": "\"finance\"",
+                  "approvalExcludedUsers": "[\"bob\"]",
+                  "approvalTitle": "refundTitle",
                   "approvalDescription": "\"Approve the refund\""
                 }
               }
@@ -87,11 +117,11 @@
             "declaration": {
               "fileName": "durable_agent_gate_policy.bal",
               "startLine": {
-                "line": 20,
+                "line": 23,
                 "offset": 0
               },
               "endLine": {
-                "line": 29,
+                "line": 32,
                 "offset": 3
               }
             }
@@ -108,11 +138,11 @@
           "lineRange": {
             "fileName": "durable_agent_gate_policy.bal",
             "startLine": {
-              "line": 32,
+              "line": 35,
               "offset": 4
             },
             "endLine": {
-              "line": 32,
+              "line": 35,
               "offset": 74
             }
           },
@@ -260,11 +290,11 @@
               "lineRange": {
                 "fileName": "durable_agent_gate_policy.bal",
                 "startLine": {
-                  "line": 32,
+                  "line": 35,
                   "offset": 11
                 },
                 "endLine": {
-                  "line": 32,
+                  "line": 35,
                   "offset": 21
                 }
               }

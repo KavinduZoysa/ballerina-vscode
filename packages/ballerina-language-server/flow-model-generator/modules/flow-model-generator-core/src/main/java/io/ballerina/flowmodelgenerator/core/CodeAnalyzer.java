@@ -143,6 +143,7 @@ import io.ballerina.flowmodelgenerator.core.model.Property;
 import io.ballerina.flowmodelgenerator.core.model.node.ActivityCallBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.AgentBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.AgentCallBuilder;
+import io.ballerina.flowmodelgenerator.core.model.node.ApprovalPolicyForm;
 import io.ballerina.flowmodelgenerator.core.model.node.AssignBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.BinaryBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.CallBuilder;
@@ -549,6 +550,9 @@ public class CodeAnalyzer extends NodeVisitor {
         // method of the same name (`callWorkflow` especially) keeps its generic title.
         if (isWorkflowContextClass(classSymbol)) {
             applyChildWorkflowMetadata(remoteMethodCallActionNode, functionName);
+            // The step id arrives from the signature as a plain parameter, while the templates put it
+            // with the advanced configurations. Re-reading a call has to render the same form.
+            WorkflowUtil.markStepIdAdvanced(nodeBuilder.properties().build());
         }
 
         if (isWorkflowCtxOperation(remoteMethodCallActionNode, classSymbol, CALL_ACTIVITY_METHOD_NAME)) {
@@ -1019,6 +1023,9 @@ public class CodeAnalyzer extends NodeVisitor {
                     .symbol(SLEEP_METHOD_NAME);
 
         processFunctionSymbol(callNode, callNode.arguments(), functionSymbol, functionData);
+        // The step id arrives from the signature as a plain parameter, while the template puts it
+        // with the advanced configurations. Re-reading a sleep has to render the same form.
+        WorkflowUtil.markStepIdAdvanced(nodeBuilder.properties().build());
 
         SyntaxKind parentKind = callNode.parent().kind();
         boolean hasCheck = parentKind == SyntaxKind.CHECK_ACTION
@@ -1504,10 +1511,22 @@ public class CodeAnalyzer extends NodeVisitor {
                     DurableAgentRunBuilder.convertModelToSelect(nodeBuilder,
                             DurableAgentRunBuilder.modelProviderOptions(semanticModel));
                 }
-                // The reasoning cap is part of the declaration, so the configuration form has to
-                // show the declared value rather than opening blank on it.
+                // Each declared configuration field travels to the form, so it opens on the declared
+                // value rather than blank.
+                case "resultType" -> addAgentCallProperty(DurableAgentRunBuilder.RESULT_TYPE_KEY,
+                        DurableAgentRunBuilder.RESULT_TYPE_LABEL, DurableAgentRunBuilder.RESULT_TYPE_DOC,
+                        valueExpr.toSourceCode().trim());
+                case "inputType" -> addAgentCallProperty(DurableAgentRunBuilder.INPUT_TYPE_KEY,
+                        DurableAgentRunBuilder.INPUT_TYPE_LABEL, DurableAgentRunBuilder.INPUT_TYPE_DOC,
+                        valueExpr.toSourceCode().trim());
+                case "eventTimeout" -> addAgentCallProperty(DurableAgentRunBuilder.EVENT_TIMEOUT_KEY,
+                        DurableAgentRunBuilder.EVENT_TIMEOUT_LABEL, DurableAgentRunBuilder.EVENT_TIMEOUT_DOC,
+                        valueExpr.toSourceCode().trim());
+                case "maxEventWaits" -> addAgentCallProperty(DurableAgentRunBuilder.MAX_EVENT_WAITS_KEY,
+                        DurableAgentRunBuilder.MAX_EVENT_WAITS_LABEL, DurableAgentRunBuilder.MAX_EVENT_WAITS_DOC,
+                        valueExpr.toSourceCode().trim());
                 case "maxIter" -> addAgentCallProperty(DurableAgentRunBuilder.MAX_ITER_KEY,
-                        "Maximum Iterations", "Maximum LLM reasoning iterations per turn",
+                        DurableAgentRunBuilder.MAX_ITER_LABEL, DurableAgentRunBuilder.MAX_ITER_DOC,
                         valueExpr.toSourceCode().trim());
                 // approvalPolicy is composite: collectCapabilityFields explodes it into the gate flag
                 // and the audience fields the form shows.
@@ -1524,10 +1543,14 @@ public class CodeAnalyzer extends NodeVisitor {
                         Map.of("name", "name", "request", "requestType", "response", "responseType",
                                 "cardinality", "cardinality"), updateEvents);
                 case "humanTasks" -> collectDeclaredCapabilities(valueExpr, "humanTask", null,
-                        Map.of("name", "taskName", "roles", "userRoles", "userRoles", "userRoles",
-                                "users", "users", "excludedUsers", "excludedUsers", "excludedRoles", "excludedRoles",
-                                "title", "title", "description", "description", "resultType", "resultType",
-                                "timeout", "timeout"),
+                        Map.ofEntries(Map.entry("name", "taskName"), Map.entry("roles", "userRoles"),
+                                Map.entry("userRoles", "userRoles"), Map.entry("users", "users"),
+                                Map.entry("excludedUsers", "excludedUsers"),
+                                Map.entry("excludedRoles", "excludedRoles"),
+                                Map.entry("administratorRoles", "administratorRoles"),
+                                Map.entry("administratorUsers", "administratorUsers"), Map.entry("title", "title"),
+                                Map.entry("description", "description"), Map.entry("resultType", "resultType"),
+                                Map.entry("taskInputType", "taskInputType"), Map.entry("timeout", "timeout")),
                         humanTasks);
                 default -> {
                 }
@@ -1599,17 +1622,7 @@ public class CodeAnalyzer extends NodeVisitor {
                         putIfNotBlank(values, ActivityCallBuilder.RETRY_BACKOFF_KEY, retryForm.retryBackoff());
                         putIfNotBlank(values, ActivityCallBuilder.MAX_RETRY_DELAY_KEY,
                                 retryForm.maxRetryDelay());
-                        putIfNotBlank(values, ActivityCallBuilder.RETRY_USER_ROLES_KEY,
-                                retryForm.review().userRoles());
-                        putIfNotBlank(values, ActivityCallBuilder.RETRY_USERS_KEY, retryForm.review().users());
-                        putIfNotBlank(values, ActivityCallBuilder.RETRY_EXCLUDED_USERS_KEY,
-                                retryForm.review().excludedUsers());
-                        putIfNotBlank(values, ActivityCallBuilder.RETRY_EXCLUDED_ROLES_KEY,
-                                retryForm.review().excludedRoles());
-                        putIfNotBlank(values, ActivityCallBuilder.RETRY_ADMINISTRATOR_ROLES_KEY,
-                                retryForm.review().administratorRoles());
-                        putIfNotBlank(values, ActivityCallBuilder.RETRY_ADMINISTRATOR_USERS_KEY,
-                                retryForm.review().administratorUsers());
+                        putReviewValues(values, ActivityCallBuilder.RETRY_REVIEW_KEYS, retryForm.review());
                         continue;
                     }
                     if ("activity".equals(capabilityType) && "bindings".equals(fieldName)
@@ -1716,38 +1729,32 @@ public class CodeAnalyzer extends NodeVisitor {
     }
 
     private static final Set<String> ROLE_FIELDS = Set.of("roles", "userRoles");
-    // The policy fields the gate form carries beside the flag, with the property key each hydrates into.
-    private static final Map<String, String> APPROVAL_POLICY_KEYS = Map.of(
-            "title", WorkflowUtil.APPROVAL_TITLE_KEY,
-            "description", WorkflowUtil.APPROVAL_DESCRIPTION_KEY,
-            "timeout", WorkflowUtil.APPROVAL_TIMEOUT_KEY);
     // Capability declaration fields whose values render in text-mode form fields.
     private static final Set<String> TEXT_MODE_CAPABILITY_FIELDS =
             Set.of("name", "title", "description", "roles", "userRoles", "users", "excludedUsers", "excludedRoles",
                     "administratorRoles", "administratorUsers");
 
-    // A review definition as the policy sets the gate flag and fills the audience fields; NoApproval,
-    // or a policy the form cannot read, leaves the gate off.
+    // The policy decomposes into the approval dropdown's selection plus its review fields, the way
+    // retryPolicy does; a policy the form cannot read is carried as the selection itself.
     private static void hydrateApprovalPolicy(ExpressionNode policy, Map<String, String> values) {
-        if (policy.kind() != SyntaxKind.MAPPING_CONSTRUCTOR) {
-            return;
-        }
-        values.put("requiresApproval", "true");
-        for (MappingFieldNode field : ((MappingConstructorExpressionNode) policy).fields()) {
-            if (!(field instanceof SpecificFieldNode specific) || specific.valueExpr().isEmpty()) {
-                continue;
-            }
-            String key = specific.fieldName().toSourceCode().trim();
-            String raw = specific.valueExpr().get().toSourceCode().trim();
-            if (ROLE_FIELDS.contains(key)) {
-                putIfNotBlank(values, USER_ROLES_FIELD, nilAsBlank(stripQuotes(raw)));
-            } else if (WorkflowUtil.AUDIENCE_KEYS.contains(key)) {
-                putIfNotBlank(values, key, stripQuotes(raw));
-            } else if (APPROVAL_POLICY_KEYS.containsKey(key)) {
-                // Under the gate's own keys: the capability's description is a different field.
-                putIfNotBlank(values, APPROVAL_POLICY_KEYS.get(key), raw);
-            }
-        }
+        ApprovalPolicyForm.Form form = ApprovalPolicyForm.normalize(policy.toSourceCode().trim());
+        values.put(ApprovalPolicyForm.KEY, form.dropdownValue());
+        putReviewValues(values, ApprovalPolicyForm.REVIEW_KEYS, form.review());
+    }
+
+    private static void putReviewValues(Map<String, String> values, ActivityCallBuilder.ReviewKeys keys,
+                                        ActivityCallBuilder.ReviewFormValues review) {
+        putIfNotBlank(values, keys.userRoles(), review.userRoles());
+        putIfNotBlank(values, keys.users(), review.users());
+        putIfNotBlank(values, keys.excludedUsers(), review.excludedUsers());
+        putIfNotBlank(values, keys.excludedRoles(), review.excludedRoles());
+        putIfNotBlank(values, keys.administratorRoles(), review.administratorRoles());
+        putIfNotBlank(values, keys.administratorUsers(), review.administratorUsers());
+        // Source, not the decoded text: these values reach a capability form as plain strings, and a
+        // reference decoded into text would be quoted into a literal of the same spelling on save.
+        putIfNotBlank(values, keys.title(), review.title().sourceForm());
+        putIfNotBlank(values, keys.description(), review.description().sourceForm());
+        putIfNotBlank(values, keys.timeout(), review.timeout());
     }
 
     private static void putIfNotBlank(Map<String, String> values, String key, String value) {
@@ -1900,26 +1907,16 @@ public class CodeAnalyzer extends NodeVisitor {
     private void populateActivityCallProperties(RemoteMethodCallActionNode remoteMethodCallActionNode) {
         SeparatedNodeList<FunctionArgumentNode> args = remoteMethodCallActionNode.arguments();
 
-        // Step 1: Move the advance params (already populated with actual values) into ADVANCED_PARAM_KEY.
+        // Step 1: The two policies become dropdowns of their own; the remaining options (stepId) stay
+        // in the advanced section, as the creation form lays them out.
         Map<String, Property> currentProps = nodeBuilder.properties().build();
-        // Save retryPolicy raw value BEFORE removeIf strips it (it is excluded from ADVANCE_PARAM_LIST).
-        String rawRetryPolicyValue = null;
-        {
-            Property rp = currentProps.get(ActivityCallBuilder.RETRY_POLICY_PARAM);
-            if (rp != null && rp.value() != null) {
-                rawRetryPolicyValue = rp.value().toString();
-            }
-        }
+        String rawRetryPolicyValue = rawPropertyValue(currentProps, ActivityCallBuilder.RETRY_POLICY_PARAM);
+        String rawApprovalPolicyValue = rawPropertyValue(currentProps, ApprovalPolicyForm.KEY);
         currentProps.keySet().removeIf(EXCLUDED_CALL_ACTIVITY_PARAMS::contains);
-        Map<String, Property> advancedProps = new LinkedHashMap<>(currentProps);
+        Map<String, Property> savedOptionProps = new LinkedHashMap<>();
+        currentProps.forEach((key, property) ->
+                savedOptionProps.put(key, Property.Builder.copyFrom(property).advanced(true).build()));
         currentProps.clear();
-        nodeBuilder.properties().nestedProperty();
-        nodeBuilder.properties().build().putAll(advancedProps);
-        nodeBuilder.properties().endNestedProperty(
-                Property.ValueType.ADVANCE_PARAM_LIST,
-                Property.ADVANCED_PARAM_KEY,
-                ActivityCallBuilder.ADVANCE_CONFIGURATIONS,
-                ActivityCallBuilder.ADVANCE_CONFIGURATIONS);
 
         // Step 2: Get activity function params directly from the symbol (avoids expensive
         // FunctionDataBuilder). The function reference may be positional or named.
@@ -1934,7 +1931,8 @@ public class CodeAnalyzer extends NodeVisitor {
 
         if (activityParamSymbols.isEmpty()) {
             ActivityCallBuilder.addCheckErrorProperty(nodeBuilder, isCheckedCall(remoteMethodCallActionNode));
-            addNormalizedRetryPolicyProperties(rawRetryPolicyValue);
+            nodeBuilder.properties().build().putAll(savedOptionProps);
+            addNormalizedPolicyProperties(rawApprovalPolicyValue, rawRetryPolicyValue);
             return;
         }
 
@@ -1946,7 +1944,9 @@ public class CodeAnalyzer extends NodeVisitor {
             MappingConstructorExpressionNode mappingNode = (MappingConstructorExpressionNode) argsExpr.get();
             for (MappingFieldNode field : mappingNode.fields()) {
                 if (field instanceof SpecificFieldNode specificField) {
-                    String key = specificField.fieldName().toString().trim();
+                    // A key may be written quoted (`"claimId": ...`); the parameter it names is not.
+                    String key = stripQuotes(ParamUtils.removeLeadingSingleQuote(
+                            specificField.fieldName().toSourceCode().trim()));
                     Node valueNode = specificField.valueExpr().orElse(null);
                     argsValues.put(key, valueNode);
                 }
@@ -2015,8 +2015,10 @@ public class CodeAnalyzer extends NodeVisitor {
         // The flag mirrors the template so an existing statement round-trips: a call written without
         // `check` comes back with the box cleared instead of being silently rewritten with it.
         ActivityCallBuilder.addCheckErrorProperty(nodeBuilder, isCheckedCall(remoteMethodCallActionNode));
-        // After activity input params, add retryPolicy at root level (outside ADVANCE_PARAM_LIST).
-        addNormalizedRetryPolicyProperties(rawRetryPolicyValue);
+        // After the activity's inputs come the policies and the advanced options, as the creation form
+        // lays them out.
+        nodeBuilder.properties().build().putAll(savedOptionProps);
+        addNormalizedPolicyProperties(rawApprovalPolicyValue, rawRetryPolicyValue);
     }
 
     /**
@@ -2297,18 +2299,14 @@ public class CodeAnalyzer extends NodeVisitor {
                         && property.codedata().kind().equals(ParameterData.Kind.PARAM_FOR_TYPE_INFER.name()))
                 .findFirst()
                 .orElse(null);
-        // Save retryPolicy separately — it is excluded from ADVANCE_PARAM_LIST and restored at root level.
-        String rawRetryPolicyValue = null;
-        {
-            Property rp = currentProps.get(ActivityCallBuilder.RETRY_POLICY_PARAM);
-            if (rp != null && rp.value() != null) {
-                rawRetryPolicyValue = rp.value().toString();
-            }
-        }
-        Map<String, Property> savedAdvancedProps = new LinkedHashMap<>();
+        // The policies are restored as their dropdowns; the remaining options (stepId) as advanced fields.
+        String rawRetryPolicyValue = rawPropertyValue(currentProps, ActivityCallBuilder.RETRY_POLICY_PARAM);
+        String rawApprovalPolicyValue = rawPropertyValue(currentProps, ApprovalPolicyForm.KEY);
+        Map<String, Property> savedOptionProps = new LinkedHashMap<>();
         for (Map.Entry<String, Property> entry : currentProps.entrySet()) {
             if (!EXCLUDED_CALL_ACTIVITY_PARAMS.contains(entry.getKey())) {
-                savedAdvancedProps.put(entry.getKey(), entry.getValue());
+                savedOptionProps.put(entry.getKey(),
+                        Property.Builder.copyFrom(entry.getValue()).advanced(true).build());
             }
         }
         currentProps.clear();
@@ -2404,19 +2402,21 @@ public class CodeAnalyzer extends NodeVisitor {
 
         ActivityCallBuilder.addCheckErrorProperty(nodeBuilder, isCheckedCall(callNode));
 
-        // Restore advanced callActivity params (retryOnError, timeout, etc.) as ADVANCED_PARAM_KEY
-        // so toSourceBuiltin() / populateAdvancedArgs() can emit them as named arguments.
-        if (!savedAdvancedProps.isEmpty()) {
-            nodeBuilder.properties().nestedProperty();
-            nodeBuilder.properties().build().putAll(savedAdvancedProps);
-            nodeBuilder.properties().endNestedProperty(
-                    Property.ValueType.ADVANCE_PARAM_LIST,
-                    Property.ADVANCED_PARAM_KEY,
-                    ActivityCallBuilder.ADVANCE_CONFIGURATIONS,
-                    ActivityCallBuilder.ADVANCE_CONFIGURATIONS);
-        }
-        // Restore retryPolicy at root level as a DROPDOWN_CHOICE (must be outside ADVANCE_PARAM_LIST).
-        addNormalizedRetryPolicyProperties(rawRetryPolicyValue);
+        // The options and the policies follow the call's fields, in the signature's order.
+        nodeBuilder.properties().build().putAll(savedOptionProps);
+        addNormalizedPolicyProperties(rawApprovalPolicyValue, rawRetryPolicyValue);
+    }
+
+    private static String rawPropertyValue(Map<String, Property> properties, String key) {
+        Property property = properties.get(key);
+        return property == null || property.value() == null ? null : property.value().toString();
+    }
+
+    // Both policies as their dropdowns, approval first as CallActivityOptions declares them.
+    private void addNormalizedPolicyProperties(String rawApprovalPolicy, String rawRetryPolicy) {
+        ApprovalPolicyForm.Form approval = ApprovalPolicyForm.normalize(rawApprovalPolicy);
+        ApprovalPolicyForm.addFormProperties(nodeBuilder, approval.dropdownValue(), approval.review());
+        addNormalizedRetryPolicyProperties(rawRetryPolicy);
     }
 
     /**
@@ -2534,14 +2534,7 @@ public class CodeAnalyzer extends NodeVisitor {
      * {@code reviewTitle} could equally be a literal's text or a variable of that name.
      */
     private static ActivityCallBuilder.ReviewText reviewText(String literal) {
-        if (literal == null || literal.isBlank()) {
-            return ActivityCallBuilder.ReviewText.empty();
-        }
-        String source = literal.trim();
-        String text = WorkflowUtil.stringLiteralText(source);
-        return text.equals(source)
-                ? ActivityCallBuilder.ReviewText.expression(source)
-                : ActivityCallBuilder.ReviewText.text(text);
+        return ActivityCallBuilder.ReviewText.fromSource(literal);
     }
 
     // Whether the expression IS one of the named policy sentinels, bare or module-qualified.
