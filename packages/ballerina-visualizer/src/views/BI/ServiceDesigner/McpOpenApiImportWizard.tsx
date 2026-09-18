@@ -353,7 +353,7 @@ export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
                                 onSubmit={handleConfigSubmit}
                                 onBack={onBack}
                                 cancelText="Back"
-                                serverValidationErrors={[]}
+                                serverValidationErrors={serverValidationErrors}
                                 preserveFieldOrder={true}
                                 recordTypeFields={recordTypeFields}
                                 submitText="Next"

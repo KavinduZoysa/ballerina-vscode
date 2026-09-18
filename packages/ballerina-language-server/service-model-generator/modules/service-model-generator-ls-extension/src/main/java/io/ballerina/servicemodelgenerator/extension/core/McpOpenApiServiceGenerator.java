@@ -114,8 +114,11 @@ public class McpOpenApiServiceGenerator {
         // Uniquified like refreshListenerName, so a second import doesn't redeclare apiClient.
         String clientName = Utils.generateVariableIdentifier(semanticModel, mainDocument,
                 mainModulePart.lineRange().endLine(), DEFAULT_CLIENT_NAME);
-        serviceSource = serviceSource.replace(DEFAULT_CLIENT_NAME, clientName)
-                .replace(DEFAULT_LISTENER_NAME, listenerName)
+        // Word-boundary match: a plain replace would also corrupt an OpenAPI-derived tool name
+        // like "apiClientStatus" that merely contains the default identifier as a substring.
+        serviceSource = serviceSource.replaceAll("\\b" + DEFAULT_CLIENT_NAME + "\\b",
+                        Matcher.quoteReplacement(clientName))
+                .replaceAll("\\b" + DEFAULT_LISTENER_NAME + "\\b", Matcher.quoteReplacement(listenerName))
                 .replace("new (" + DEFAULT_PORT + ")", "new (" + port + ")");
 
         Map<String, List<TextEdit>> edits = new LinkedHashMap<>();
