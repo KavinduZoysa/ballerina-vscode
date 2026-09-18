@@ -130,12 +130,19 @@ public class McpOpenApiServiceGenerator {
             // @mcp:Tool description (schema names are typically mentioned in the OpenAPI summary/description
             // text) — a text-level rename would risk corrupting that prose, so a collision fails clearly
             // instead of silently renaming.
+            //
+            // Checked against every schema in the spec, not just the selected endpoints': mcp-core has no
+            // API to generate types.bal from a subset of components.schemas, so every schema is always
+            // written regardless of which tools were picked (a pre-existing, independent limitation) —
+            // narrowing this check to the selection would let an unselected collision through unreported.
             Set<String> usedNames = Utils.getVisibleSymbols(semanticModel, mainDocument);
             for (String typeName : declaredTypeNames(typesSource)) {
                 if (usedNames.contains(typeName)) {
                     throw new McpGenerationException("Generated type '" + typeName
-                            + "' already exists in the project. Rename or remove it before importing this "
-                            + "specification.");
+                            + "' already exists in the project. Every schema in the OpenAPI specification is "
+                            + "generated into types.bal, including ones not used by the tools you selected. "
+                            + "Rename or remove the existing '" + typeName + "', or rename it in the "
+                            + "specification, before importing.");
                 }
             }
         }
