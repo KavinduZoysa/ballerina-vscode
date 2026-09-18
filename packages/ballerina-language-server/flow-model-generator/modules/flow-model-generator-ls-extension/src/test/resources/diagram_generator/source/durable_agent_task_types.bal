@@ -37,6 +37,11 @@ final workflow:DurableAgent claimAgent = check new ({
 });
 
 @workflow:Workflow
+function auditClaim(workflow:Context ctx, string claimId) returns error? {
+}
+
+@workflow:Workflow
 function reconcileClaims(workflow:Context ctx, string claimId) returns error? {
     check ctx.sleep({seconds: 5}, stepId = "cool-off#1");
+    string auditId = check ctx->runChildWorkflow(auditClaim, claimId, stepId = "audit#1");
 }

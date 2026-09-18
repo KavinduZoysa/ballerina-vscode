@@ -147,8 +147,7 @@ public class ActivityCallBuilder extends CallBuilder {
     // a review nobody can decide, or an attempt count the author never chose.
     private static final String NO_ATTEMPTS_MESSAGE =
             "Retry, then Review needs an attempt count: fill in Max Retries";
-    private static final String NO_REVIEWER_MESSAGE =
-            "A review needs someone who may decide it: fill in Reviewer Roles, Reviewers, or both";
+    private static final String NO_REVIEWER_MESSAGE = WorkflowUtil.AUDIENCE_REQUIRED_MESSAGE;
     // The review fields' wording. Each field is rendered twice — once as the dropdown's visible
     // sub-property and once as the root hidden property that stores its value — so the label and the
     // doc live here rather than inline at both call sites, where they had already drifted apart.
@@ -185,6 +184,7 @@ public class ActivityCallBuilder extends CallBuilder {
     private static final String MAX_RETRY_DELAY_DOC = "Cap on the delay between retries, in seconds";
     /** The step identity option of {@code callActivity}, a plain named argument. */
     public static final String STEP_ID_PARAM = "stepId";
+    private static final String STRING_TYPE = "string";
     /** The open rest of {@code CallActivityOptions}, as the generic parameter reader names it. */
     public static final String ADDITIONAL_VALUES_KEY = "additionalValues";
     // The two policies are dropdowns of their own, and the open rest is the module's door for
@@ -808,6 +808,19 @@ public class ActivityCallBuilder extends CallBuilder {
             return text.equals(trimmed) ? expression(trimmed) : text(text);
         }
 
+        /**
+         * The value as source: an expression as it stands, text as the literal that denotes it.
+         * What a form carrying only strings hands on, since it cannot carry the mode beside them.
+         *
+         * @return the source, or {@code ""} when nothing is declared
+         */
+        public String sourceForm() {
+            if (value == null || value.isBlank()) {
+                return "";
+            }
+            return expression ? value : WorkflowUtil.stringLiteral(value);
+        }
+
         /** A string literal read from source, decoded to the text it denotes. */
         public static ReviewText text(String value) {
             return new ReviewText(value == null ? "" : value, false);
@@ -933,6 +946,22 @@ public class ActivityCallBuilder extends CallBuilder {
      * @return the sub-properties, in render order
      */
     static Map<String, Property> reviewSubProperties(ReviewKeys keys, String titleDoc, String descriptionDoc) {
+        return reviewSubProperties(keys, titleDoc, descriptionDoc, true);
+    }
+
+    /**
+     * The review fields a policy option renders, with the wording fields in one mode or two.
+     *
+     * @param keys           the property keys of this review form
+     * @param titleDoc       what an empty title defaults to
+     * @param descriptionDoc what an empty description defaults to
+     * @param dualModeText   whether the wording fields offer a text box beside the expression editor;
+     *                       a form whose values reach it as plain strings cannot, because the mode
+     *                       does not travel with them and a reference would be quoted on save
+     * @return the sub-properties, in render order
+     */
+    static Map<String, Property> reviewSubProperties(ReviewKeys keys, String titleDoc, String descriptionDoc,
+                                                     boolean dualModeText) {
         Map<String, Property> fields = new LinkedHashMap<>();
         fields.put(keys.userRoles(), buildReviewerRolesSubProperty(RETRY_USER_ROLES_LABEL, RETRY_USER_ROLES_DOC));
         fields.put(keys.users(), buildReviewerRolesSubProperty(RETRY_USERS_LABEL, RETRY_USERS_DOC));
@@ -946,8 +975,11 @@ public class ActivityCallBuilder extends CallBuilder {
                 buildReviewerRolesSubProperty(RETRY_ADMINISTRATOR_USERS_LABEL, RETRY_ADMINISTRATOR_USERS_DOC));
         // Title and description offer a plain-text box as well as the expression editor, so a
         // wording typed as text is quoted on save while a reference to one is written as it stands.
-        fields.put(keys.title(), buildReviewTextSubProperty(RETRY_TITLE_LABEL, titleDoc));
-        fields.put(keys.description(), buildReviewTextSubProperty(RETRY_DESCRIPTION_LABEL, descriptionDoc));
+        fields.put(keys.title(), dualModeText ? buildReviewTextSubProperty(RETRY_TITLE_LABEL, titleDoc)
+                : buildRetrySubProperty(RETRY_TITLE_LABEL, titleDoc, STRING_TYPE, true));
+        fields.put(keys.description(), dualModeText
+                ? buildReviewTextSubProperty(RETRY_DESCRIPTION_LABEL, descriptionDoc)
+                : buildRetrySubProperty(RETRY_DESCRIPTION_LABEL, descriptionDoc, STRING_TYPE, true));
         fields.put(keys.timeout(),
                 buildRetrySubProperty(RETRY_TIMEOUT_LABEL, RETRY_TIMEOUT_DOC, "workflow:Duration", true));
         return fields;
@@ -964,6 +996,21 @@ public class ActivityCallBuilder extends CallBuilder {
      */
     static void addHiddenReviewProperties(NodeBuilder nodeBuilder, ReviewKeys keys, ReviewFormValues review,
                                           String titleDoc, String descriptionDoc) {
+        addHiddenReviewProperties(nodeBuilder, keys, review, titleDoc, descriptionDoc, true);
+    }
+
+    /**
+     * The hidden root properties that store one review form's values.
+     *
+     * @param nodeBuilder    the form being built
+     * @param keys           the property keys of this review form
+     * @param review         the values to seed
+     * @param titleDoc       what an empty title defaults to
+     * @param descriptionDoc what an empty description defaults to
+     * @param dualModeText   whether the wording fields carry a text mode beside the expression one
+     */
+    static void addHiddenReviewProperties(NodeBuilder nodeBuilder, ReviewKeys keys, ReviewFormValues review,
+                                          String titleDoc, String descriptionDoc, boolean dualModeText) {
         addHiddenRetrySubFieldProperty(nodeBuilder, keys.userRoles(),
                 RETRY_USER_ROLES_LABEL, RETRY_USER_ROLES_DOC, "string|string[]", review.userRoles());
         addHiddenRetrySubFieldProperty(nodeBuilder, keys.users(),
@@ -976,9 +1023,17 @@ public class ActivityCallBuilder extends CallBuilder {
                 RETRY_ADMINISTRATOR_ROLES_DOC, "string|string[]", review.administratorRoles());
         addHiddenRetrySubFieldProperty(nodeBuilder, keys.administratorUsers(), RETRY_ADMINISTRATOR_USERS_LABEL,
                 RETRY_ADMINISTRATOR_USERS_DOC, "string|string[]", review.administratorUsers());
-        addHiddenReviewTextProperty(nodeBuilder, keys.title(), RETRY_TITLE_LABEL, titleDoc, review.title());
-        addHiddenReviewTextProperty(nodeBuilder, keys.description(), RETRY_DESCRIPTION_LABEL, descriptionDoc,
-                review.description());
+        if (dualModeText) {
+            addHiddenReviewTextProperty(nodeBuilder, keys.title(), RETRY_TITLE_LABEL, titleDoc, review.title());
+            addHiddenReviewTextProperty(nodeBuilder, keys.description(), RETRY_DESCRIPTION_LABEL, descriptionDoc,
+                    review.description());
+        } else {
+            // One mode, so the stored value is source and travels as source.
+            addHiddenRetrySubFieldProperty(nodeBuilder, keys.title(), RETRY_TITLE_LABEL, titleDoc, STRING_TYPE,
+                    review.title().sourceForm());
+            addHiddenRetrySubFieldProperty(nodeBuilder, keys.description(), RETRY_DESCRIPTION_LABEL, descriptionDoc,
+                    STRING_TYPE, review.description().sourceForm());
+        }
         addHiddenRetrySubFieldProperty(nodeBuilder, keys.timeout(),
                 RETRY_TIMEOUT_LABEL, RETRY_TIMEOUT_DOC, "workflow:Duration", review.timeout());
     }

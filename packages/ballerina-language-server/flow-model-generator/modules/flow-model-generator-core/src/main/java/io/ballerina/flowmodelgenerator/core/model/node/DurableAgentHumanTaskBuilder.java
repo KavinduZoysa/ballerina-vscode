@@ -247,7 +247,7 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
         // Surface the omission rather than picking a role on the user's behalf — same stance as
         // the non-agent HumanTaskBuilder, which never falls back to a privileged role.
         if (roles.isBlank() && users.isBlank()) {
-            throw new UserFacingException("Name who may complete the human task: a user role or a user");
+            throw new UserFacingException(WorkflowUtil.AUDIENCE_REQUIRED_MESSAGE);
         }
         String title = sourceBuilder.getProperty(TITLE_KEY)
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");

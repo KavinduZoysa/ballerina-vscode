@@ -95,10 +95,11 @@ export function AIAgentPanel(props: AIAgentPanelProps) {
         return null;
     }
 
-    // A durable agent is a workflow as much as an agent, so it stays creatable in any scope: the
-    // panel is dimmed as a whole only when it has no card left enabled.
+    // The cards carry the scope gating themselves, so the panel is never dimmed as a whole: a
+    // durable agent is a workflow as much as an agent and stays creatable in any scope, while the
+    // chat agent and the MCP cards keep the disabled state and the out-of-scope tooltip they had.
     return (
-        <PanelViewMore disabled={isDisabled && !durableAgentMatches}>
+        <PanelViewMore>
             <TitleWrapper>
                 <Title variant="h2">{CATEGORY.title}</Title>
                 <BodyText>{CATEGORY.description}</BodyText>

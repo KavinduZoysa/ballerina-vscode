@@ -550,6 +550,9 @@ public class CodeAnalyzer extends NodeVisitor {
         // method of the same name (`callWorkflow` especially) keeps its generic title.
         if (isWorkflowContextClass(classSymbol)) {
             applyChildWorkflowMetadata(remoteMethodCallActionNode, functionName);
+            // The step id arrives from the signature as a plain parameter, while the templates put it
+            // with the advanced configurations. Re-reading a call has to render the same form.
+            WorkflowUtil.markStepIdAdvanced(nodeBuilder.properties().build());
         }
 
         if (isWorkflowCtxOperation(remoteMethodCallActionNode, classSymbol, CALL_ACTIVITY_METHOD_NAME)) {
@@ -1744,8 +1747,10 @@ public class CodeAnalyzer extends NodeVisitor {
         putIfNotBlank(values, keys.excludedRoles(), review.excludedRoles());
         putIfNotBlank(values, keys.administratorRoles(), review.administratorRoles());
         putIfNotBlank(values, keys.administratorUsers(), review.administratorUsers());
-        putIfNotBlank(values, keys.title(), review.title().value());
-        putIfNotBlank(values, keys.description(), review.description().value());
+        // Source, not the decoded text: these values reach a capability form as plain strings, and a
+        // reference decoded into text would be quoted into a literal of the same spelling on save.
+        putIfNotBlank(values, keys.title(), review.title().sourceForm());
+        putIfNotBlank(values, keys.description(), review.description().sourceForm());
         putIfNotBlank(values, keys.timeout(), review.timeout());
     }
 

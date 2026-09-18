@@ -43,6 +43,7 @@ import io.ballerina.compiler.syntax.tree.ImplicitNewExpressionNode;
 import io.ballerina.compiler.syntax.tree.ListConstructorExpressionNode;
 import io.ballerina.compiler.syntax.tree.MappingConstructorExpressionNode;
 import io.ballerina.compiler.syntax.tree.MappingFieldNode;
+import io.ballerina.compiler.syntax.tree.Minutiae;
 import io.ballerina.compiler.syntax.tree.ModuleMemberDeclarationNode;
 import io.ballerina.compiler.syntax.tree.ModulePartNode;
 import io.ballerina.compiler.syntax.tree.ModuleVariableDeclarationNode;
@@ -386,7 +387,7 @@ public class WorkflowUtil {
                     insertAt = last.lineRange().endLine();
                     LinePosition start = last.lineRange().startLine();
                     boolean multiLine = start.line() != list.openBracket().lineRange().startLine().line();
-                    newText = (multiLine ? ",\n" + " ".repeat(start.offset()) : ", ") + entryText;
+                    newText = (multiLine ? ",\n" + indentOf(last, start) : ", ") + entryText;
                 }
                 break;
             }
@@ -1356,6 +1357,14 @@ public class WorkflowUtil {
         return sourceBuilder.getProperty(key).map(WorkflowUtil::roleSource).orElse("");
     }
 
+    /**
+     * What to say when a task names nobody. One wording, because the same rule is checked in the
+     * panel before a save and again here when the source is written, and the person sees whichever
+     * got there first. Mirrored in the designer's own check (workflowAudienceValidation.ts).
+     */
+    public static final String AUDIENCE_REQUIRED_MESSAGE =
+            "Name who may decide this: fill in the roles, the users, or both";
+
     /** Property key of the step identity a call takes to name itself in the descriptor graph. */
     public static final String STEP_ID_KEY = "stepId";
     private static final String STEP_ID_LABEL = "Step Id";
@@ -1564,10 +1573,22 @@ public class WorkflowUtil {
             position = new org.eclipse.lsp4j.Position(end.line(), end.offset());
             LinePosition start = last.lineRange().startLine();
             boolean multiLine = start.line() != config.openBrace().lineRange().startLine().line();
-            appendFields(insertion, missing, multiLine ? ",\n" + " ".repeat(start.offset()) : ", ", true);
+            appendFields(insertion, missing, multiLine ? ",\n" + indentOf(last, start) : ", ", true);
         }
         return new org.eclipse.lsp4j.TextEdit(new org.eclipse.lsp4j.Range(position, position),
                 insertion.toString());
+    }
+
+    // The indentation a node sits at, read from its own leading whitespace so a tab-indented
+    // declaration keeps its tabs; the column in spaces is the fallback.
+    private static String indentOf(Node node, LinePosition start) {
+        String indent = null;
+        for (Minutiae minutiae : node.leadingMinutiae()) {
+            if (minutiae.kind() == SyntaxKind.WHITESPACE_MINUTIAE) {
+                indent = minutiae.text();
+            }
+        }
+        return indent == null ? " ".repeat(start.offset()) : indent;
     }
 
     private static void appendFields(StringBuilder insertion, Map<String, String> fields, String separator,

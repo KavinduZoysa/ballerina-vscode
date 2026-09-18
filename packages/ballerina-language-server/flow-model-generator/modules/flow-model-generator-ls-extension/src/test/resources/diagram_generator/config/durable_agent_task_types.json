@@ -4,11 +4,11 @@
     "offset": 0
   },
   "end": {
-    "line": 41,
+    "line": 46,
     "offset": 1
   },
   "source": "durable_agent_task_types.bal",
-  "description": "An agent declaring its result type and a human task with its own input and completion types loads them back into the forms, and a sleep that names its step keeps the name",
+  "description": "An agent declaring its result type and a human task with its own input and completion types loads them back into the forms, and a sleep and a child workflow start that name their steps keep the names, with the step id among the advanced fields",
   "diagram": {
     "fileName": "durable_agent_task_types.bal",
     "nodes": [],

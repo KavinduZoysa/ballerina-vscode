@@ -263,8 +263,9 @@ public class DurableAgentAddActivityBuilder extends CallBuilder {
     // The two policy dropdowns, as the workflow Call Activity form has them: an approval before the
     // activity runs, and the engine's retry or review when it fails.
     private void addPolicyProperties() {
+        // A capability's values travel as plain strings, so its wording fields are expressions only.
         ApprovalPolicyForm.addFormProperties(this, ApprovalPolicyForm.NO_APPROVAL_VALUE,
-                ActivityCallBuilder.ReviewFormValues.empty());
+                ActivityCallBuilder.ReviewFormValues.empty(), false);
         ActivityCallBuilder.addRetryPolicyFormProperties(this, ActivityCallBuilder.NO_RETRY_VALUE,
                 "", "", "", "");
     }

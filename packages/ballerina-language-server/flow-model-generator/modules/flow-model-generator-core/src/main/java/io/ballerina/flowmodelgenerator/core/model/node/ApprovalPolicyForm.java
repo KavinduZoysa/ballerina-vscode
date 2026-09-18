@@ -96,6 +96,23 @@ public final class ApprovalPolicyForm {
      * @param review        the review fields to seed
      */
     public static void addFormProperties(NodeBuilder nodeBuilder, String dropdownValue, ReviewFormValues review) {
+        addFormProperties(nodeBuilder, dropdownValue, review, true);
+    }
+
+    /**
+     * Adds the dropdown, its per-option review fields and the hidden root properties that hold
+     * their values.
+     *
+     * @param nodeBuilder   the form being built
+     * @param dropdownValue the selected option
+     * @param review        the review fields to seed
+     * @param dualModeText  whether the title and description offer a text box beside the expression
+     *                      editor. A capability's values reach the form as plain strings with no
+     *                      mode beside them, so its wording fields are expressions only: a
+     *                      reference carried as text would be quoted into a literal on save.
+     */
+    public static void addFormProperties(NodeBuilder nodeBuilder, String dropdownValue, ReviewFormValues review,
+                                         boolean dualModeText) {
         String selectedValue = dropdownValue == null || dropdownValue.isBlank() ? NO_APPROVAL_VALUE : dropdownValue;
         List<Option> options = new ArrayList<>(List.of(
                 new Option("No Approval", NO_APPROVAL_VALUE),
@@ -109,7 +126,7 @@ public final class ApprovalPolicyForm {
         Map<String, Map<String, Property>> dynamicFields = new LinkedHashMap<>();
         dynamicFields.put(NO_APPROVAL_VALUE, Map.of());
         dynamicFields.put(HUMAN_APPROVAL_VALUE,
-                ActivityCallBuilder.reviewSubProperties(REVIEW_KEYS, TITLE_DOC, DESCRIPTION_DOC));
+                ActivityCallBuilder.reviewSubProperties(REVIEW_KEYS, TITLE_DOC, DESCRIPTION_DOC, dualModeText));
         if (opaquePolicy) {
             dynamicFields.put(selectedValue, Map.of());
         }
@@ -129,7 +146,8 @@ public final class ApprovalPolicyForm {
                 .dynamicFormFields(dynamicFields)
                 .stepOut()
                 .addProperty(KEY);
-        ActivityCallBuilder.addHiddenReviewProperties(nodeBuilder, REVIEW_KEYS, review, TITLE_DOC, DESCRIPTION_DOC);
+        ActivityCallBuilder.addHiddenReviewProperties(nodeBuilder, REVIEW_KEYS, review, TITLE_DOC, DESCRIPTION_DOC,
+                dualModeText);
     }
 
     /**

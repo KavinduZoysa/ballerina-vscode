@@ -98,7 +98,11 @@ export function DropdownChoiceForm(props: DropdownChoiceFormProps) {
                     }}
                 />
             </ChoiceSection>
-            {dynamicFields.some(dfield => !dfield.hidden) && <FormSection>
+            {dynamicFields.some(dfield =>
+                !dfield.hidden
+                && (dfield.type === "GROUP_SECTION"
+                    ? (dfield.advanceProps?.length ?? 0) > 0
+                    : !dfield.advanced)) && <FormSection>
                 {dynamicFields
                     // An optional field of the selected branch still belongs to it — optional only means
                     // it carries no required marker, so it renders like the rest.

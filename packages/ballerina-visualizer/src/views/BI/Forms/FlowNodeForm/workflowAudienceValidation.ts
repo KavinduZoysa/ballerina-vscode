@@ -42,6 +42,8 @@ const HUMAN_APPROVAL = "HumanApproval";
 /** Node kinds whose own form declares a task, rather than a policy that raises one. */
 const TASK_NODES = ["DURABLE_AGENT_HUMAN_TASK", "HUMAN_TASK"];
 
+// Mirrors WorkflowUtil.AUDIENCE_REQUIRED_MESSAGE, so the wording does not change with how far the
+// save got before the rule caught it.
 const MESSAGE = "Name who may decide this: fill in the roles, the users, or both";
 
 /** A rule failure: the field to show it on, and what to say. */

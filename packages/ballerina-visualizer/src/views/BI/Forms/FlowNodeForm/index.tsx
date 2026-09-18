@@ -1298,15 +1298,15 @@ export const FlowNodeForm = forwardRef<FormExpressionEditorRef, FlowNodeFormProp
     const handleFormValidation = async (data: FormValues, dirtyFields?: any): Promise<boolean> => {
         // A task naming nobody is refused when the source is generated, which is after the save has
         // left the panel. Catching it here keeps the panel open with what was typed.
+        //
+        // Reported as a notification rather than a field diagnostic: a diagnostic seeds the form's
+        // own error state, which disables Save and is cleared only when the fields are rebuilt —
+        // and the only thing that rebuilds them is a validation pass the disabled button can no
+        // longer start. The panel would be stuck holding a message about a field the person had
+        // already fixed.
         const audienceError = validateWorkflowAudience(data, node?.codedata?.node);
         if (audienceError) {
-            setBaseFields((previous) =>
-                previous.map((field) =>
-                    field.key === audienceError.fieldKey
-                        ? { ...field, diagnostics: [{ message: audienceError.message, severity: "ERROR" }] }
-                        : field
-                )
-            );
+            rpcClient.getCommonRpcClient().showErrorMessage({ message: audienceError.message });
             return false;
         }
         if (node && targetLineRange && !skipFormValidation) {
