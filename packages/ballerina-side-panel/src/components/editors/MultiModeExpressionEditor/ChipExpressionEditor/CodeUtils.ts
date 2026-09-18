@@ -408,6 +408,39 @@ export const iterateTokenStream = (
     }
 };
 
+// All editable value-chip (and, once reachable, compound) ranges that actually get rendered
+// as their own chip/box - i.e. the same set iterateTokenStream hands to buildDecorations
+// below, not the raw tokenField.tokens/compounds arrays. A token absorbed into a compound
+// sequence (e.g. one of several tokens inside a ${...} interpolation), an orphan token inside
+// an unclosed interpolation, or a multi-line span never gets its own decoration, so it must
+// also never be an activation target for boundary clicks or Tab/Shift-Tab - otherwise the
+// editor can silently enter edit mode (and start suppressing LS token refreshes) for a token
+// with no on-screen active box to show for it.
+const getEditableChipRanges = (view: EditorView): { start: number; end: number }[] => {
+    const tokenState = view.state.field(tokenField, false);
+    if (!tokenState) return [];
+
+    const docContent = view.state.doc.toString();
+    const ranges: { start: number; end: number }[] = [];
+
+    iterateTokenStream(tokenState.tokens, tokenState.compounds, docContent, {
+        onCompound: (compound) => {
+            if (docContent.slice(compound.start, compound.end).includes('\n')) return;
+            if (isEditableValueChip(compound.tokenType) && compound.start < compound.end) {
+                ranges.push({ start: compound.start, end: compound.end });
+            }
+        },
+        onToken: (token, text) => {
+            if (text.includes('\n')) return;
+            if (isEditableValueChip(token.type) && token.start < token.end) {
+                ranges.push({ start: token.start, end: token.end });
+            }
+        }
+    });
+
+    return ranges.sort((a, b) => a.start - b.start);
+};
+
 export const chipPlugin = ViewPlugin.fromClass(
     class {
         decorations: RangeSet<Decoration>;
@@ -506,12 +539,10 @@ export const chipBoundaryClickHandler = EditorView.domEventHandlers({
         const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
         if (pos == null) return false;
 
-        const tokenState = view.state.field(tokenField, false);
-        if (!tokenState) return false;
-
-        const hit = tokenState.tokens.find(token =>
-            isEditableValueChip(token.type) && token.start < token.end && (pos === token.start || pos === token.end)
-        );
+        // Only match against ranges that actually render as their own chip (see
+        // getEditableChipRanges) - a raw token list would also match a token absorbed into a
+        // compound sequence, which never gets its own decoration to activate.
+        const hit = getEditableChipRanges(view).find(range => pos === range.start || pos === range.end);
         if (!hit) return false;
 
         event.preventDefault();
@@ -548,23 +579,6 @@ export const activeChipSelectionGuard = EditorView.updateListener.of((update) =>
         update.view.dispatch({ effects: setActiveEditableTokenEffect.of(undefined) });
     }
 });
-
-// All editable value-chip (and, once reachable, compound) ranges in the current document,
-// in document order - the tab stops for keyboard-only chip navigation below.
-const getEditableChipRanges = (view: EditorView): { start: number; end: number }[] => {
-    const tokenState = view.state.field(tokenField, false);
-    if (!tokenState) return [];
-
-    const tokenRanges = tokenState.tokens
-        .filter(token => isEditableValueChip(token.type) && token.start < token.end)
-        .map(token => ({ start: token.start, end: token.end }));
-
-    const compoundRanges = tokenState.compounds
-        .filter(compound => isEditableValueChip(compound.tokenType) && compound.start < compound.end)
-        .map(compound => ({ start: compound.start, end: compound.end }));
-
-    return [...tokenRanges, ...compoundRanges].sort((a, b) => a.start - b.start);
-};
 
 const activateChipRange = (view: EditorView, range: { start: number; end: number }): boolean => {
     view.dispatch({
