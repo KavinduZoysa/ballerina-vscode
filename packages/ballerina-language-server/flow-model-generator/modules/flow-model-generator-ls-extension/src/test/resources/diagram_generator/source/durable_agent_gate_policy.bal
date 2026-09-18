@@ -6,6 +6,9 @@ final ai:Wso2ModelProvider payModel = check new ("http://localhost:9099", "test-
 
 final http:Client payApi = check new ("http://localhost:9090");
 
+# The refund review's inbox summary, named rather than written inline
+final string refundTitle = "Approve the refund";
+
 # Charge the card activity
 @workflow:Activity
 function chargeCard(http:Client api, string orderId) returns json|error {
@@ -25,7 +28,7 @@ final workflow:DurableAgent paymentAgent = check new ({
         {activity: chargeCard, description: "Charges the card", approvalPolicy: {userRoles: ["manager"], users: "alice", title: "Approve the charge", timeout: {hours: 4}}, bindings: {api: payApi}}
     ],
     tools: [
-        {tool: refund, approvalPolicy: {userRoles: "finance", excludedUsers: ["bob"], description: "Approve the refund"}}
+        {tool: refund, approvalPolicy: {userRoles: "finance", excludedUsers: ["bob"], title: refundTitle, description: "Approve the refund"}}
     ]
 });
 

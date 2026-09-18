@@ -255,9 +255,9 @@
         ],
         "placeholder": "()",
         "optional": true,
-        "editable": false,
-        "advanced": false,
-        "hidden": true,
+        "editable": true,
+        "advanced": true,
+        "hidden": false,
         "codedata": {
           "kind": "DEFAULTABLE",
           "originalName": "stepId"

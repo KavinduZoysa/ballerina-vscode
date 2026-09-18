@@ -43,6 +43,7 @@ import io.ballerina.compiler.syntax.tree.ImplicitNewExpressionNode;
 import io.ballerina.compiler.syntax.tree.ListConstructorExpressionNode;
 import io.ballerina.compiler.syntax.tree.MappingConstructorExpressionNode;
 import io.ballerina.compiler.syntax.tree.MappingFieldNode;
+import io.ballerina.compiler.syntax.tree.Minutiae;
 import io.ballerina.compiler.syntax.tree.ModuleMemberDeclarationNode;
 import io.ballerina.compiler.syntax.tree.ModulePartNode;
 import io.ballerina.compiler.syntax.tree.ModuleVariableDeclarationNode;
@@ -376,8 +377,18 @@ public class WorkflowUtil {
             }
             if (specificField.valueExpr().isPresent()
                     && specificField.valueExpr().get() instanceof ListConstructorExpressionNode list) {
-                insertAt = list.closeBracket().lineRange().startLine();
-                newText = (list.expressions().isEmpty() ? "" : ", ") + entryText;
+                if (list.expressions().isEmpty()) {
+                    insertAt = list.closeBracket().lineRange().startLine();
+                    newText = entryText;
+                } else {
+                    // After the last entry: on its own line at the entries' indentation when the list
+                    // is laid out that way, inline otherwise.
+                    Node last = list.expressions().get(list.expressions().size() - 1);
+                    insertAt = last.lineRange().endLine();
+                    LinePosition start = last.lineRange().startLine();
+                    boolean multiLine = start.line() != list.openBracket().lineRange().startLine().line();
+                    newText = (multiLine ? ",\n" + indentOf(last, start) : ", ") + entryText;
+                }
                 break;
             }
             // The field is there but is not a list literal (a reference, or a spread): appending a
@@ -388,8 +399,11 @@ public class WorkflowUtil {
                     + "inline it as a list in the agent declaration and try again");
         }
         if (insertAt == null) {
-            insertAt = config.closeBrace().lineRange().startLine();
-            newText = (config.fields().isEmpty() ? "" : ", ") + fieldName + ": [" + entryText + "]";
+            // A new list field follows the last config field, as any other appended field does.
+            Map<Path, List<org.eclipse.lsp4j.TextEdit>> edits = new HashMap<>();
+            edits.put(declaration.filePath(),
+                    List.of(appendConfigFields(config, Map.of(fieldName, "[" + entryText + "]"))));
+            return edits;
         }
         org.eclipse.lsp4j.Position position =
                 new org.eclipse.lsp4j.Position(insertAt.line(), insertAt.offset());
@@ -1255,10 +1269,6 @@ public class WorkflowUtil {
         return colon >= 0 ? value.substring(colon + 1) : value;
     }
 
-    /** Label of the approval-gate flag every gated capability form carries. */
-    public static final String REQUIRES_APPROVAL_LABEL = "Requires Approval";
-    /** Label of the reviewer-roles field that accompanies the flag. */
-    public static final String REVIEWER_ROLES_LABEL = "Reviewer Roles";
     /** Source field carrying a capability's approval policy. */
     public static final String APPROVAL_POLICY_FIELD = "approvalPolicy";
     /** Property keys of the audience fields every review definition form carries beside the roles. */
@@ -1271,14 +1281,6 @@ public class WorkflowUtil {
     public static final String APPROVAL_TITLE_KEY = "approvalTitle";
     public static final String APPROVAL_DESCRIPTION_KEY = "approvalDescription";
     public static final String APPROVAL_TIMEOUT_KEY = "approvalTimeout";
-    private static final String APPROVAL_TITLE_LABEL = "Review Title";
-    private static final String APPROVAL_TITLE_DOC = "Inbox summary of the review, e.g. \"Approve the refund\"; "
-            + "empty derives it from the capability";
-    private static final String APPROVAL_DESCRIPTION_LABEL = "Review Description";
-    private static final String APPROVAL_DESCRIPTION_DOC = "Context shown with the decision; empty derives it";
-    private static final String APPROVAL_TIMEOUT_LABEL = "Review Timeout";
-    private static final String APPROVAL_TIMEOUT_DOC = "How long to wait for a decision, in days, hours and "
-            + "minutes, e.g. {days: 1, hours: 2, minutes: 30}; empty waits indefinitely";
     /** The audience fields beside the roles, in the order the literal writes them. */
     public static final List<String> AUDIENCE_KEYS = List.of(USERS_KEY, EXCLUDED_USERS_KEY, EXCLUDED_ROLES_KEY,
             ADMINISTRATOR_ROLES_KEY, ADMINISTRATOR_USERS_KEY);
@@ -1294,99 +1296,6 @@ public class WorkflowUtil {
             "Role(s) that administer the task: they see it, may reassign it, move its deadline, fail or decide it";
     private static final String ADMINISTRATOR_USERS_LABEL = "Administrator Users";
     private static final String ADMINISTRATOR_USERS_DOC = "User id(s) that administer the task, whatever their roles";
-
-    /**
-     * Adds the approval-gate pair a durable agent's gated capabilities share — a {@code requiresApproval}
-     * flag and the reviewer roles for the review it creates — as advanced, optional fields. The three
-     * capability forms (activity, tool, peer delegation) differ only in how they describe the thing
-     * being gated, which is what the two descriptions carry.
-     *
-     * @param nodeBuilder     the form being built
-     * @param approvalKey     property key of the flag
-     * @param approvalDoc     what gating means for this capability
-     * @param userRolesKey    property key of the roles field
-     * @param reviewerRolesDoc who may decide the review, with an example
-     */
-    public static void addApprovalGateProperties(NodeBuilder nodeBuilder, String approvalKey, String approvalDoc,
-                                                 String userRolesKey, String reviewerRolesDoc) {
-        nodeBuilder.properties().custom()
-                .metadata()
-                    .label(REQUIRES_APPROVAL_LABEL)
-                    .description(approvalDoc)
-                    .stepOut()
-                .type().fieldType(Property.ValueType.FLAG).ballerinaType("boolean").selected(true).stepOut()
-                .value("false")
-                .editable(true)
-                .optional(true)
-                .advanced(true)
-                .stepOut()
-                .addProperty(approvalKey);
-        // The reviewer roles field is multi-mode, the same as every other role field — a bare role
-        // typed as text, or an expression naming a list. Staging moved the tool and activity forms
-        // onto addRoleFieldTypes; routing it through here keeps the peer form in step as well.
-        addRoleFieldTypes(nodeBuilder.properties().custom()
-                .metadata()
-                    .label(REVIEWER_ROLES_LABEL)
-                    .description(reviewerRolesDoc)
-                    .stepOut())
-                .placeholder("")
-                .editable(true)
-                .optional(true)
-                .advanced(true)
-                .stepOut()
-                .addProperty(userRolesKey);
-        addAudienceProperties(nodeBuilder);
-        addExpressionProperty(nodeBuilder, APPROVAL_TITLE_KEY, APPROVAL_TITLE_LABEL, APPROVAL_TITLE_DOC, "string");
-        addExpressionProperty(nodeBuilder, APPROVAL_DESCRIPTION_KEY, APPROVAL_DESCRIPTION_LABEL,
-                APPROVAL_DESCRIPTION_DOC, "string");
-        addExpressionProperty(nodeBuilder, APPROVAL_TIMEOUT_KEY, APPROVAL_TIMEOUT_LABEL, APPROVAL_TIMEOUT_DOC,
-                "workflow:Duration");
-    }
-
-    private static void addExpressionProperty(NodeBuilder nodeBuilder, String key, String label, String doc,
-                                              String ballerinaType) {
-        nodeBuilder.properties().custom()
-                .metadata()
-                    .label(label)
-                    .description(doc)
-                    .stepOut()
-                .type().fieldType(Property.ValueType.EXPRESSION).ballerinaType(ballerinaType).selected(true).stepOut()
-                .placeholder("")
-                .editable(true)
-                .optional(true)
-                .advanced(true)
-                .stepOut()
-                .addProperty(key);
-    }
-
-    /**
-     * The review details a gate form holds, rendered as {@code name: value} fields: a plain title or
-     * description is quoted, a timeout is written as the expression it is.
-     *
-     * @param sourceBuilder the source builder holding the form values
-     * @return the rendered fields, possibly empty
-     */
-    public static List<String> approvalDetailFields(SourceBuilder sourceBuilder) {
-        List<String> fields = new ArrayList<>();
-        String title = trimmedProperty(sourceBuilder, APPROVAL_TITLE_KEY);
-        if (!title.isBlank()) {
-            fields.add("title: " + quoteIfPlain(title));
-        }
-        String description = trimmedProperty(sourceBuilder, APPROVAL_DESCRIPTION_KEY);
-        if (!description.isBlank()) {
-            fields.add("description: " + quoteIfPlain(description));
-        }
-        String timeout = trimmedProperty(sourceBuilder, APPROVAL_TIMEOUT_KEY);
-        if (!timeout.isBlank()) {
-            fields.add("timeout: " + timeout);
-        }
-        return fields;
-    }
-
-    private static String trimmedProperty(SourceBuilder sourceBuilder, String key) {
-        return sourceBuilder.getProperty(key)
-                .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
-    }
 
     /**
      * Adds the audience fields a review definition carries beside its roles — users, excluded users,
@@ -1414,40 +1323,6 @@ public class WorkflowUtil {
                 .advanced(true)
                 .stepOut()
                 .addProperty(key);
-    }
-
-    /**
-     * The {@code approvalPolicy} literal a gated capability declares, or the empty string when the
-     * gate is off.
-     *
-     * @param sourceBuilder the source builder holding the form values
-     * @param approvalKey   property key of the gate flag
-     * @param userRolesKey  property key of the reviewer roles
-     * @return the record literal, or {@code ""}
-     */
-    public static String approvalPolicyLiteral(SourceBuilder sourceBuilder, String approvalKey,
-                                               String userRolesKey) {
-        boolean gated = sourceBuilder.getProperty(approvalKey)
-                .map(p -> p.value() != null && "true".equals(p.value().toString()))
-                .orElse(false);
-        return gated ? reviewAudienceLiteral(sourceBuilder, userRolesKey, approvalDetailFields(sourceBuilder)) : "";
-    }
-
-    /**
-     * A review definition literal from the form's audience fields — {@code userRoles} always (as
-     * {@code ()} when only users decide), the other audience fields when set — followed by any
-     * further fields the caller adds.
-     *
-     * @param sourceBuilder the source builder holding the form values
-     * @param userRolesKey  property key of the reviewer roles
-     * @param moreFields    further {@code name: value} fields, already rendered
-     * @return the record literal
-     */
-    public static String reviewAudienceLiteral(SourceBuilder sourceBuilder, String userRolesKey,
-                                               List<String> moreFields) {
-        List<String> fields = reviewAudienceFields(sourceBuilder, userRolesKey);
-        fields.addAll(moreFields);
-        return "{" + String.join(", ", fields) + "}";
     }
 
     /**
@@ -1480,6 +1355,93 @@ public class WorkflowUtil {
      */
     public static String audienceSource(SourceBuilder sourceBuilder, String key) {
         return sourceBuilder.getProperty(key).map(WorkflowUtil::roleSource).orElse("");
+    }
+
+    /**
+     * What to say when a task names nobody. One wording, because the same rule is checked in the
+     * panel before a save and again here when the source is written, and the person sees whichever
+     * got there first. Mirrored in the designer's own check (workflowAudienceValidation.ts).
+     */
+    public static final String AUDIENCE_REQUIRED_MESSAGE =
+            "Name who may decide this: fill in the roles, the users, or both";
+
+    /** Property key of the step identity a call takes to name itself in the descriptor graph. */
+    public static final String STEP_ID_KEY = "stepId";
+    private static final String STEP_ID_LABEL = "Step Id";
+    private static final String STEP_ID_DOC =
+            "Identity of this step within the workflow, matching a node of the descriptor graph. "
+                    + "A constant string; defaults to one the compiler generates";
+
+    /**
+     * Adds the step id as an advanced field. It is optional and generated when omitted, so it sits
+     * with the advanced configurations rather than among the call's own arguments.
+     *
+     * @param nodeBuilder the form being built
+     */
+    public static void addStepIdProperty(NodeBuilder nodeBuilder) {
+        nodeBuilder.properties().custom()
+                .metadata()
+                    .label(STEP_ID_LABEL)
+                    .description(STEP_ID_DOC)
+                    .stepOut()
+                .type().fieldType(Property.ValueType.TEXT).ballerinaType("string").selected(true).stepOut()
+                .type().fieldType(Property.ValueType.EXPRESSION).ballerinaType("string?").selected(false).stepOut()
+                .codedata().originalName(STEP_ID_KEY).stepOut()
+                .placeholder("")
+                .value("")
+                .editable(true)
+                .optional(true)
+                .advanced(true)
+                .stepOut()
+                .addProperty(STEP_ID_KEY);
+    }
+
+    /**
+     * Moves a signature-derived step id into the advanced configurations, leaving its type and
+     * value as the signature described them.
+     *
+     * @param properties the form's properties, edited in place
+     */
+    public static void markStepIdAdvanced(Map<String, Property> properties) {
+        Property stepId = properties.get(STEP_ID_KEY);
+        if (stepId != null) {
+            properties.put(STEP_ID_KEY, Property.Builder.copyFrom(stepId)
+                    .advanced(true).hidden(false).editable(true).build());
+        }
+    }
+
+    /**
+     * Emits {@code , stepId = <value>} when the form holds one. Written through {@code param} so a
+     * name typed as text is quoted and an expression passes through.
+     *
+     * @param sourceBuilder the source builder, positioned after a preceding argument
+     */
+    public static void appendStepIdArgument(SourceBuilder sourceBuilder) {
+        String source = stepIdSource(sourceBuilder.getProperty(STEP_ID_KEY).orElse(null));
+        if (source.isBlank()) {
+            return;
+        }
+        sourceBuilder.token()
+                .keyword(SyntaxKind.COMMA_TOKEN)
+                .name(STEP_ID_KEY)
+                .whiteSpace()
+                .keyword(SyntaxKind.EQUAL_TOKEN)
+                .name(source);
+    }
+
+    /**
+     * A step id as source: an expression passes through, a name typed as text is quoted. The module
+     * requires a constant string, so an unquoted name would not compile.
+     *
+     * @param stepId the step id property, possibly {@code null}
+     * @return the source, or {@code ""} when the form names no step
+     */
+    public static String stepIdSource(Property stepId) {
+        String value = stepId == null || stepId.value() == null ? "" : stepId.value().toString().trim();
+        if (value.isBlank() || "()".equals(value)) {
+            return "";
+        }
+        return isExpressionModeSelected(stepId) ? value : quoteIfPlain(value);
     }
 
     /** Property key the front end sets to request removal of a capability entry. */
@@ -1588,23 +1550,56 @@ public class WorkflowUtil {
             }
         }
         if (!missing.isEmpty()) {
-            StringBuilder insertion = new StringBuilder();
-            boolean first = config.fields().isEmpty();
-            for (Map.Entry<String, String> entry : missing.entrySet()) {
-                if (!first) {
-                    insertion.append(", ");
-                }
-                insertion.append(entry.getKey()).append(": ").append(entry.getValue());
-                first = false;
-            }
-            LinePosition closeBrace = config.closeBrace().lineRange().startLine();
-            org.eclipse.lsp4j.Position position =
-                    new org.eclipse.lsp4j.Position(closeBrace.line(), closeBrace.offset());
-            edits.add(new org.eclipse.lsp4j.TextEdit(
-                    new org.eclipse.lsp4j.Range(position, position), insertion.toString()));
+            edits.add(appendConfigFields(config, missing));
         }
         Map<Path, List<org.eclipse.lsp4j.TextEdit>> result = new HashMap<>();
         result.put(declaration.filePath(), edits);
         return result;
+    }
+
+    // Missing fields follow the last one, each on its own line at the fields' indentation when the
+    // mapping is laid out that way; an empty or single-line mapping takes them inline.
+    private static org.eclipse.lsp4j.TextEdit appendConfigFields(MappingConstructorExpressionNode config,
+                                                                 Map<String, String> missing) {
+        StringBuilder insertion = new StringBuilder();
+        org.eclipse.lsp4j.Position position;
+        if (config.fields().isEmpty()) {
+            LinePosition closeBrace = config.closeBrace().lineRange().startLine();
+            position = new org.eclipse.lsp4j.Position(closeBrace.line(), closeBrace.offset());
+            appendFields(insertion, missing, ", ", false);
+        } else {
+            MappingFieldNode last = config.fields().get(config.fields().size() - 1);
+            LinePosition end = last.lineRange().endLine();
+            position = new org.eclipse.lsp4j.Position(end.line(), end.offset());
+            LinePosition start = last.lineRange().startLine();
+            boolean multiLine = start.line() != config.openBrace().lineRange().startLine().line();
+            appendFields(insertion, missing, multiLine ? ",\n" + indentOf(last, start) : ", ", true);
+        }
+        return new org.eclipse.lsp4j.TextEdit(new org.eclipse.lsp4j.Range(position, position),
+                insertion.toString());
+    }
+
+    // The indentation a node sits at, read from its own leading whitespace so a tab-indented
+    // declaration keeps its tabs; the column in spaces is the fallback.
+    private static String indentOf(Node node, LinePosition start) {
+        String indent = null;
+        for (Minutiae minutiae : node.leadingMinutiae()) {
+            if (minutiae.kind() == SyntaxKind.WHITESPACE_MINUTIAE) {
+                indent = minutiae.text();
+            }
+        }
+        return indent == null ? " ".repeat(start.offset()) : indent;
+    }
+
+    private static void appendFields(StringBuilder insertion, Map<String, String> fields, String separator,
+                                     boolean leadWithSeparator) {
+        boolean first = !leadWithSeparator;
+        for (Map.Entry<String, String> entry : fields.entrySet()) {
+            if (!first) {
+                insertion.append(separator);
+            }
+            insertion.append(entry.getKey()).append(": ").append(entry.getValue());
+            first = false;
+        }
     }
 }

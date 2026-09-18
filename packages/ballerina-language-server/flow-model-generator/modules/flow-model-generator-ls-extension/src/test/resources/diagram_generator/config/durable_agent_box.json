@@ -271,6 +271,23 @@
               "originalName": "model"
             }
           },
+          "inputType": {
+            "metadata": {
+              "label": "Input Type",
+              "description": "The structured input a run is given, e.g. json or a record type"
+            },
+            "types": [
+              {
+                "fieldType": "EXPRESSION",
+                "selected": false
+              }
+            ],
+            "value": "TripInput",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": false
+          },
           "query": {
             "metadata": {
               "label": "Query",

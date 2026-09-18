@@ -164,7 +164,9 @@
         "scope": "Global",
         "visibility": "module",
         "children": {}
-      },
+      }
+    },
+    "Agents": {
       "supportAgent": {
         "id": "supportAgent",
         "location": {
