@@ -374,22 +374,31 @@ workflow's purpose.
 ## Durable agents — `workflow:DurableAgent`
 
 A durable AI agent declared as an object. Its capabilities — activities, tools, event channels,
-human tasks — are fixed in the constructor, and the compiler plugin generates the Temporal
+human tasks, peers — are fixed in the constructor, and the compiler plugin generates the Temporal
 registration for them at module init.
+
+**This section describes `ballerina/workflow` 0.10.0**, which reshaped the declaration surface:
+several 0.9.x fields were removed, and the compiler plugin rejects them outright rather than
+ignoring them (`WORKFLOW_163`). Check the resolved version before writing a declaration, the same
+way you would for `sendData` or `awaitHumanTask` above.
 
 ```ballerina
 final workflow:DurableAgent <agentName> = check new ({
     systemPrompt: {role: "<role>", instructions: "<instructions>"},
     model: <modelProvider>,
     activities: [<activityName>, <activityName>],
-    events: {<channelName>: {request: <RequestType>, response: <ResponseType>, cardinality: workflow:MULTI_EVENT}}
+    events: {<channelName>: {request: <RequestType>, response: <ResponseType>}}
 });
 ```
 
-Three declaration rules:
+Declaration rules, all compiler-enforced:
 
-- **Assign it to a module-level `final` variable — this is compiler-enforced.** Never a local
-  variable, never a non-`final` one.
+- **Assign it to a module-level `final` variable** (`WORKFLOW_149`). Never a local variable, never
+  a non-`final` one.
+- **Initialize it inline** with `new ({...})` or `new workflow:DurableAgent({...})` in the variable
+  declaration itself (`WORKFLOW_151`). Never build the config into a variable first, and never
+  return the agent from a factory function: every worker replica has to derive the same
+  registration deterministically.
 - **The module-level variable name is the agent's stable identity**, so renaming the variable
   renames the agent.
 - **`check new ({...})`** — `init` takes `*DurableAgentConfig` as an included record, so the whole
@@ -414,9 +423,17 @@ code and is not part of the public API surface — never write a call to it.
 | `peers` | `PeerDecl[]` | `[]` |
 | `maxIter` | `int` | `16` |
 | `eventTimeout` | `Duration?` | `()` |
+| `maxEventWaits` | `int` | `50` |
+
+`maxIter` caps reasoning iterations per turn. `eventTimeout` is the maximum wait per event-channel
+wait; omitted, a conversation stays open as long as it takes, and on a timeout the model is told so
+it can wrap up gracefully. `maxEventWaits` caps event waits per run — chat turns and events
+together — as the backstop for a conversation nobody closes; raise it for a chat-like agent whose
+turns are many and short.
 
 **Capability names share one namespace** across `activities`, `tools`, `events`, `humanTasks` and
-`peers`. A name claimed twice is rejected when the agent registers, so the program fails at startup.
+`peers`. A name claimed twice is reported at compile time as `WORKFLOW_150`, and rejected again
+when the agent registers, so the program does not start.
 
 For a capability that needs no extra configuration, pass the bare value — an `@workflow:Activity`
 function in `activities` (as the example above does), or an `@ai:AgentTool` function,
@@ -432,15 +449,15 @@ An activity capability, with optional gating and retry config.
 | `name` | `string` | optional — the function name |
 | `description` | `string` | optional — the function's doc comment |
 | `bindings` | `map<anydata\|object {}>` | optional |
-| `requiresApproval` | `boolean` | `false` |
-| `userRoles` | `string\|string[]` | optional |
-| `retryPolicy` | `AutoRetry\|ReviewTaskDefinition\|NoAutomaticRetry` | `NoAutomaticRetry` |
+| `approvalPolicy` | `ReviewTaskDefinition\|NoApproval` | `NoApproval` |
+| `retryPolicy` | `AutoRetry\|ReviewTaskDefinition\|RetryBeforeReview\|NoRetry` | `NoRetry` |
 
 `name` and `description` are what the model sees; they default to the function's own name and doc
 comment. `bindings` are fixed arguments partially applied to the activity (a connection, say),
 hidden from the model — only the remaining data parameters appear in the tool's schema, and a client
 object is bound by referencing its module-level `final` variable. `retryPolicy` behaves as it does
-for `ctx->callActivity`.
+for `ctx->callActivity`, and `RetryBeforeReview` retries automatically first and raises a review
+only once the attempts are spent.
 
 #### `ToolDecl`
 
@@ -449,8 +466,24 @@ An AI tool capability, with optional gating config.
 | Field | Type | Default |
 |---|---|---|
 | `tool` | `ai:BaseToolKit\|ai:ToolConfig\|ai:FunctionTool` | required |
-| `requiresApproval` | `boolean` | `false` |
-| `userRoles` | `string\|string[]` | optional |
+| `approvalPolicy` | `ReviewTaskDefinition\|NoApproval` | `NoApproval` |
+
+**A tool whose `@ai:AgentTool` declares `auth` is rejected** (`WORKFLOW_155`): a durable agent does
+not run the `ai:Agent` loop, so the tool would run without token acquisition or scope validation.
+Never offer an authenticated tool to a durable agent — wrap the call in an `@workflow:Activity`
+function instead.
+
+#### Gating a capability: `approvalPolicy`
+
+On `ActivityDecl` and `ToolDecl`, an `approvalPolicy` gates every call with a `PRE_RUN` review and
+names who may decide it — `{activity: <activityName>, approvalPolicy: {userRoles: "<role>"}}`.
+`NoApproval`, the default, runs the call directly. A review definition must name an audience —
+`userRoles`, `users`, or both — or the build fails with `WORKFLOW_164`.
+
+**`requiresApproval` and `userRoles` are not fields of `ActivityDecl` or `ToolDecl`.** They were
+removed in 0.10.0 in favour of `approvalPolicy`, and writing either is a build error
+(`WORKFLOW_163`) rather than a silently ignored field, because ignoring `requiresApproval: true`
+would drop a gate.
 
 #### `HumanTaskDefinition`
 
@@ -458,44 +491,50 @@ The values of `humanTasks`, keyed by task name — `humanTasks: {signoff: {userR
 
 | Field | Type | Default |
 |---|---|---|
-| `userRoles` | `string\|string[]` | required |
+| `userRoles` | `string\|[string, string...]?` | required — `()` when only `users` may decide |
+| `users` | `string\|[string, string...]` | optional |
+| `excludedUsers` | `string\|[string, string...]` | optional |
+| `excludedRoles` | `string\|[string, string...]` | optional |
+| `administratorRoles` | `string\|[string, string...]` | optional |
+| `administratorUsers` | `string\|[string, string...]` | optional |
 | `title` | `string?` | `()` |
 | `description` | `string?` | `()` |
 | `timeout` | `Duration?` | `()` |
 | `taskInputType` | `typedesc<map<json>>` | `JsonObject` |
 | `resultType` | `typedesc<anydata>` | `anydata` |
 
-The first four are included from `*ReviewTaskDefinition`, and the record is open. Input supplied to
-the task is checked against `taskInputType` before the task is created. `resultType` is how an agent
-declares the answer's shape; a workflow states that as `awaitHumanTask`'s `T` instead.
+The first nine are included from `*ReviewTaskDefinition`, and the record is open. The audience
+fields take a string or a **non-empty tuple** (`string|[string, string...]`), not a `string[]` — a
+literal like `["manager", "finance"]` is fine, but a `string[]` variable is not assignable.
+`userRoles` is a required field of nilable type: at least one of `userRoles` and `users` must name
+someone, and a definition naming nobody fails with `WORKFLOW_164`. Input supplied to the task is
+checked against `taskInputType` before the task is created. `resultType` is how an agent declares
+the answer's shape; a workflow states that as `awaitHumanTask`'s `T` instead.
 
 #### `PeerDecl`
 
-A peer durable agent advertised to this agent's model as a delegable tool. The framework runs the
-peer as a Temporal child workflow.
+A peer advertised to this agent's model as delegable tools. The framework runs the peer as a
+Temporal child workflow.
 
 | Field | Type | Default |
 |---|---|---|
-| `agent` | `DurableAgent` | required — the peer agent |
-| `name` | `string` | required — tool name, unique across all capabilities |
+| `agent` | `DurableAgent\|function` | required — the peer agent, or a `@workflow:Workflow` function |
 | `description` | `string` | optional — what the peer does, for the model |
-| `'wait` | `boolean` | `true` |
-| `callbackChannel` | `string` | optional |
-| `requiresApproval` | `boolean` | `false` |
-| `userRoles` | `string\|string[]` | optional |
+| `allowedEvents` | `string[]` | optional — omit for every declared event, `[]` for the run entry only |
 
-`'wait` is written with a leading quote because `wait` is a keyword. Left `true`, the delegation
-blocks durably for the peer's result; set to `false`, the peer runs async and replies on
-`callbackChannel`, which is **required** in that case and must name a channel declared in `events`.
+A peer's identity is its own module-level variable name: that name prefixes the tool names the
+model sees, and it is what must be unique across this agent's capabilities — there is no `name`
+field to set. The framework advertises one tool to start the peer plus one per peer event
+`allowedEvents` admits. A one-way peer event returns an acknowledgement at once; a duplex event, or
+the run entry, waits durably for the answer. A `@workflow:Workflow` function as `agent` is started
+fire-and-forget, since a workflow has no events to answer on.
 
-**Do not write `'wait` in a `PeerDecl` literal.** Against `ballerina/workflow` 0.9.0 the compiler
-plugin emits invalid code for it — the build fails with `action invocation as an expression not
-allowed here` and `invalid token ':'`, reported at a line past the end of your own file because the
-fault is in generated code. Every other field of `PeerDecl`, `callbackChannel` included, is fine.
-Omit `'wait` and take its `true` default until that is fixed.
+Gating belongs to the peer's own activities and tools, not to the delegation. `PeerDecl` has no
+`name`, `'wait`, `callbackChannel`, `requiresApproval` or `userRoles` field — all five were removed
+in 0.10.0, and each is a `WORKFLOW_163` build error. The reply address travels with each
+delegation, so there is no callback channel to declare.
 
-On all three, `requiresApproval = true` gates every call with a `PRE_RUN` review activity, and
-`userRoles` says who may decide those reviews.
+#### `EventConfig`
 
 An event channel is one `EventConfig`, keyed in `events` by the channel name:
 
@@ -507,8 +546,13 @@ An event channel is one `EventConfig`, keyed in `events` by the channel name:
 
 A `response` type declares a **duplex** channel, whose turn answers are read back with
 `getDataResult` / `waitForDataResult`; a nil `response` declares a **one-way** channel — data flows
-in and nothing is read back. `cardinality` is `workflow:MULTI_EVENT` (re-armed per turn) or
-`workflow:SINGLE_EVENT` (consumed once).
+in and nothing is read back. `cardinality` is `workflow:MULTI_EVENT` (re-armed per turn, the
+default) or `workflow:SINGLE_EVENT` (consumed once) — declare `SINGLE_EVENT` only when the channel
+receives exactly one event per agent instance, since a later event on it is never consumed.
+
+Declare `events` and `humanTasks` in the mapping form keyed by name, as above. The array form is
+deprecated and warns (`WORKFLOW_159`): a mapping key is a compile-time constant by construction,
+which the name must be.
 
 ### Driving the agent
 
