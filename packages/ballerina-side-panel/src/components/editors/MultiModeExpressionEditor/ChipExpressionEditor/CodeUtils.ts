@@ -267,27 +267,37 @@ export const tokenField = StateField.define<TokenFieldState>({
         return { tokens: [], compounds: [] };
     },
     update(oldState, tr) {
-        // Map existing positions through changes. The end boundary uses assoc=1 so that
-        // typing right at a token/compound's end (e.g. continuing to fill in a chip you just
-        // started editing) extends its range instead of leaving each new character just
-        // outside it - with assoc=-1 only the very first keystroke stayed inside the chip and
-        // everything typed after landed as plain text next to it until the next LS-backed
-        // token refresh (e.g. on blur) recomputed the range from scratch. The start boundary
-        // uses assoc=-1 for the mirror-image reason: it keeps typing at the very start of a
-        // chip (e.g. after pressing Home) inside the tracked range instead of excluding it.
-        // Both boundaries must stay in sync with activeEditableTokenField's own mapping above
-        // so the "is this the active chip" comparisons in buildDecorations keep matching.
-        let tokens = oldState.tokens.map(token => ({
-            ...token,
-            start: tr.changes.mapPos(token.start, -1),
-            end: tr.changes.mapPos(token.end, 1)
-        }));
+        // Map existing positions through changes. For the chip currently in edit mode (and
+        // only that one - see below), the end boundary uses assoc=1 so that typing right at
+        // its end (e.g. continuing to fill in a chip you just started editing) extends its
+        // range instead of leaving each new character just outside it, and the start boundary
+        // uses assoc=-1 so typing at its very start (e.g. after pressing Home) is likewise kept
+        // inside the tracked range instead of excluded. Every other token/compound keeps the
+        // opposite, non-absorbing assoc (start=1, end=-1) so boundary typing next to a chip
+        // that ISN'T being edited lands beside it as plain text instead of silently merging
+        // into - and then, on the next Backspace, deleting along with - that chip's content.
+        // The active token/compound's mapping must stay in sync with activeEditableTokenField's
+        // own mapping above so the "is this the active chip" comparisons in buildDecorations
+        // keep matching.
+        const activeStartBeforeChange = tr.startState.field(activeEditableTokenField, false);
 
-        let compounds = oldState.compounds.map(compound => ({
-            ...compound,
-            start: tr.changes.mapPos(compound.start, -1),
-            end: tr.changes.mapPos(compound.end, 1)
-        }));
+        let tokens = oldState.tokens.map(token => {
+            const isActive = activeStartBeforeChange !== undefined && token.start === activeStartBeforeChange;
+            return {
+                ...token,
+                start: tr.changes.mapPos(token.start, isActive ? -1 : 1),
+                end: tr.changes.mapPos(token.end, isActive ? 1 : -1)
+            };
+        });
+
+        let compounds = oldState.compounds.map(compound => {
+            const isActive = activeStartBeforeChange !== undefined && compound.start === activeStartBeforeChange;
+            return {
+                ...compound,
+                start: tr.changes.mapPos(compound.start, isActive ? -1 : 1),
+                end: tr.changes.mapPos(compound.end, isActive ? 1 : -1)
+            };
+        });
 
         // A chip is actively being edited: its containing expression is typically mid-edit
         // (often syntactically incomplete), so an LS-backed token refresh landing right now
@@ -295,7 +305,7 @@ export const tokenField = StateField.define<TokenFieldState>({
         // can misclassify or drop tokens for chips the user isn't even touching. Ignore it and
         // keep the locally-mapped tokens/compounds; the real refresh runs once editing commits
         // (Enter/blur, see buildNeedTokenRefetchListner and buildOnFocusOutListner).
-        const isEditingChip = tr.startState.field(activeEditableTokenField, false) !== undefined;
+        const isEditingChip = activeStartBeforeChange !== undefined;
 
         for (let effect of tr.effects) {
             if (effect.is(tokensChangeEffect)) {
