@@ -90,7 +90,7 @@ export type { PanelRoute } from "./utils/panelNav";
 import WelcomeMessage from "./Welcome";
 import { getOnboardingOpens, incrementOnboardingOpens, convertToUIMessages, isContainsSyntaxError } from "./utils/utils";
 import { applyGenerationStatus, deriveReviewBarState, PanelMessage } from "./utils/reviewBarState";
-import { backTooltipFor, PanelRoute } from "./utils/panelNav";
+import { backTooltipFor, isNavigationPrompt, PanelRoute, routeInitialPrompt } from "./utils/panelNav";
 import { upsertToolResult,
     serializeStream, parseStream, appendToLastEntry, upsertComponent, upsertRequestCard,
     buildRequestCardData, buildPlanItem, applyPlanApprovalResolution, appendAbortMarker, applyTaskWriteResult,
@@ -649,6 +649,23 @@ const AIChat: React.FC = () => {
                 .getDefaultPrompt()
                 .then(async (defaultPrompt: AIPanelPrompt) => {
                     if (defaultPrompt) {
+                        if (isNavigationPrompt(defaultPrompt)) {
+                            const route = routeInitialPrompt(defaultPrompt);
+                            if (route.kind === 'view') {
+                                rpcClient.getAiPanelRpcClient().clearInitialPrompt();
+                                pushPanel(route.view);
+                            } else if (route.kind === 'thread') {
+                                // Cleared only once the switch lands: a refused one would otherwise
+                                // drop the request with the panel still on the previous thread.
+                                void handleSwitchThread(route.threadId).then((switched) => {
+                                    if (switched) {
+                                        rpcClient.getAiPanelRpcClient().clearInitialPrompt();
+                                    }
+                                });
+                            }
+                            return;
+                        }
+
                         // Extract CodeContext from both command-template metadata and text-type direct param
                         const codeCtx = defaultPrompt.type === 'command-template'
                             ? defaultPrompt.metadata?.codeContext
@@ -2407,8 +2424,11 @@ const AIChat: React.FC = () => {
         }
     }
 
-    async function handleSwitchThread(threadId: string): Promise<void> {
-        await rpcClient.getAiPanelRpcClient().switchThread({ threadId });
+    async function handleSwitchThread(threadId: string): Promise<boolean> {
+        const switched = await rpcClient.getAiPanelRpcClient().switchThread({ threadId });
+        if (!switched) {
+            return false;
+        }
 
         // Reload messages and checkpoints for the newly active thread in parallel
         const [msgs, checkpoints] = await Promise.all([
@@ -2429,6 +2449,7 @@ const AIChat: React.FC = () => {
         setContextUsage(null);
         await refreshFollowupSuggestions();
         loadThreads();
+        return true;
     }
 
     async function handleDeleteThread(threadId: string): Promise<void> {
