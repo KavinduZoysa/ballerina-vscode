@@ -1063,9 +1063,7 @@ public class CodeAnalyzer extends NodeVisitor {
                     .object(CONTEXT_CLASS_NAME)
                     .symbol(spec.methodName());
 
-        String variableName = this.typedBindingPatternNode == null ? spec.defaultVariableName()
-                : this.typedBindingPatternNode.bindingPattern().toSourceCode().strip();
-        WorkflowContextFunctionBuilder.addVariableProperty(nodeBuilder, variableName);
+        WorkflowContextFunctionBuilder.addVariableProperty(nodeBuilder, boundName(callNode, spec));
 
         if (spec.takesTaskName()) {
             String taskName = callNode.arguments().isEmpty() ? ""
@@ -1074,7 +1072,26 @@ public class CodeAnalyzer extends NodeVisitor {
         }
     }
 
-    // The unquoted text of a call argument, so a task name reaches its string field as text.
+    // The name the call's result binds to. A declaration carries it on the binding pattern; an
+    // assignment carries it on the left-hand side, where the declaration's pattern is not set.
+    private String boundName(MethodCallExpressionNode callNode,
+                             WorkflowContextFunctionBuilder.FunctionSpec spec) {
+        if (this.typedBindingPatternNode != null) {
+            return this.typedBindingPatternNode.bindingPattern().toSourceCode().strip();
+        }
+        for (Node parent = callNode.parent(); parent != null; parent = parent.parent()) {
+            if (parent instanceof AssignmentStatementNode assignment) {
+                return CommonUtils.getVariableName(assignment.varRef());
+            }
+            if (parent instanceof StatementNode) {
+                break;
+            }
+        }
+        return spec.defaultVariableName();
+    }
+
+    // The text of a call argument, so a task name reaches its string field decoded, the way the
+    // form holds it, rather than as the escapes the source spells it with.
     private static String argumentValue(FunctionArgumentNode argument) {
         ExpressionNode expression = argument instanceof PositionalArgumentNode positional
                 ? positional.expression()
@@ -1082,8 +1099,8 @@ public class CodeAnalyzer extends NodeVisitor {
         if (expression == null) {
             return "";
         }
-        String literal = stringLiteralValue(expression);
-        return literal == null ? expression.toSourceCode().trim() : literal;
+        String source = expression.toSourceCode().trim();
+        return expression.kind() == SyntaxKind.STRING_LITERAL ? WorkflowUtil.stringLiteralText(source) : source;
     }
 
     // Object-model durable agent: builds the node for `<agentVar>.run(...)` and renders the

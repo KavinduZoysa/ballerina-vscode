@@ -10,4 +10,6 @@ function claimWorkflow(workflow:Context ctx) returns error? {
     string workflowType = check ctx.getWorkflowType();
     workflow:HumanTaskCompletion? completion = ctx.lastHumanTaskCompletion();
     workflow:ReviewDecisionRecord? decision = ctx.lastReviewDecision("approveClaim");
+    workflow:ReviewDecisionRecord? secondLook = ();
+    secondLook = ctx.lastReviewDecision("review\ttwo");
 }

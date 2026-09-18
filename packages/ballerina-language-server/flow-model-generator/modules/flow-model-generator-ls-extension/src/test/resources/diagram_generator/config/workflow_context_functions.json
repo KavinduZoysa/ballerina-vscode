@@ -4,16 +4,16 @@
     "offset": 0
   },
   "end": {
-    "line": 12,
+    "line": 14,
     "offset": 1
   },
   "source": "workflow_context_functions.bal",
-  "description": "Every context utility function reads back as its own node, and a named review decision keeps its task name",
+  "description": "Every context utility function reads back as its own node, with the name it binds to and, for the two that take one, the task name the call carries",
   "diagram": {
     "fileName": "workflow_context_functions.bal",
     "nodes": [
       {
-        "id": "38782",
+        "id": "38844",
         "metadata": {
           "label": "Start",
           "data": {
@@ -35,11 +35,11 @@
               "offset": 60
             },
             "endLine": {
-              "line": 12,
+              "line": 14,
               "offset": 1
             }
           },
-          "sourceCode": "# Workflow that reads every context utility function\n@workflow:Workflow\nfunction claimWorkflow(workflow:Context ctx) returns error? {\n    time:Utc now = ctx.currentTime();\n    boolean replaying = ctx.isReplaying();\n    string workflowId = check ctx.getWorkflowId();\n    string workflowType = check ctx.getWorkflowType();\n    workflow:HumanTaskCompletion? completion = ctx.lastHumanTaskCompletion();\n    workflow:ReviewDecisionRecord? decision = ctx.lastReviewDecision(\"approveClaim\");\n}"
+          "sourceCode": "# Workflow that reads every context utility function\n@workflow:Workflow\nfunction claimWorkflow(workflow:Context ctx) returns error? {\n    time:Utc now = ctx.currentTime();\n    boolean replaying = ctx.isReplaying();\n    string workflowId = check ctx.getWorkflowId();\n    string workflowType = check ctx.getWorkflowType();\n    workflow:HumanTaskCompletion? completion = ctx.lastHumanTaskCompletion();\n    workflow:ReviewDecisionRecord? decision = ctx.lastReviewDecision(\"approveClaim\");\n    workflow:ReviewDecisionRecord? secondLook = ();\n    secondLook = ctx.lastReviewDecision(\"review\\ttwo\");\n}"
         },
         "returning": false,
         "flags": 0
@@ -354,6 +354,163 @@
               }
             ],
             "value": "approveClaim",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false
+          }
+        },
+        "flags": 0
+      },
+      {
+        "id": "43823",
+        "metadata": {
+          "label": "Declare Variable",
+          "description": "Create a new variable"
+        },
+        "codedata": {
+          "node": "VARIABLE",
+          "lineRange": {
+            "fileName": "workflow_context_functions.bal",
+            "startLine": {
+              "line": 12,
+              "offset": 4
+            },
+            "endLine": {
+              "line": 12,
+              "offset": 51
+            }
+          },
+          "sourceCode": "workflow:ReviewDecisionRecord? secondLook = ();"
+        },
+        "returning": false,
+        "properties": {
+          "expression": {
+            "metadata": {
+              "label": "Expression",
+              "description": "Initialize with value"
+            },
+            "types": [
+              {
+                "fieldType": "ACTION_OR_EXPRESSION",
+                "selected": true
+              }
+            ],
+            "value": "()",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false
+          },
+          "variable": {
+            "metadata": {
+              "label": "Name",
+              "description": "Name of the variable"
+            },
+            "types": [
+              {
+                "fieldType": "IDENTIFIER",
+                "selected": true
+              }
+            ],
+            "value": "secondLook",
+            "optional": false,
+            "editable": false,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "lineRange": {
+                "fileName": "workflow_context_functions.bal",
+                "startLine": {
+                  "line": 12,
+                  "offset": 35
+                },
+                "endLine": {
+                  "line": 12,
+                  "offset": 45
+                }
+              }
+            }
+          },
+          "type": {
+            "metadata": {
+              "label": "Type",
+              "description": "Type of the variable"
+            },
+            "types": [
+              {
+                "fieldType": "TYPE",
+                "selected": true
+              }
+            ],
+            "value": "workflow:ReviewDecisionRecord|()",
+            "placeholder": "var",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {}
+          }
+        },
+        "flags": 0
+      },
+      {
+        "id": "44819",
+        "metadata": {
+          "label": "Get Last Review Decision",
+          "description": "The decision of the most recent review task, with who decided it"
+        },
+        "codedata": {
+          "node": "WORKFLOW_LAST_REVIEW_DECISION",
+          "org": "ballerina",
+          "module": "workflow",
+          "object": "Context",
+          "symbol": "lastReviewDecision",
+          "lineRange": {
+            "fileName": "workflow_context_functions.bal",
+            "startLine": {
+              "line": 13,
+              "offset": 4
+            },
+            "endLine": {
+              "line": 13,
+              "offset": 55
+            }
+          },
+          "sourceCode": "secondLook = ctx.lastReviewDecision(\"review\\ttwo\");"
+        },
+        "returning": false,
+        "properties": {
+          "variable": {
+            "metadata": {
+              "label": "Variable Name",
+              "description": "Variable name to receive the value."
+            },
+            "types": [
+              {
+                "fieldType": "IDENTIFIER",
+                "selected": true
+              }
+            ],
+            "value": "secondLook",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": false
+          },
+          "taskName": {
+            "metadata": {
+              "label": "Task Name",
+              "description": "Name of the task to read. Leave empty for the most recent one."
+            },
+            "types": [
+              {
+                "fieldType": "TEXT",
+                "ballerinaType": "string",
+                "selected": true
+              }
+            ],
+            "value": "review\ttwo",
             "optional": true,
             "editable": true,
             "advanced": false,
