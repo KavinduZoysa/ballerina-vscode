@@ -971,9 +971,12 @@ export class NodeFactoryVisitor implements BaseVisitor {
             this.updateNodeLinks(node, nodeModel);
         } else if (isDeclarationCanvasBox && this.lastNodeModel instanceof StartNodeModel) {
             this.updateNodeLinks(node, nodeModel, { showAddButton: false });
-        } else if (this.lastNodeModel) {
+        } else if (this.lastNodeModel || node.viewState?.startNodeId) {
             // Object-model agent box rendered in-chain (an `agent.run(...)` statement inside a
-            // workflow function or resource): keep the normal chain links.
+            // workflow function or resource): keep the normal chain links. The start id is what
+            // carries the first statement of a branch, where there is no preceding node to link
+            // from — without it the box never became the chain's tail, so nothing linked down
+            // from it and the block lost its terminator too (wso2/product-integrator#2472).
             this.updateNodeLinks(node, nodeModel);
         }
         this.addSuggestionsButton(node);
