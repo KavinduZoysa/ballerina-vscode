@@ -175,7 +175,7 @@ namespace S {
         padding: 5px;
         border: 1px solid ${ThemeColors.OUTLINE_VARIANT};
         border-radius: 5px;
-        height: 36px;
+        min-height: 36px;
         cursor: ${({ enabled }) => (enabled ? "pointer" : "not-allowed")};
         font-size: 14px;
         min-width: 160px;
@@ -191,14 +191,18 @@ namespace S {
         }
     `;
 
+    // Long node names wrap onto a second line instead of being cut: two columns of a side
+    // panel are too narrow for names like "Send Data to Child Workflow" on one line.
     export const ComponentTitle = styled.div`
-        white-space: nowrap;
         flex: 1;
         min-width: 0;
+        font-size: 13px;
+        line-height: 1.25;
         overflow: hidden;
-        text-overflow: ellipsis;
-        display: block;
-        word-break: break-word;
+        overflow-wrap: anywhere;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
     `;
 
     export const IconContainer = styled.div`
@@ -678,15 +682,7 @@ export function NodeList(props: NodeListProps) {
                                         onClick={() => handleAddNode(node, parentCategoryTitle)}
                                     >
                                         <S.IconContainer>{node.icon || <LogIcon />}</S.IconContainer>
-                                        <S.ComponentTitle
-                                            ref={(el) => {
-                                                if (el && el.scrollWidth > el.clientWidth) {
-                                                    el.style.fontSize = "13px";
-                                                    el.style.wordBreak = "break-word";
-                                                    el.style.whiteSpace = "nowrap";
-                                                }
-                                            }}
-                                        >
+                                        <S.ComponentTitle title={node.label}>
                                             {node.label}
                                         </S.ComponentTitle>
                                     </S.Component>

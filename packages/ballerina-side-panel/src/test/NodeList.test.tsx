@@ -222,4 +222,20 @@ describe("NodeList (rpc-driven)", () => {
         );
         expect(grids).toHaveLength(0);
     });
+    // Regression (wso2/product-integrator): two columns of a side panel are too narrow for a
+    // name like "Send Data to Child Workflow", and the row used to cut it to one clipped line.
+    // The name is rendered in full, wraps within its row, and the row carries it as a tooltip.
+    it("INVARIANT: a long node name is rendered in full and carries a tooltip", async () => {
+        const label = "Send Data to Child Workflow";
+        const categories = [{ title: "Child Workflows", items: [node("CHILD_WORKFLOW_SEND_DATA", label)] }];
+        const { container, findByTitle } = renderWithRpc(
+            <NodeList {...props(categories)} searchText="Child" />,
+            fakeRpc()
+        );
+
+        const title = await findByTitle(label);
+        expect(title.textContent).toBe(label);
+        expect(getComputedStyle(title).whiteSpace).not.toBe("nowrap");
+        expect(container.textContent).toContain(label);
+    });
 });

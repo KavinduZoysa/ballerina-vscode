@@ -24,10 +24,12 @@ import io.ballerina.flowmodelgenerator.core.model.NodeBuilder;
 import io.ballerina.flowmodelgenerator.core.model.NodeKind;
 import io.ballerina.flowmodelgenerator.core.model.Property;
 import io.ballerina.flowmodelgenerator.core.model.SourceBuilder;
+import io.ballerina.flowmodelgenerator.core.utils.WorkflowUtil;
 import org.ballerinalang.langserver.common.utils.NameUtil;
 import org.eclipse.lsp4j.TextEdit;
 
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,11 +52,33 @@ import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.WORKFLOW_O
  */
 public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
 
-    // The static shape of one context utility function.
-    record FunctionSpec(NodeKind kind, String methodName, String label, String description,
-                        String resultType, boolean returnsError, String defaultVariableName,
-                        String importOrg, String importModule) {
+    // The static shape of one context utility function. `takesTaskName` marks the two that accept
+    // an optional task name; the rest take no arguments.
+    public record FunctionSpec(NodeKind kind, String methodName, String label, String description,
+                               String resultType, boolean returnsError, String defaultVariableName,
+                               String importOrg, String importModule, boolean takesTaskName) {
+
+        FunctionSpec(NodeKind kind, String methodName, String label, String description, String resultType,
+                     boolean returnsError, String defaultVariableName, String importOrg, String importModule) {
+            this(kind, methodName, label, description, resultType, returnsError, defaultVariableName,
+                    importOrg, importModule, false);
+        }
     }
+
+    // Every context utility function, by the method name a `ctx.<method>()` call carries, so
+    // reading a workflow back can rebuild the same node the palette wrote.
+    private static final Map<String, FunctionSpec> SPECS_BY_METHOD = new LinkedHashMap<>();
+
+    private static void register(FunctionSpec spec) {
+        SPECS_BY_METHOD.put(spec.methodName(), spec);
+    }
+
+    public static FunctionSpec specForMethod(String methodName) {
+        return SPECS_BY_METHOD.get(methodName);
+    }
+
+    private static final String VARIABLE_NAME_LABEL = "Variable Name";
+    private static final String VARIABLE_NAME_DESCRIPTION = "Variable name to receive the value.";
 
     protected abstract FunctionSpec spec();
 
@@ -76,16 +100,41 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
         FunctionSpec spec = spec();
         String variableName = NameUtil.generateTypeName(spec.defaultVariableName(),
                 context.getAllVisibleSymbolNames());
-        properties().custom()
+        addVariableProperty(this, variableName);
+        if (spec.takesTaskName()) {
+            addTaskNameProperty(this, "");
+        }
+    }
+
+    // The name the call's result binds to. Reading a workflow back builds the same field, so the
+    // form a saved call opens in is the one the palette wrote.
+    public static void addVariableProperty(NodeBuilder nodeBuilder, String variableName) {
+        nodeBuilder.properties().custom()
                 .metadata()
-                    .label("Variable Name")
-                    .description("Variable name to receive the value.")
+                    .label(VARIABLE_NAME_LABEL)
+                    .description(VARIABLE_NAME_DESCRIPTION)
                     .stepOut()
-                .type(Property.ValueType.IDENTIFIER)
+                // Selected explicitly: a field whose only mode is unselected renders as blank.
+                .type().fieldType(Property.ValueType.IDENTIFIER).selected(true).stepOut()
                 .value(variableName)
                 .editable(true)
                 .stepOut()
                 .addProperty(Property.VARIABLE_KEY);
+    }
+
+    // The optional `taskName` argument, as a plain string field: empty means the most recent task.
+    public static void addTaskNameProperty(NodeBuilder nodeBuilder, String value) {
+        nodeBuilder.properties().custom()
+                .metadata()
+                    .label(Workflow.CONTEXT_TASK_NAME_LABEL)
+                    .description(Workflow.CONTEXT_TASK_NAME_DESCRIPTION)
+                    .stepOut()
+                .type().fieldType(Property.ValueType.TEXT).ballerinaType("string").selected(true).stepOut()
+                .value(value)
+                .editable(true)
+                .optional(true)
+                .stepOut()
+                .addProperty(Workflow.CONTEXT_TASK_NAME_KEY);
     }
 
     @Override
@@ -111,7 +160,15 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
                 .name(ctxParamName)
                 .keyword(SyntaxKind.DOT_TOKEN)
                 .name(spec.methodName())
-                .keyword(SyntaxKind.OPEN_PAREN_TOKEN)
+                .keyword(SyntaxKind.OPEN_PAREN_TOKEN);
+        if (spec.takesTaskName()) {
+            sourceBuilder.getProperty(Workflow.CONTEXT_TASK_NAME_KEY)
+                    .map(property -> property.value() == null ? "" : property.value().toString().trim())
+                    .filter(taskName -> !taskName.isBlank())
+                    .ifPresent(taskName -> sourceBuilder.token()
+                            .name(WorkflowUtil.quoteIfPlain(taskName)));
+        }
+        sourceBuilder.token()
                 .keyword(SyntaxKind.CLOSE_PAREN_TOKEN)
                 .endOfStatement();
 
@@ -161,6 +218,34 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
         }
     }
 
+    /** Generates {@code workflow:HumanTaskCompletion? completion = ctx.lastHumanTaskCompletion();}. */
+    public static class LastHumanTaskCompletion extends WorkflowContextFunctionBuilder {
+
+        private static final FunctionSpec SPEC = new FunctionSpec(NodeKind.WORKFLOW_LAST_HUMAN_TASK_COMPLETION,
+                Workflow.LAST_HUMAN_TASK_COMPLETION_METHOD_NAME, Workflow.LAST_HUMAN_TASK_COMPLETION_LABEL,
+                Workflow.LAST_HUMAN_TASK_COMPLETION_DESCRIPTION, Workflow.HUMAN_TASK_COMPLETION_TYPE, false,
+                "completion", null, null, true);
+
+        @Override
+        protected FunctionSpec spec() {
+            return SPEC;
+        }
+    }
+
+    /** Generates {@code workflow:ReviewDecisionRecord? decision = ctx.lastReviewDecision();}. */
+    public static class LastReviewDecision extends WorkflowContextFunctionBuilder {
+
+        private static final FunctionSpec SPEC = new FunctionSpec(NodeKind.WORKFLOW_LAST_REVIEW_DECISION,
+                Workflow.LAST_REVIEW_DECISION_METHOD_NAME, Workflow.LAST_REVIEW_DECISION_LABEL,
+                Workflow.LAST_REVIEW_DECISION_DESCRIPTION, Workflow.REVIEW_DECISION_TYPE, false,
+                "decision", null, null, true);
+
+        @Override
+        protected FunctionSpec spec() {
+            return SPEC;
+        }
+    }
+
     /** Generates {@code string workflowType = check ctx.getWorkflowType();}. */
     public static class GetWorkflowType extends WorkflowContextFunctionBuilder {
 
@@ -172,5 +257,14 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
         protected FunctionSpec spec() {
             return SPEC;
         }
+    }
+
+    static {
+        register(CurrentTime.SPEC);
+        register(IsReplaying.SPEC);
+        register(GetWorkflowId.SPEC);
+        register(GetWorkflowType.SPEC);
+        register(LastHumanTaskCompletion.SPEC);
+        register(LastReviewDecision.SPEC);
     }
 }
