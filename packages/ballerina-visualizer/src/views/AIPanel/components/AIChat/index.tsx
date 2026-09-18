@@ -2449,6 +2449,7 @@ const AIChat: React.FC = () => {
         setContextUsage(null);
         await refreshFollowupSuggestions();
         loadThreads();
+        return true;
     }
 
     async function handleDeleteThread(threadId: string): Promise<void> {
