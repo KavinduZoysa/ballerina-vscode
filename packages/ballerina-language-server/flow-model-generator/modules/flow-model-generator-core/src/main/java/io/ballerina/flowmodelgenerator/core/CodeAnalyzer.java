@@ -1505,8 +1505,11 @@ public class CodeAnalyzer extends NodeVisitor {
                     DurableAgentRunBuilder.convertModelToSelect(nodeBuilder,
                             DurableAgentRunBuilder.modelProviderOptions(semanticModel));
                 }
-                // The reasoning cap is part of the declaration, so the configuration form has to
-                // show the declared value rather than opening blank on it.
+                // Each declared configuration field travels to the form, so it opens on the declared
+                // value rather than blank.
+                case "resultType" -> addAgentCallProperty(DurableAgentRunBuilder.RESULT_TYPE_KEY,
+                        DurableAgentRunBuilder.RESULT_TYPE_LABEL, DurableAgentRunBuilder.RESULT_TYPE_DOC,
+                        valueExpr.toSourceCode().trim());
                 case "inputType" -> addAgentCallProperty(DurableAgentRunBuilder.INPUT_TYPE_KEY,
                         DurableAgentRunBuilder.INPUT_TYPE_LABEL, DurableAgentRunBuilder.INPUT_TYPE_DOC,
                         valueExpr.toSourceCode().trim());
@@ -1541,7 +1544,7 @@ public class CodeAnalyzer extends NodeVisitor {
                                 Map.entry("administratorRoles", "administratorRoles"),
                                 Map.entry("administratorUsers", "administratorUsers"), Map.entry("title", "title"),
                                 Map.entry("description", "description"), Map.entry("resultType", "resultType"),
-                                Map.entry("timeout", "timeout")),
+                                Map.entry("taskInputType", "taskInputType"), Map.entry("timeout", "timeout")),
                         humanTasks);
                 default -> {
                 }

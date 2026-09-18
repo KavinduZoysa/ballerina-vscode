@@ -135,6 +135,28 @@
           "originalName": "inputType"
         }
       },
+      "resultType": {
+        "metadata": {
+          "label": "Result Type",
+          "description": "The type a run produces, e.g. a record type; empty leaves the result untyped"
+        },
+        "types": [
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "typedesc<anydata>",
+            "selected": true
+          }
+        ],
+        "value": "",
+        "optional": true,
+        "editable": true,
+        "advanced": false,
+        "hidden": false,
+        "codedata": {
+          "kind": "DEFAULTABLE",
+          "originalName": "resultType"
+        }
+      },
       "maxIter": {
         "metadata": {
           "label": "Maximum Iterations",

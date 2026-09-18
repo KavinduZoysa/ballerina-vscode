@@ -78,6 +78,10 @@ public class DurableAgentRunBuilder extends CallBuilder {
     public static final String MAX_ITER_DOC = "Maximum LLM reasoning iterations per turn (default 16)";
     public static final String INPUT_TYPE_LABEL = "Input Type";
     public static final String INPUT_TYPE_DOC = "The structured input a run is given, e.g. json or a record type";
+    public static final String RESULT_TYPE_KEY = "resultType";
+    public static final String RESULT_TYPE_LABEL = "Result Type";
+    public static final String RESULT_TYPE_DOC =
+            "The type a run produces, e.g. a record type; empty leaves the result untyped";
     public static final String EVENT_TIMEOUT_LABEL = "Event Timeout";
     public static final String EVENT_TIMEOUT_DOC = "How long the agent waits for an event, in days, hours and "
             + "minutes, e.g. {days: 1, hours: 2, minutes: 30}; empty waits indefinitely";
@@ -94,7 +98,7 @@ public class DurableAgentRunBuilder extends CallBuilder {
 
     // The order the form fields appear in: agent identity first, then the query and capabilities.
     private static final List<String> FORM_ORDER = List.of(ROLE_KEY, INSTRUCTIONS_KEY, MODEL_KEY, INPUT_TYPE_KEY,
-            MAX_ITER_KEY, EVENT_TIMEOUT_KEY, MAX_EVENT_WAITS_KEY);
+            RESULT_TYPE_KEY, MAX_ITER_KEY, EVENT_TIMEOUT_KEY, MAX_EVENT_WAITS_KEY);
 
     private static final String STRING_TYPE = "string";
     private static final String MODEL_TYPE = "ai:ModelProvider";
@@ -179,6 +183,7 @@ public class DurableAgentRunBuilder extends CallBuilder {
         addCustomProperty(MODEL_KEY, "Model", "The model provider used for the agent's LLM calls",
                 MODEL_TYPE, true, "");
         addCustomProperty(INPUT_TYPE_KEY, INPUT_TYPE_LABEL, INPUT_TYPE_DOC, "typedesc<json>", false, "");
+        addCustomProperty(RESULT_TYPE_KEY, RESULT_TYPE_LABEL, RESULT_TYPE_DOC, "typedesc<anydata>", false, "");
         addCustomProperty(MAX_ITER_KEY, MAX_ITER_LABEL, MAX_ITER_DOC, "int", false, "");
         addCustomProperty(EVENT_TIMEOUT_KEY, EVENT_TIMEOUT_LABEL, EVENT_TIMEOUT_DOC, "workflow:Duration", false, "");
         addCustomProperty(MAX_EVENT_WAITS_KEY, MAX_EVENT_WAITS_LABEL, MAX_EVENT_WAITS_DOC, "int", false, "");
@@ -364,7 +369,7 @@ public class DurableAgentRunBuilder extends CallBuilder {
             if (!maxIterValue.isBlank()) {
                 fields.put(MAX_ITER_KEY, maxIterValue);
             }
-            for (String key : List.of(INPUT_TYPE_KEY, EVENT_TIMEOUT_KEY, MAX_EVENT_WAITS_KEY)) {
+            for (String key : List.of(INPUT_TYPE_KEY, RESULT_TYPE_KEY, EVENT_TIMEOUT_KEY, MAX_EVENT_WAITS_KEY)) {
                 String value = sourceBuilder.getProperty(key)
                         .map(property -> property.value() == null ? "" : property.value().toString().trim())
                         .orElse("");

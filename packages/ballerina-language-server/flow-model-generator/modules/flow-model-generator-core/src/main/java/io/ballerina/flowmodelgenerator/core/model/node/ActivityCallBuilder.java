@@ -1361,16 +1361,16 @@ public class ActivityCallBuilder extends CallBuilder {
         if (properties == null) {
             return;
         }
-        Property stepId = properties.get(STEP_ID_PARAM);
-        String stepIdValue = trimmedValue(properties, STEP_ID_PARAM);
-        // The step id is a string in text or expression mode; param() quotes it as the mode says.
-        if (stepId != null && !stepIdValue.isBlank() && !"()".equals(stepIdValue)) {
+        // The module requires a constant string, so a name typed as text is quoted; an expression
+        // naming one passes through. Shared with the other calls that take a step id.
+        String stepIdSource = WorkflowUtil.stepIdSource(properties.get(STEP_ID_PARAM));
+        if (!stepIdSource.isBlank()) {
             sourceBuilder.token()
                     .keyword(SyntaxKind.COMMA_TOKEN)
                     .name(STEP_ID_PARAM)
                     .whiteSpace()
                     .keyword(SyntaxKind.EQUAL_TOKEN)
-                    .param(stepId);
+                    .name(stepIdSource);
         }
         populateNamedArg(sourceBuilder, ApprovalPolicyForm.KEY, ApprovalPolicyForm.literal(properties));
         populateRetryPolicyArg(sourceBuilder, properties);

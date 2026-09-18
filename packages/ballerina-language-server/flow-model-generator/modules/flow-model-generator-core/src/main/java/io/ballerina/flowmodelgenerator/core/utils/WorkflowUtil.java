@@ -1356,6 +1356,85 @@ public class WorkflowUtil {
         return sourceBuilder.getProperty(key).map(WorkflowUtil::roleSource).orElse("");
     }
 
+    /** Property key of the step identity a call takes to name itself in the descriptor graph. */
+    public static final String STEP_ID_KEY = "stepId";
+    private static final String STEP_ID_LABEL = "Step Id";
+    private static final String STEP_ID_DOC =
+            "Identity of this step within the workflow, matching a node of the descriptor graph. "
+                    + "A constant string; defaults to one the compiler generates";
+
+    /**
+     * Adds the step id as an advanced field. It is optional and generated when omitted, so it sits
+     * with the advanced configurations rather than among the call's own arguments.
+     *
+     * @param nodeBuilder the form being built
+     */
+    public static void addStepIdProperty(NodeBuilder nodeBuilder) {
+        nodeBuilder.properties().custom()
+                .metadata()
+                    .label(STEP_ID_LABEL)
+                    .description(STEP_ID_DOC)
+                    .stepOut()
+                .type().fieldType(Property.ValueType.TEXT).ballerinaType("string").selected(true).stepOut()
+                .type().fieldType(Property.ValueType.EXPRESSION).ballerinaType("string?").selected(false).stepOut()
+                .codedata().originalName(STEP_ID_KEY).stepOut()
+                .placeholder("")
+                .value("")
+                .editable(true)
+                .optional(true)
+                .advanced(true)
+                .stepOut()
+                .addProperty(STEP_ID_KEY);
+    }
+
+    /**
+     * Moves a signature-derived step id into the advanced configurations, leaving its type and
+     * value as the signature described them.
+     *
+     * @param properties the form's properties, edited in place
+     */
+    public static void markStepIdAdvanced(Map<String, Property> properties) {
+        Property stepId = properties.get(STEP_ID_KEY);
+        if (stepId != null) {
+            properties.put(STEP_ID_KEY, Property.Builder.copyFrom(stepId)
+                    .advanced(true).hidden(false).editable(true).build());
+        }
+    }
+
+    /**
+     * Emits {@code , stepId = <value>} when the form holds one. Written through {@code param} so a
+     * name typed as text is quoted and an expression passes through.
+     *
+     * @param sourceBuilder the source builder, positioned after a preceding argument
+     */
+    public static void appendStepIdArgument(SourceBuilder sourceBuilder) {
+        String source = stepIdSource(sourceBuilder.getProperty(STEP_ID_KEY).orElse(null));
+        if (source.isBlank()) {
+            return;
+        }
+        sourceBuilder.token()
+                .keyword(SyntaxKind.COMMA_TOKEN)
+                .name(STEP_ID_KEY)
+                .whiteSpace()
+                .keyword(SyntaxKind.EQUAL_TOKEN)
+                .name(source);
+    }
+
+    /**
+     * A step id as source: an expression passes through, a name typed as text is quoted. The module
+     * requires a constant string, so an unquoted name would not compile.
+     *
+     * @param stepId the step id property, possibly {@code null}
+     * @return the source, or {@code ""} when the form names no step
+     */
+    public static String stepIdSource(Property stepId) {
+        String value = stepId == null || stepId.value() == null ? "" : stepId.value().toString().trim();
+        if (value.isBlank() || "()".equals(value)) {
+            return "";
+        }
+        return isExpressionModeSelected(stepId) ? value : quoteIfPlain(value);
+    }
+
     /** Property key the front end sets to request removal of a capability entry. */
     public static final String CAPABILITY_DELETE_KEY = "__delete";
 

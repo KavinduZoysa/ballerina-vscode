@@ -260,8 +260,7 @@
                   },
                   "error": {
                     "metadata": {
-                      "label": "Error",
-                      "description": "The error struct to be logged"
+                      "label": "Error"
                     },
                     "types": [
                       {
@@ -278,7 +277,7 @@
                     "hidden": false,
                     "codedata": {
                       "kind": "DEFAULTABLE",
-                      "originalName": "'error"
+                      "originalName": "error"
                     },
                     "defaultValue": "()"
                   },

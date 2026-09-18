@@ -49,6 +49,7 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
     public static final String TASK_NAME_KEY = "taskName";
     // Signature parameters surfaced when a call is re-read from source.
     public static final String RESULT_TYPE_KEY = "resultType";
+    public static final String TASK_INPUT_TYPE_KEY = "taskInputType";
     public static final String TIMEOUT_KEY = "timeout";
     public static final String USER_ROLES_KEY = "userRoles";
     public static final String TITLE_KEY = "title";
@@ -114,6 +115,29 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
                 .optional(true)
                 .stepOut()
                 .addProperty(RESULT_TYPE_KEY);
+        // What the agent hands the task when it creates one. The model fills this shape, so naming a
+        // record here is what makes the agent's input checkable rather than free-form.
+        properties().custom()
+                .metadata()
+                    .label("Task Input Type")
+                    .description("The type of the input the agent supplies when it creates this task; "
+                            + "shown to the person deciding it. Defaults to a free-form JSON object")
+                    .stepOut()
+                .type()
+                    .fieldType(Property.ValueType.TYPE)
+                    .ballerinaType("")
+                    .selected(true)
+                    .stepOut()
+                .codedata()
+                    .kind(ParameterData.Kind.DEFAULTABLE.name())
+                    .stepOut()
+                .placeholder("ClaimReview")
+                .value("")
+                .editable(true)
+                .optional(true)
+                .advanced(true)
+                .stepOut()
+                .addProperty(TASK_INPUT_TYPE_KEY);
         addStringProperty(TITLE_KEY, "Title",
                 "Short summary shown in the task inbox", "", false);
         addDocTextProperty(DESCRIPTION_KEY, "Description",
@@ -231,11 +255,16 @@ public class DurableAgentHumanTaskBuilder extends CallBuilder {
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
         String resultType = sourceBuilder.getProperty(RESULT_TYPE_KEY)
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
+        String taskInputType = sourceBuilder.getProperty(TASK_INPUT_TYPE_KEY)
+                .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
         String timeout = sourceBuilder.getProperty(TIMEOUT_KEY)
                 .map(p -> p.value() == null ? "" : p.value().toString().trim()).orElse("");
         StringBuilder entry = new StringBuilder("{name: ").append(WorkflowUtil.constantNameLiteral(name));
         for (String field : WorkflowUtil.reviewAudienceFields(sourceBuilder, USER_ROLES_KEY)) {
             entry.append(", ").append(field);
+        }
+        if (!taskInputType.isBlank()) {
+            entry.append(", taskInputType: ").append(taskInputType);
         }
         if (!resultType.isBlank()) {
             entry.append(", resultType: ").append(resultType);

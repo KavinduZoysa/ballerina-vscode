@@ -1,6 +1,6 @@
 {
   "source": "workflow_function/agent.bal",
-  "description": "The agent box's form writes the declaration's configuration: prompt, model, input type, iterations, event timeout and event waits land on the config literal, existing fields replaced and missing ones appended",
+  "description": "The agent box's form writes the declaration's configuration: prompt, model, input type, iterations, event timeout and event waits land on the config literal, existing fields replaced and missing ones appended; the result type is written beside the input type",
   "diagram": {
     "id": "1",
     "metadata": {
@@ -154,6 +154,17 @@
         "editable": true,
         "advanced": false,
         "hidden": false
+      },
+      "resultType": {
+        "metadata": {
+          "label": "Result Type"
+        },
+        "valueType": "EXPRESSION",
+        "value": "ClaimDecision",
+        "optional": true,
+        "editable": true,
+        "advanced": false,
+        "hidden": false
       }
     },
     "flags": 0
@@ -197,7 +208,7 @@
             "character": 5
           }
         },
-        "newText": "\n,\n    maxIter: 8,\n    inputType: json,\n    eventTimeout: {days: 1, hours: 2, minutes: 30},\n    maxEventWaits: 20"
+        "newText": "\n,\n    maxIter: 8,\n    inputType: json,\n    resultType: ClaimDecision,\n    eventTimeout: {days: 1, hours: 2, minutes: 30},\n    maxEventWaits: 20"
       }
     ]
   }
