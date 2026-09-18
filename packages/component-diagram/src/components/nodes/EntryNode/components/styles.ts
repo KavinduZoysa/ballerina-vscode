@@ -21,8 +21,11 @@ import { PortWidget } from "@projectstorm/react-diagrams-core";
 import { Button, ThemeColors } from "@wso2/ui-toolkit";
 import {
     NODE_BORDER_WIDTH,
+    NODE_PADDING,
     ENTRY_NODE_WIDTH,
     ENTRY_NODE_HEIGHT,
+    ENTRY_ROW_GAP,
+    ENTRY_ROW_CONTENT_HEIGHT,
     NODE_BORDER_COLOR,
     WORKFLOW_PLAY_BUTTON_TOP,
     WORKFLOW_PLAY_BUTTON_SIZE,
@@ -118,14 +121,14 @@ export const Box = styled.div<NodeStyleProp>`
     flex-direction: column;
     justify-content: flex-start;
     align-items: center;
-    gap: 8px;
+    gap: ${ENTRY_ROW_GAP}px;
     width: 100%;
     position: relative;
     border: ${NODE_BORDER_WIDTH}px solid
         ${(props: NodeStyleProp) => (props.hovered ? ThemeColors.HIGHLIGHT : NODE_BORDER_COLOR)};
     border-radius: 8px;
     background-color: ${ThemeColors.SURFACE_DIM};
-    padding: 8px;
+    padding: ${NODE_PADDING}px;
 `;
 
 export const ServiceBox = styled.div<{ readonly?: boolean }>`
@@ -136,7 +139,7 @@ export const ServiceBox = styled.div<{ readonly?: boolean }>`
     align-items: center;
     gap: 10px;
     width: ${ENTRY_NODE_WIDTH}px;
-    height: ${ENTRY_NODE_HEIGHT - 8}px;
+    height: ${ENTRY_NODE_HEIGHT - NODE_PADDING}px;
     cursor: ${(props) => props.readonly ? "default" : "pointer"};
     &:hover {
         background-color: ${(props) => !props.readonly ? ThemeColors.PRIMARY_CONTAINER : "transparent"};
@@ -153,7 +156,7 @@ export const FunctionBoxWrapper = styled.div`
 `;
 
 export const StyledServiceBox = styled(ServiceBox) <NodeStyleProp>`
-    height: 40px;
+    height: ${ENTRY_ROW_CONTENT_HEIGHT}px;
     padding: 0 12px;
     border: ${NODE_BORDER_WIDTH}px solid
         ${(props: NodeStyleProp) => (props.hovered ? ThemeColors.HIGHLIGHT : NODE_BORDER_COLOR)};

@@ -42,6 +42,8 @@ import {
     CON_NODE_HEIGHT,
     NODE_BORDER_WIDTH,
     NODE_PADDING,
+    ENTRY_ROW_GAP,
+    ENTRY_ROW_CONTENT_HEIGHT,
     WORKFLOW_PLAY_BUTTON_TOP,
     WORKFLOW_PLAY_BUTTON_SIZE,
 } from "../resources/constants";
@@ -410,12 +412,15 @@ export const LINK_DETOUR_MARGIN = 16;
  * renders its function and "show more" rows with these exact same styled components (see the
  * comment above `GQL_BASE_HEIGHT`), not a GraphQL-specific size of its own.
  *
- * These are real rendered pixel measurements, not a "content + padding" guess. `Box` and
- * `StyledServiceBox` (see styles.ts) are declared `box-sizing: border-box`, so a row's declared
- * 40px height already includes its own border - it does not add on top of it. Confirmed against
- * the real production webview DOM (not jsdom, which never lays out real pixel sizes).
+ * These are real rendered pixel measurements, not a "content + padding" guess - `ROW_PADDING` and
+ * `ENTRY_ROW_CONTENT_HEIGHT` are themselves imported from `resources/constants`, the same module
+ * `styles.ts` imports its `Box`/`StyledServiceBox` CSS values from, so the two can't drift apart
+ * the way a bare number restated in both places could. `Box` and `StyledServiceBox` are declared
+ * `box-sizing: border-box`, so a row's declared height already includes its own border - it does
+ * not add on top of it. Confirmed against the real production webview DOM (not jsdom, which never
+ * lays out real pixel sizes).
  */
-const ROW_PADDING = 8; // gap between stacked rows - `Box`'s own `gap: 8px`, already exact
+const ROW_PADDING = ENTRY_ROW_GAP; // gap between stacked rows - `Box`'s own `gap`
 // `Box`'s own border + padding: the inset between a node's outer edge and its first/last row,
 // counted once at the top and once at the bottom. Border-box sizing doesn't apply here since Box
 // has no explicit width/height of its own (it's sized by its content), so this is added on top
@@ -424,9 +429,6 @@ const BOX_INSET = NODE_BORDER_WIDTH + NODE_PADDING; // 1.5 + 8 = 9.5
 // ServiceBox's real rendered height - matches its own CSS declaration exactly (no border of its
 // own either way).
 const ENTRY_HEADER_CONTENT_HEIGHT = ENTRY_NODE_HEIGHT - NODE_PADDING; // 56
-// A row's (StyledServiceBox's) real rendered height: border-box, so its declared 40px is already
-// the full height - its border is included, not added on top.
-const ENTRY_ROW_CONTENT_HEIGHT = 40;
 // Offset from a node's own top edge to the top of its first row: the node's own top inset, then
 // the header, then the gap before row 0.
 const ENTRY_HEADER_HEIGHT = BOX_INSET + ENTRY_HEADER_CONTENT_HEIGHT + ROW_PADDING; // 9.5+56+8=73.5

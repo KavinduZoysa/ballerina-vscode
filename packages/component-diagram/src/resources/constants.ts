@@ -43,6 +43,12 @@ export const LISTENER_NODE_HEIGHT = CON_NODE_HEIGHT;
 export const NODE_BORDER_WIDTH = 1.5;
 export const NODE_PADDING = 8;
 
+// `Box`'s own row gap, and a row's (`StyledServiceBox`'s) own rendered height - shared with
+// diagram.ts's row-layout math (ENTRY_ROW_HEIGHT etc. in getPortAnchorY/calculateEntryNodeHeight)
+// so the two can't drift out of sync the way a bare number restated in both places could.
+export const ENTRY_ROW_GAP = 8;
+export const ENTRY_ROW_CONTENT_HEIGHT = 40;
+
 // A workflow node's "in" port sits inside its play button (see PlayButtonCircle), not centered
 // on the box like other entry nodes' - these let getPortAnchorY derive the port's real on-screen
 // Y from the same numbers that position the button.
