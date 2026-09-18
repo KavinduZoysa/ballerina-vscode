@@ -59,15 +59,27 @@ function stringLiteral(source: string): boolean {
     return !escaped;
 }
 
-/** The text a string literal denotes, with the escapes it carries resolved. */
+/**
+ * The text a string literal denotes, with the escapes it carries resolved. Read in one pass: an
+ * escaped backslash consumes the character after it, so `"C:\\new"` is a path and not a line break.
+ */
 function literalText(source: string): string {
-    return source
-        .slice(1, -1)
-        .replace(/\\n/g, "\n")
-        .replace(/\\t/g, "\t")
-        .replace(/\\r/g, "\r")
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, "\\");
+    const body = source.slice(1, -1);
+    let text = "";
+    for (let i = 0; i < body.length; i++) {
+        if (body[i] !== "\\" || i === body.length - 1) {
+            text += body[i];
+            continue;
+        }
+        const escaped = body[++i];
+        switch (escaped) {
+            case "n": text += "\n"; break;
+            case "t": text += "\t"; break;
+            case "r": text += "\r"; break;
+            default: text += escaped; break;
+        }
+    }
+    return text;
 }
 
 /**
