@@ -2732,11 +2732,18 @@ export function BIFlowDiagram(props: BIFlowDiagramProps) {
                         options.postUpdateCallBack();
                     }
                 } else if ((nodeToSubmit?.codedata as any)?.object === "DurableAgent") {
-                    // Capability edits rewrite the agent declaration's config literal via raw
-                    // text edits — hold the panel with the loader until the refreshed model
-                    // has rendered, then close.
-                    selectedNodeRef.current = undefined;
-                    finishCapabilityOpAfterRefresh();
+                    // A capability edit writes no artifact, so success and refusal arrive in the same
+                    // shape and only `error` tells them apart. Closing on a refusal would discard what
+                    // the person typed for a change that was never written.
+                    if (response?.error) {
+                        console.error(">>> Capability edit refused; keeping the panel open", response.error);
+                    } else {
+                        // Capability edits rewrite the agent declaration's config literal via raw
+                        // text edits — hold the panel with the loader until the refreshed model
+                        // has rendered, then close.
+                        selectedNodeRef.current = undefined;
+                        finishCapabilityOpAfterRefresh();
+                    }
                 } else {
                     console.error(">>> Error updating source code", response);
                 }
