@@ -107,7 +107,7 @@
             "message": {
               "metadata": {
                 "label": "Message",
-                "description": "Request body payload (for POST, PUT, PATCH)"
+                "description": "Request body, sent with POST, PUT, PATCH and DELETE"
               },
               "types": [
                 {
@@ -127,7 +127,7 @@
             "message": {
               "metadata": {
                 "label": "Message",
-                "description": "Request body payload (for POST, PUT, PATCH)"
+                "description": "Request body, sent with POST, PUT, PATCH and DELETE"
               },
               "types": [
                 {
@@ -143,12 +143,31 @@
               "hidden": false
             }
           },
-          "DELETE": {},
+          "DELETE": {
+            "message": {
+              "metadata": {
+                "label": "Message",
+                "description": "Request body, sent with POST, PUT, PATCH and DELETE"
+              },
+              "types": [
+                {
+                  "fieldType": "EXPRESSION",
+                  "ballerinaType": "http:RequestMessage",
+                  "selected": true
+                }
+              ],
+              "value": "",
+              "optional": false,
+              "editable": true,
+              "advanced": false,
+              "hidden": false
+            }
+          },
           "PATCH": {
             "message": {
               "metadata": {
                 "label": "Message",
-                "description": "Request body payload (for POST, PUT, PATCH)"
+                "description": "Request body, sent with POST, PUT, PATCH and DELETE"
               },
               "types": [
                 {
