@@ -35,7 +35,10 @@ export interface SeedableProperty {
     types?: FieldType[];
 }
 
-const TEXT = "TEXT";
+// The modes that hold text rather than source. A doc box is one of them: it is a single mode, but a
+// literal still belongs in it decoded.
+const TEXT_MODES = ["TEXT", "DOC_TEXT"];
+const EXPRESSION = "EXPRESSION";
 
 /** Whether the source is a plain string literal, the one shape a text box can hold. */
 function stringLiteral(source: string): boolean {
@@ -68,6 +71,20 @@ function literalText(source: string): string {
 }
 
 /**
+ * The text a hydrated value reads as: a string literal decoded, anything else as it stands. For
+ * showing a value rather than editing it, such as the panel's subtitle.
+ *
+ * @param source the value as it stands in the declaration
+ * @return the text to show
+ */
+export function capabilityValueText(source: string | undefined): string | undefined {
+    if (!source) {
+        return source;
+    }
+    return stringLiteral(source) ? literalText(source) : source;
+}
+
+/**
  * Seeds one property from the source the language server hydrated, choosing the field's mode with
  * it: a string literal fills the text box, anything else is an expression.
  *
@@ -75,16 +92,25 @@ function literalText(source: string): string {
  * @param source   the value as it stands in the declaration
  */
 export function seedCapabilityValue(property: SeedableProperty, source: string): void {
-    const types = property.types;
-    const hasTextMode = Array.isArray(types) && types.some((type) => type.fieldType === TEXT);
-    if (!hasTextMode) {
-        // One mode, so the value travels as the form already holds it.
-        property.value = source;
+    const types = Array.isArray(property.types) ? property.types : [];
+    const textMode = types.find((type) => TEXT_MODES.includes(type.fieldType ?? ""));
+    const expressionMode = types.find((type) => type.fieldType === EXPRESSION);
+
+    if (textMode && stringLiteral(source)) {
+        property.value = literalText(source);
+        select(types, textMode);
         return;
     }
-    const asText = stringLiteral(source);
-    property.value = asText ? literalText(source) : source;
-    types!.forEach((type) => {
-        type.selected = asText ? type.fieldType === TEXT : type.fieldType !== TEXT;
+    // Anything else is source. A field with no expression editor to switch to keeps the mode it
+    // has — a type reference, an enum member or an identifier is already what that field holds.
+    property.value = source;
+    if (expressionMode) {
+        select(types, expressionMode);
+    }
+}
+
+function select(types: FieldType[], chosen: FieldType): void {
+    types.forEach((type) => {
+        type.selected = type === chosen;
     });
 }

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { seedCapabilityValue, SeedableProperty } from "./capabilityFieldValues";
+import { capabilityValueText, seedCapabilityValue, SeedableProperty } from "./capabilityFieldValues";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { TraceAnimationEvent } from "@wso2/ballerina-core";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
@@ -3933,7 +3933,9 @@ export function BIFlowDiagram(props: BIFlowDiagramProps) {
             node.metadata = {
                 ...node.metadata,
                 label: capability?.name || node.metadata?.label,
-                description: values?.description || node.metadata?.description,
+                // The values are source, so a literal is decoded for the subtitle rather than
+                // shown with its quotes.
+                description: capabilityValueText(values?.description) || node.metadata?.description,
             } as any;
             selectedNodeRef.current = node;
             nodeTemplateRef.current = node;

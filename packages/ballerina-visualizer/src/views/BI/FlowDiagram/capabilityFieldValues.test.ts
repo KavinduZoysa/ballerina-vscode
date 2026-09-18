@@ -1,7 +1,7 @@
 // A capability form is a fresh template seeded with source. These pin the half that was missing:
 // putting each value in the right mode, so a reference is not written back as a literal.
 
-import { seedCapabilityValue, SeedableProperty } from "./capabilityFieldValues";
+import { capabilityValueText, seedCapabilityValue, SeedableProperty } from "./capabilityFieldValues";
 
 const dualMode = (): SeedableProperty => ({
     value: "",
@@ -61,9 +61,44 @@ describe("seedCapabilityValue", () => {
         expect(modeOf(property)).toBe("EXPRESSION");
     });
 
+    it("decodes a literal into a doc box, which is text in a single mode", () => {
+        const property: SeedableProperty = { value: "", types: [{ fieldType: "DOC_TEXT", selected: true }] };
+        seedCapabilityValue(property, '"Charges the card"');
+        expect(property.value).toBe("Charges the card");
+        expect(modeOf(property)).toBe("DOC_TEXT");
+    });
+
+    it("leaves a text-only field selected when its value is not a literal", () => {
+        // A name written as a template has no expression editor to switch to, so the field keeps
+        // the only mode it has rather than ending up with none selected.
+        const property: SeedableProperty = { value: "", types: [{ fieldType: "TEXT", selected: true }] };
+        seedCapabilityValue(property, "string `approve-${id}`");
+        expect(property.value).toBe("string `approve-${id}`");
+        expect(modeOf(property)).toBe("TEXT");
+    });
+
+    it("keeps a type reference and an enum member as they stand", () => {
+        const type: SeedableProperty = { value: "", types: [{ fieldType: "TYPE", selected: true }] };
+        seedCapabilityValue(type, "ClaimReview");
+        expect(type.value).toBe("ClaimReview");
+        expect(modeOf(type)).toBe("TYPE");
+
+        const select: SeedableProperty = { value: "", types: [{ fieldType: "SINGLE_SELECT", selected: true }] };
+        seedCapabilityValue(select, "SINGLE_EVENT");
+        expect(select.value).toBe("SINGLE_EVENT");
+        expect(modeOf(select)).toBe("SINGLE_SELECT");
+    });
+
     it("seeds a field with no declared types at all", () => {
         const property: SeedableProperty = { value: "" };
         seedCapabilityValue(property, "SINGLE_EVENT");
         expect(property.value).toBe("SINGLE_EVENT");
+    });
+
+    it("reads a value as text for display, decoding only a literal", () => {
+        expect(capabilityValueText('"Charges the card"')).toBe("Charges the card");
+        expect(capabilityValueText("descriptionVar")).toBe("descriptionVar");
+        expect(capabilityValueText(undefined)).toBeUndefined();
+        expect(capabilityValueText("")).toBe("");
     });
 });
