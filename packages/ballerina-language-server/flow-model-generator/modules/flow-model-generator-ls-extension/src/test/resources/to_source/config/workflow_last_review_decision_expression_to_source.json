@@ -1,17 +1,7 @@
 {
-  "source": "workflow_context_functions.bal",
-  "position": {
-    "line": 4,
-    "offset": 4
-  },
-  "description": "Get Last Review Decision template: an optional decision record and an optional task name",
-  "codedata": {
-    "node": "WORKFLOW_LAST_REVIEW_DECISION",
-    "org": "ballerina",
-    "module": "workflow",
-    "object": "Context"
-  },
-  "output": {
+  "source": "workflow_function/functions.bal",
+  "description": "A task name held in the expression editor is written as the reference it is, not quoted",
+  "diagram": {
     "id": "31",
     "metadata": {
       "label": "Get Last Review Decision",
@@ -23,7 +13,18 @@
       "module": "workflow",
       "object": "Context",
       "symbol": "lastReviewDecision",
-      "isNew": true
+      "isNew": true,
+      "lineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 46,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 46,
+          "offset": 0
+        }
+      }
     },
     "returning": false,
     "properties": {
@@ -35,6 +36,7 @@
         "types": [
           {
             "fieldType": "IDENTIFIER",
+            "ballerinaType": "workflow:ReviewDecisionRecord?",
             "selected": true
           }
         ],
@@ -53,15 +55,15 @@
           {
             "fieldType": "TEXT",
             "ballerinaType": "string",
-            "selected": true
+            "selected": false
           },
           {
             "fieldType": "EXPRESSION",
             "ballerinaType": "string",
-            "selected": false
+            "selected": true
           }
         ],
-        "value": "",
+        "value": "REVIEW_TASK",
         "optional": true,
         "editable": true,
         "advanced": false,
@@ -69,5 +71,22 @@
       }
     },
     "flags": 0
+  },
+  "output": {
+    "workflow_function/functions.bal": [
+      {
+        "range": {
+          "start": {
+            "line": 46,
+            "character": 0
+          },
+          "end": {
+            "line": 46,
+            "character": 0
+          }
+        },
+        "newText": "\nworkflow:ReviewDecisionRecord? decision = ctx.lastReviewDecision(REVIEW_TASK);"
+      }
+    ]
   }
 }

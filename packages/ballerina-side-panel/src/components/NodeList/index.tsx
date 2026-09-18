@@ -135,6 +135,11 @@ namespace S {
         opacity: 0.5;
     `;
 
+    export const TooltipTitle = styled.div`
+        font-weight: 600;
+        margin-bottom: 4px;
+    `;
+
     export const TooltipMarkdown = styled.div`
         font-size: 12px;
         line-height: 1.4;
@@ -196,7 +201,6 @@ namespace S {
     export const ComponentTitle = styled.div`
         flex: 1;
         min-width: 0;
-        font-size: 13px;
         line-height: 1.25;
         overflow: hidden;
         overflow-wrap: anywhere;
@@ -640,15 +644,16 @@ export function NodeList(props: NodeListProps) {
         }
     }
     
-    const renderTooltipContent = (description?: string): React.ReactNode | undefined => {
+    // The name heads the tooltip so a name too long for its two lines can still be read in full.
+    // It is the whole tooltip when the node carries no description, which is why this never
+    // returns nothing.
+    const renderTooltipContent = (label: string, description?: string): React.ReactNode => {
         const cleaned = stripHtmlTags(description || "").trim();
-        if (!cleaned) {
-            return undefined;
-        }
 
         return (
             <S.TooltipMarkdown>
-                <ReactMarkdown>{cleaned}</ReactMarkdown>
+                <S.TooltipTitle>{label}</S.TooltipTitle>
+                {cleaned && <ReactMarkdown>{cleaned}</ReactMarkdown>}
             </S.TooltipMarkdown>
         );
     };
@@ -667,7 +672,7 @@ export function NodeList(props: NodeListProps) {
                             return (
                                 <Tooltip
                                     key={node.id + index}
-                                    content={renderTooltipContent(node.description)}
+                                    content={renderTooltipContent(node.label, node.description)}
                                     position="bottom"
                                     offset={{top: 16, left: 20}}
                                     sx={{
@@ -682,9 +687,7 @@ export function NodeList(props: NodeListProps) {
                                         onClick={() => handleAddNode(node, parentCategoryTitle)}
                                     >
                                         <S.IconContainer>{node.icon || <LogIcon />}</S.IconContainer>
-                                        <S.ComponentTitle title={node.label}>
-                                            {node.label}
-                                        </S.ComponentTitle>
+                                        <S.ComponentTitle>{node.label}</S.ComponentTitle>
                                     </S.Component>
                                 </Tooltip>
                             );

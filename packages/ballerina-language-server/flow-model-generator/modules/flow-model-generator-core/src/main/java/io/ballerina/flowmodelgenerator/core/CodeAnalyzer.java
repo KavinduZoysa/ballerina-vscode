@@ -1063,44 +1063,46 @@ public class CodeAnalyzer extends NodeVisitor {
                     .object(CONTEXT_CLASS_NAME)
                     .symbol(spec.methodName());
 
-        WorkflowContextFunctionBuilder.addVariableProperty(nodeBuilder, boundName(callNode, spec));
+        AssignmentStatementNode assignment = this.typedBindingPatternNode == null
+                ? enclosingAssignment(callNode) : null;
+        WorkflowContextFunctionBuilder.addVariableProperty(nodeBuilder, assignment == null
+                ? this.typedBindingPatternNode.bindingPattern().toSourceCode().strip()
+                : CommonUtils.getVariableName(assignment.varRef()));
+        if (assignment != null) {
+            WorkflowContextFunctionBuilder.addAssignmentProperty(nodeBuilder);
+        }
 
         if (spec.takesTaskName()) {
-            String taskName = callNode.arguments().isEmpty() ? ""
-                    : argumentValue(callNode.arguments().get(0));
-            WorkflowContextFunctionBuilder.addTaskNameProperty(nodeBuilder, taskName);
+            ExpressionNode taskName = callNode.arguments().isEmpty() ? null
+                    : argumentExpression(callNode.arguments().get(0));
+            boolean literal = taskName != null && taskName.kind() == SyntaxKind.STRING_LITERAL;
+            String value = taskName == null ? ""
+                    : (literal ? WorkflowUtil.stringLiteralText(taskName.toSourceCode().trim())
+                            : taskName.toSourceCode().trim());
+            WorkflowContextFunctionBuilder.addTaskNameProperty(nodeBuilder, value, taskName != null && !literal);
         }
     }
 
-    // The name the call's result binds to. A declaration carries it on the binding pattern; an
-    // assignment carries it on the left-hand side, where the declaration's pattern is not set.
-    private String boundName(MethodCallExpressionNode callNode,
-                             WorkflowContextFunctionBuilder.FunctionSpec spec) {
-        if (this.typedBindingPatternNode != null) {
-            return this.typedBindingPatternNode.bindingPattern().toSourceCode().strip();
-        }
+    // The assignment a call is the right-hand side of, or null when it is not in one. The walk
+    // stops at the enclosing statement so a call nested in something else is not claimed.
+    private static AssignmentStatementNode enclosingAssignment(MethodCallExpressionNode callNode) {
         for (Node parent = callNode.parent(); parent != null; parent = parent.parent()) {
             if (parent instanceof AssignmentStatementNode assignment) {
-                return CommonUtils.getVariableName(assignment.varRef());
+                return assignment;
             }
             if (parent instanceof StatementNode) {
-                break;
+                return null;
             }
         }
-        return spec.defaultVariableName();
+        return null;
     }
 
-    // The text of a call argument, so a task name reaches its string field decoded, the way the
-    // form holds it, rather than as the escapes the source spells it with.
-    private static String argumentValue(FunctionArgumentNode argument) {
-        ExpressionNode expression = argument instanceof PositionalArgumentNode positional
-                ? positional.expression()
-                : (argument instanceof NamedArgumentNode named ? named.expression() : null);
-        if (expression == null) {
-            return "";
+    // The expression a call argument carries, whichever way it was written.
+    private static ExpressionNode argumentExpression(FunctionArgumentNode argument) {
+        if (argument instanceof PositionalArgumentNode positional) {
+            return positional.expression();
         }
-        String source = expression.toSourceCode().trim();
-        return expression.kind() == SyntaxKind.STRING_LITERAL ? WorkflowUtil.stringLiteralText(source) : source;
+        return argument instanceof NamedArgumentNode named ? named.expression() : null;
     }
 
     // Object-model durable agent: builds the node for `<agentVar>.run(...)` and renders the
@@ -4507,7 +4509,10 @@ public class CodeAnalyzer extends NodeVisitor {
                 && isWorkflowModule(classSymbol.getModule())) {
             WorkflowContextFunctionBuilder.FunctionSpec contextSpec =
                     WorkflowContextFunctionBuilder.specForMethod(functionName);
-            if (contextSpec != null) {
+            // Only a call whose result is bound: the form's one field is the name it binds to, and
+            // a bare call statement has none, so saving it would introduce a variable of its own.
+            if (contextSpec != null && (this.typedBindingPatternNode != null
+                    || enclosingAssignment(methodCallExpressionNode) != null)) {
                 startNode(contextSpec.kind(), expressionNode.parent());
                 populateContextFunctionProperties(methodCallExpressionNode, contextSpec);
                 return;

@@ -224,18 +224,32 @@ describe("NodeList (rpc-driven)", () => {
     });
     // Regression (wso2/product-integrator): two columns of a side panel are too narrow for a
     // name like "Send Data to Child Workflow", and the row used to cut it to one clipped line.
-    // The name is rendered in full, wraps within its row, and the row carries it as a tooltip.
-    it("INVARIANT: a long node name is rendered in full and carries a tooltip", async () => {
+    // The name now wraps within its row rather than being held on one line. Both the row and the
+    // tooltip's heading carry it, and neither may hold it on one line.
+    it("INVARIANT: a long node name wraps rather than being held on one line", async () => {
         const label = "Send Data to Child Workflow";
         const categories = [{ title: "Child Workflows", items: [node("CHILD_WORKFLOW_SEND_DATA", label)] }];
-        const { container, findByTitle } = renderWithRpc(
+        const { findAllByText } = renderWithRpc(
             <NodeList {...props(categories)} searchText="Child" />,
             fakeRpc()
         );
 
-        const title = await findByTitle(label);
-        expect(title.textContent).toBe(label);
-        expect(getComputedStyle(title).whiteSpace).not.toBe("nowrap");
-        expect(container.textContent).toContain(label);
+        const shown = await findAllByText(label);
+        expect(shown.length).toBeGreaterThan(0);
+        shown.forEach((el) => expect(getComputedStyle(el).whiteSpace).not.toBe("nowrap"));
+    });
+
+    // The row's own tooltip is the only one: a second, native one on the name would put two
+    // tooltips under the same hover.
+    it("INVARIANT: a node row carries no native tooltip of its own", async () => {
+        const label = "Send Data to Child Workflow";
+        const categories = [{ title: "Child Workflows", items: [node("CHILD_WORKFLOW_SEND_DATA", label)] }];
+        const { container, findAllByText } = renderWithRpc(
+            <NodeList {...props(categories)} searchText="Child" />,
+            fakeRpc()
+        );
+
+        await findAllByText(label);
+        expect(container.querySelectorAll(`[title="${label}"]`)).toHaveLength(0);
     });
 });

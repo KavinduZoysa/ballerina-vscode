@@ -174,6 +174,7 @@ public class Constants {
         public static final String LAST_REVIEW_DECISION_DESCRIPTION =
                 "The decision of the most recent review task, with who decided it";
         public static final String CONTEXT_TASK_NAME_KEY = "taskName";
+        public static final String CONTEXT_ASSIGNS_EXISTING_KEY = "assignsExisting";
         public static final String CONTEXT_TASK_NAME_LABEL = "Task Name";
         public static final String CONTEXT_TASK_NAME_DESCRIPTION =
                 "Name of the task to read. Leave empty for the most recent one.";

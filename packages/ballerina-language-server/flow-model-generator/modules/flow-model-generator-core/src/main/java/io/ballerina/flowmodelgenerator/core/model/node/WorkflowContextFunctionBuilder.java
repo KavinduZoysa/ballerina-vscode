@@ -104,6 +104,10 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
 
     private static final String VARIABLE_NAME_LABEL = "Variable Name";
     private static final String VARIABLE_NAME_DESCRIPTION = "Variable name to receive the value.";
+    private static final String ASSIGNS_EXISTING_LABEL = "Assigns an existing variable";
+    private static final String ASSIGNS_EXISTING_DESCRIPTION =
+            "Whether the source assigns a variable that is already declared.";
+    private static final String STRING_TYPE = "string";
 
     protected abstract FunctionSpec spec();
 
@@ -127,7 +131,7 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
                 context.getAllVisibleSymbolNames());
         addVariableProperty(this, variableName);
         if (spec.takesTaskName()) {
-            addTaskNameProperty(this, "");
+            addTaskNameProperty(this, "", false);
         }
     }
 
@@ -147,19 +151,48 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
                 .addProperty(Property.VARIABLE_KEY);
     }
 
-    // The optional `taskName` argument, as a plain string field: empty means the most recent task.
-    public static void addTaskNameProperty(NodeBuilder nodeBuilder, String value) {
+    /**
+     * The optional {@code taskName} argument: empty means the most recent task. It carries both a
+     * text box and the expression editor, because a call may name the task with a constant rather
+     * than a literal, and a decoded literal is otherwise indistinguishable from a reference.
+     *
+     * @param nodeBuilder the node being built
+     * @param value       the decoded text, or the expression as written
+     * @param expression  whether the value is an expression rather than text
+     */
+    public static void addTaskNameProperty(NodeBuilder nodeBuilder, String value, boolean expression) {
         nodeBuilder.properties().custom()
                 .metadata()
                     .label(Workflow.CONTEXT_TASK_NAME_LABEL)
                     .description(Workflow.CONTEXT_TASK_NAME_DESCRIPTION)
                     .stepOut()
-                .type().fieldType(Property.ValueType.TEXT).ballerinaType("string").selected(true).stepOut()
+                .type().fieldType(Property.ValueType.TEXT).ballerinaType(STRING_TYPE)
+                    .selected(!expression).stepOut()
+                .type().fieldType(Property.ValueType.EXPRESSION).ballerinaType(STRING_TYPE)
+                    .selected(expression).stepOut()
                 .value(value)
                 .editable(true)
                 .optional(true)
                 .stepOut()
                 .addProperty(Workflow.CONTEXT_TASK_NAME_KEY);
+    }
+
+    // Whether the call was written as an assignment to a variable that already exists, rather than
+    // a declaration. Hidden: the form has nothing to ask, but a save has to write back the same
+    // statement shape or the variable would be declared a second time.
+    public static void addAssignmentProperty(NodeBuilder nodeBuilder) {
+        nodeBuilder.properties().custom()
+                .metadata()
+                    .label(ASSIGNS_EXISTING_LABEL)
+                    .description(ASSIGNS_EXISTING_DESCRIPTION)
+                    .stepOut()
+                .type().fieldType(Property.ValueType.FLAG).selected(true).stepOut()
+                .value(true)
+                .editable(false)
+                .optional(true)
+                .hidden(true)
+                .stepOut()
+                .addProperty(Workflow.CONTEXT_ASSIGNS_EXISTING_KEY);
     }
 
     @Override
@@ -172,9 +205,15 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
 
         String ctxParamName = ActivityCallBuilder.resolveContextParamName(sourceBuilder);
 
+        // A call read back from an assignment is written back as one: declaring its type again
+        // would declare the variable twice.
+        boolean assignsExisting = sourceBuilder.getProperty(Workflow.CONTEXT_ASSIGNS_EXISTING_KEY)
+                .map(property -> property.value() != null && Boolean.parseBoolean(property.value().toString()))
+                .orElse(false);
+        if (!assignsExisting) {
+            sourceBuilder.token().name(spec.resultType()).whiteSpace();
+        }
         sourceBuilder.token()
-                .name(spec.resultType())
-                .whiteSpace()
                 .name(variableName)
                 .whiteSpace()
                 .keyword(SyntaxKind.EQUAL_TOKEN);
@@ -188,10 +227,14 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
                 .keyword(SyntaxKind.OPEN_PAREN_TOKEN);
         if (spec.takesTaskName()) {
             sourceBuilder.getProperty(Workflow.CONTEXT_TASK_NAME_KEY)
-                    .map(property -> property.value() == null ? "" : property.value().toString().trim())
-                    .filter(taskName -> !taskName.isBlank())
-                    .ifPresent(taskName -> sourceBuilder.token()
-                            .name(WorkflowUtil.quoteIfPlain(taskName)));
+                    .filter(property -> property.value() != null && !property.value().toString().isBlank())
+                    .ifPresent(property -> {
+                        String taskName = property.value().toString().trim();
+                        // The text box holds decoded text, so it is escaped back into a literal
+                        // unconditionally; the expression editor holds source and keeps it.
+                        sourceBuilder.token().name(WorkflowUtil.isExpressionModeSelected(property)
+                                ? taskName : WorkflowUtil.stringLiteral(taskName));
+                    });
         }
         sourceBuilder.token()
                 .keyword(SyntaxKind.CLOSE_PAREN_TOKEN)

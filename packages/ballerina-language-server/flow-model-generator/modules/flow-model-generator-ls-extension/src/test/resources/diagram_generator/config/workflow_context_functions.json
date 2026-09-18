@@ -1,19 +1,19 @@
 {
   "start": {
-    "line": 4,
+    "line": 6,
     "offset": 0
   },
   "end": {
-    "line": 14,
+    "line": 18,
     "offset": 1
   },
   "source": "workflow_context_functions.bal",
-  "description": "Every context utility function reads back as its own node, with the name it binds to and, for the two that take one, the task name the call carries",
+  "description": "Every context utility function reads back as its own node, with the name it binds to, an assignment kept as one, and a task name held as text or as the expression it is",
   "diagram": {
     "fileName": "workflow_context_functions.bal",
     "nodes": [
       {
-        "id": "38844",
+        "id": "40859",
         "metadata": {
           "label": "Start",
           "data": {
@@ -31,21 +31,21 @@
           "lineRange": {
             "fileName": "workflow_context_functions.bal",
             "startLine": {
-              "line": 5,
+              "line": 7,
               "offset": 60
             },
             "endLine": {
-              "line": 14,
+              "line": 17,
               "offset": 1
             }
           },
-          "sourceCode": "# Workflow that reads every context utility function\n@workflow:Workflow\nfunction claimWorkflow(workflow:Context ctx) returns error? {\n    time:Utc now = ctx.currentTime();\n    boolean replaying = ctx.isReplaying();\n    string workflowId = check ctx.getWorkflowId();\n    string workflowType = check ctx.getWorkflowType();\n    workflow:HumanTaskCompletion? completion = ctx.lastHumanTaskCompletion();\n    workflow:ReviewDecisionRecord? decision = ctx.lastReviewDecision(\"approveClaim\");\n    workflow:ReviewDecisionRecord? secondLook = ();\n    secondLook = ctx.lastReviewDecision(\"review\\ttwo\");\n}"
+          "sourceCode": "# Workflow that reads every context utility function\n@workflow:Workflow\nfunction claimWorkflow(workflow:Context ctx) returns error? {\n    time:Utc now = ctx.currentTime();\n    boolean replaying = ctx.isReplaying();\n    string workflowId = check ctx.getWorkflowId();\n    string workflowType = check ctx.getWorkflowType();\n    workflow:HumanTaskCompletion? completion = ctx.lastHumanTaskCompletion();\n    workflow:ReviewDecisionRecord? decision = ctx.lastReviewDecision(\"review\\ttwo\");\n    workflow:ReviewDecisionRecord? secondLook = ();\n    secondLook = ctx.lastReviewDecision(REVIEW_TASK);\n    _ = ctx.isReplaying();\n}"
         },
         "returning": false,
         "flags": 0
       },
       {
-        "id": "37857",
+        "id": "39841",
         "metadata": {
           "label": "Get Current Time",
           "description": "Deterministic current time, safe to use inside workflow logic"
@@ -59,11 +59,11 @@
           "lineRange": {
             "fileName": "workflow_context_functions.bal",
             "startLine": {
-              "line": 6,
+              "line": 8,
               "offset": 4
             },
             "endLine": {
-              "line": 6,
+              "line": 8,
               "offset": 37
             }
           },
@@ -92,7 +92,7 @@
         "flags": 0
       },
       {
-        "id": "38854",
+        "id": "40838",
         "metadata": {
           "label": "Is Replaying",
           "description": "Whether the workflow is currently replaying recorded history"
@@ -106,11 +106,11 @@
           "lineRange": {
             "fileName": "workflow_context_functions.bal",
             "startLine": {
-              "line": 7,
+              "line": 9,
               "offset": 4
             },
             "endLine": {
-              "line": 7,
+              "line": 9,
               "offset": 42
             }
           },
@@ -139,7 +139,7 @@
         "flags": 0
       },
       {
-        "id": "39854",
+        "id": "41838",
         "metadata": {
           "label": "Get Workflow ID",
           "description": "The unique ID of this workflow instance"
@@ -153,11 +153,11 @@
           "lineRange": {
             "fileName": "workflow_context_functions.bal",
             "startLine": {
-              "line": 8,
+              "line": 10,
               "offset": 4
             },
             "endLine": {
-              "line": 8,
+              "line": 10,
               "offset": 50
             }
           },
@@ -186,7 +186,7 @@
         "flags": 1
       },
       {
-        "id": "40850",
+        "id": "42834",
         "metadata": {
           "label": "Get Workflow Type",
           "description": "The type name of this workflow"
@@ -200,11 +200,11 @@
           "lineRange": {
             "fileName": "workflow_context_functions.bal",
             "startLine": {
-              "line": 9,
+              "line": 11,
               "offset": 4
             },
             "endLine": {
-              "line": 9,
+              "line": 11,
               "offset": 54
             }
           },
@@ -233,7 +233,7 @@
         "flags": 1
       },
       {
-        "id": "41865",
+        "id": "43849",
         "metadata": {
           "label": "Get Last Human Task Completion",
           "description": "The completion of the most recently completed human task, with who completed it"
@@ -247,11 +247,11 @@
           "lineRange": {
             "fileName": "workflow_context_functions.bal",
             "startLine": {
-              "line": 10,
+              "line": 12,
               "offset": 4
             },
             "endLine": {
-              "line": 10,
+              "line": 12,
               "offset": 77
             }
           },
@@ -286,6 +286,11 @@
                 "fieldType": "TEXT",
                 "ballerinaType": "string",
                 "selected": true
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string",
+                "selected": false
               }
             ],
             "value": "",
@@ -298,7 +303,7 @@
         "flags": 0
       },
       {
-        "id": "42865",
+        "id": "44848",
         "metadata": {
           "label": "Get Last Review Decision",
           "description": "The decision of the most recent review task, with who decided it"
@@ -312,15 +317,15 @@
           "lineRange": {
             "fileName": "workflow_context_functions.bal",
             "startLine": {
-              "line": 11,
+              "line": 13,
               "offset": 4
             },
             "endLine": {
-              "line": 11,
-              "offset": 85
+              "line": 13,
+              "offset": 84
             }
           },
-          "sourceCode": "workflow:ReviewDecisionRecord? decision = ctx.lastReviewDecision(\"approveClaim\");"
+          "sourceCode": "workflow:ReviewDecisionRecord? decision = ctx.lastReviewDecision(\"review\\ttwo\");"
         },
         "returning": false,
         "properties": {
@@ -351,9 +356,14 @@
                 "fieldType": "TEXT",
                 "ballerinaType": "string",
                 "selected": true
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string",
+                "selected": false
               }
             ],
-            "value": "approveClaim",
+            "value": "review\ttwo",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -363,7 +373,7 @@
         "flags": 0
       },
       {
-        "id": "43823",
+        "id": "45807",
         "metadata": {
           "label": "Declare Variable",
           "description": "Create a new variable"
@@ -373,11 +383,11 @@
           "lineRange": {
             "fileName": "workflow_context_functions.bal",
             "startLine": {
-              "line": 12,
+              "line": 14,
               "offset": 4
             },
             "endLine": {
-              "line": 12,
+              "line": 14,
               "offset": 51
             }
           },
@@ -422,11 +432,11 @@
               "lineRange": {
                 "fileName": "workflow_context_functions.bal",
                 "startLine": {
-                  "line": 12,
+                  "line": 14,
                   "offset": 35
                 },
                 "endLine": {
-                  "line": 12,
+                  "line": 14,
                   "offset": 45
                 }
               }
@@ -455,7 +465,7 @@
         "flags": 0
       },
       {
-        "id": "44819",
+        "id": "46801",
         "metadata": {
           "label": "Get Last Review Decision",
           "description": "The decision of the most recent review task, with who decided it"
@@ -469,15 +479,15 @@
           "lineRange": {
             "fileName": "workflow_context_functions.bal",
             "startLine": {
-              "line": 13,
+              "line": 15,
               "offset": 4
             },
             "endLine": {
-              "line": 13,
-              "offset": 55
+              "line": 15,
+              "offset": 53
             }
           },
-          "sourceCode": "secondLook = ctx.lastReviewDecision(\"review\\ttwo\");"
+          "sourceCode": "secondLook = ctx.lastReviewDecision(REVIEW_TASK);"
         },
         "returning": false,
         "properties": {
@@ -498,6 +508,23 @@
             "advanced": false,
             "hidden": false
           },
+          "assignsExisting": {
+            "metadata": {
+              "label": "Assigns an existing variable",
+              "description": "Whether the source assigns a variable that is already declared."
+            },
+            "types": [
+              {
+                "fieldType": "FLAG",
+                "selected": true
+              }
+            ],
+            "value": true,
+            "optional": true,
+            "editable": false,
+            "advanced": false,
+            "hidden": true
+          },
           "taskName": {
             "metadata": {
               "label": "Task Name",
@@ -507,14 +534,83 @@
               {
                 "fieldType": "TEXT",
                 "ballerinaType": "string",
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string",
                 "selected": true
               }
             ],
-            "value": "review\ttwo",
+            "value": "REVIEW_TASK",
             "optional": true,
             "editable": true,
             "advanced": false,
             "hidden": false
+          }
+        },
+        "flags": 0
+      },
+      {
+        "id": "47766",
+        "metadata": {
+          "label": "Is Replaying",
+          "description": "Whether the workflow is currently replaying recorded history"
+        },
+        "codedata": {
+          "node": "WORKFLOW_IS_REPLAYING",
+          "org": "ballerina",
+          "module": "workflow",
+          "object": "Context",
+          "symbol": "isReplaying",
+          "lineRange": {
+            "fileName": "workflow_context_functions.bal",
+            "startLine": {
+              "line": 16,
+              "offset": 4
+            },
+            "endLine": {
+              "line": 16,
+              "offset": 26
+            }
+          },
+          "sourceCode": "_ = ctx.isReplaying();"
+        },
+        "returning": false,
+        "properties": {
+          "variable": {
+            "metadata": {
+              "label": "Variable Name",
+              "description": "Variable name to receive the value."
+            },
+            "types": [
+              {
+                "fieldType": "IDENTIFIER",
+                "selected": true
+              }
+            ],
+            "value": "_",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": false
+          },
+          "assignsExisting": {
+            "metadata": {
+              "label": "Assigns an existing variable",
+              "description": "Whether the source assigns a variable that is already declared."
+            },
+            "types": [
+              {
+                "fieldType": "FLAG",
+                "selected": true
+              }
+            ],
+            "value": true,
+            "optional": true,
+            "editable": false,
+            "advanced": false,
+            "hidden": true
           }
         },
         "flags": 0
