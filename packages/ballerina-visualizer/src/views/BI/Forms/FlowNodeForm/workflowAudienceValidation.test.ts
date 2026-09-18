@@ -36,7 +36,8 @@ describe("validateWorkflowAudience", () => {
     });
 
     it("treats the empty shapes a cleared field leaves behind as naming nobody", () => {
-        for (const empty of ["", "   ", "()", "[]", [], null, undefined]) {
+        const emptyValues: unknown[] = ["", "   ", "()", "[]", [], null, undefined];
+        for (const empty of emptyValues) {
             expect(validateWorkflowAudience({ retryPolicy: "ManualRetry", retryUserRoles: empty })).toBeDefined();
         }
     });
