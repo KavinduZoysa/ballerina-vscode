@@ -44,7 +44,7 @@ import TypeModeSwitcher, { TypeInputMode } from "../TypeModeSwitcher";
 
 interface TypeEditorProps {
     field: FormField;
-    openRecordEditor: (open: boolean, newType?: string | NodeProperties) => void;
+    openRecordEditor?: (open: boolean, newType?: string | NodeProperties) => void;
     openFormTypeEditor?: (open: boolean, newType?: string) => void;
     handleOnFieldFocus?: (key: string) => void;
     handleOnTypeChange?: (value?: string) => void;
@@ -178,7 +178,7 @@ export function TypeEditor(props: TypeEditorProps) {
     }
 
     const handleDefaultCompletionSelect = (value: string | NodeProperties) => {
-        openRecordEditor(true, value);
+        openRecordEditor?.(true, value);
         handleCancel();
     }
 
@@ -312,7 +312,7 @@ export function TypeEditor(props: TypeEditorProps) {
                                     undefined
                             }
                             completions={types}
-                            showDefaultCompletion={showDefaultCompletion}
+                            showDefaultCompletion={showDefaultCompletion && !!openRecordEditor}
                             getDefaultCompletion={() => getDefaultCompletion(value)}
                             value={value}
                             ariaLabel={field.label}

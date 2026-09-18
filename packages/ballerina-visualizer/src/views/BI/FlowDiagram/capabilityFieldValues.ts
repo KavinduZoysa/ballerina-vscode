@@ -72,6 +72,17 @@ function literalText(source: string): string {
             continue;
         }
         const escaped = body[++i];
+        if (escaped === "u" && body[i + 1] === "{") {
+            // `\u{1F600}`, the only escape with a body. The language server decodes it too, and a
+            // literal must not read differently depending on which side looked at it.
+            const close = body.indexOf("}", i + 2);
+            const code = close === -1 ? NaN : Number.parseInt(body.slice(i + 2, close), 16);
+            if (close !== -1 && Number.isFinite(code)) {
+                text += String.fromCodePoint(code);
+                i = close;
+                continue;
+            }
+        }
         switch (escaped) {
             case "n": text += "\n"; break;
             case "t": text += "\t"; break;
@@ -105,6 +116,12 @@ export function capabilityValueText(source: string | undefined): string | undefi
  */
 export function seedCapabilityValue(property: SeedableProperty, source: string): void {
     const types = Array.isArray(property.types) ? property.types : [];
+    if (!source) {
+        // Nothing declared — `userRoles: ()` reaches here as blank. The field stays empty in
+        // whichever mode its template opened in, rather than becoming an empty expression.
+        property.value = "";
+        return;
+    }
     const textMode = types.find((type) => TEXT_MODES.includes(type.fieldType ?? ""));
     const expressionMode = types.find((type) => type.fieldType === EXPRESSION);
 

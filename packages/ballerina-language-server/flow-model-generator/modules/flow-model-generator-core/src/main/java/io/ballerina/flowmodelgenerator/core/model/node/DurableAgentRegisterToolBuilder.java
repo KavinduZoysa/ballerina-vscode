@@ -109,8 +109,10 @@ public class DurableAgentRegisterToolBuilder extends CallBuilder {
 
         // ToolDecl gating: emitted as `{tool: <ref>, approvalPolicy: {userRoles: ...}}` on the
         // declaration's tools list when set; a bare reference otherwise.
+        // Expressions only, still: a dropdown's sub-fields are seeded through withHeldValue, which
+        // copies the value alone, so the mode this PR restores does not reach them yet.
         ApprovalPolicyForm.addFormProperties(this, ApprovalPolicyForm.NO_APPROVAL_VALUE,
-                ActivityCallBuilder.ReviewFormValues.empty());
+                ActivityCallBuilder.ReviewFormValues.empty(), false);
         properties().checkError(true);
     }
 

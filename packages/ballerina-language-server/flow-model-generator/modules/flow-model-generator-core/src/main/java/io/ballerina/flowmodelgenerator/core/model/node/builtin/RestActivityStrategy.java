@@ -131,7 +131,7 @@ public class RestActivityStrategy implements BuiltinActivityStrategy {
         nodeBuilder.properties().custom()
                 .metadata()
                     .label("Message")
-                    .description("Request body payload (for POST, PUT, PATCH)")
+                    .description("Request body, sent with POST, PUT, PATCH and DELETE")
                     .stepOut()
                 .type().fieldType(Property.ValueType.EXPRESSION)
                     .ballerinaType("http:RequestMessage").selected(true).stepOut()
@@ -234,8 +234,10 @@ public class RestActivityStrategy implements BuiltinActivityStrategy {
     }
 
     // `activity:callRestAPI` forwards the body on POST, PUT, PATCH and DELETE, and calls
-    // `connection->get(path, headers)` without it — so DELETE carries a body and GET does not.
+    // `connection->get(path, headers)` without it. Written as the enumeration rather than "not
+    // GET", so a method added to the module does not silently acquire a body here.
     private boolean isPayloadMethod(String method) {
-        return !METHOD_GET.equalsIgnoreCase(method);
+        return METHOD_POST.equalsIgnoreCase(method) || METHOD_PUT.equalsIgnoreCase(method)
+                || METHOD_PATCH.equalsIgnoreCase(method) || METHOD_DELETE.equalsIgnoreCase(method);
     }
 }

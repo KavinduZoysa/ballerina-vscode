@@ -1677,7 +1677,10 @@ public class CodeAnalyzer extends NodeVisitor {
                                           List<AgentCapabilityData> out) {
         for (WorkflowUtil.CapabilityEntry entry : WorkflowUtil.capabilityEntries(mapping)) {
             Map<String, String> values = new LinkedHashMap<>();
-            values.put(fieldToPropertyKey.getOrDefault("name", "name"), entry.name());
+            // The key is the name, already unquoted. Every value here is source, so it goes back
+            // as the literal it was, or the form would read it as a reference.
+            values.put(fieldToPropertyKey.getOrDefault("name", "name"),
+                    WorkflowUtil.stringLiteral(entry.name()));
             if (entry.config() != null) {
                 collectCapabilityFields(entry.config(), capabilityType, refField, fieldToPropertyKey, values);
             }

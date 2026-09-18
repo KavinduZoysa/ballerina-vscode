@@ -239,7 +239,7 @@
       "message": {
         "metadata": {
           "label": "Message",
-          "description": "Request body payload (for POST, PUT, PATCH)"
+          "description": "Request body, sent with POST, PUT, PATCH and DELETE"
         },
         "types": [
           {

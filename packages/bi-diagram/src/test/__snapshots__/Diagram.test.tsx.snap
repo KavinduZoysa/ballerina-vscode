@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`BI Diagram - Snapshot Tests renders AI agent flow correctly: ai-agent-flow 1`] = `
 "/* Emotion Styles */

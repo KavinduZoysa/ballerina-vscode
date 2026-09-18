@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`comment-only branches — layout graph error handler: comment-only body is placeheld and wired 1`] = `
 "nodes:

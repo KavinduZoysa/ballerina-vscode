@@ -16,56 +16,71 @@
  * under the License.
  */
 
-// The agent box is the one node whose link update is conditional, because the synthetic copy that
-// floats above the chain must not join it. An `agent.run(...)` statement carries the same marker,
-// so the conditions decide whether a real statement links at all (wso2/product-integrator#2472).
+// Two nodes carry the agentBox marker: the real `agent.run(...)` statement, and the synthetic copy
+// the agent-only view is built from. Only the synthetic one is marked agentDeclarationCanvas, and
+// the link decision turns on that — a statement that opened a block used to link nothing at all
+// (wso2/product-integrator#2472).
 
 import { NodeFactoryVisitor } from "../visitors/NodeFactoryVisitor";
 import { FlowNode, NodeKind } from "../utils/types";
 
-function makeNode(id: string, kind: NodeKind, data?: Record<string, unknown>, startNodeId?: string): FlowNode {
+function makeNode(id: string, kind: NodeKind, data?: Record<string, unknown>): FlowNode {
     return {
         id,
         metadata: { label: kind, description: id, ...(data ? { data } : {}) },
         codedata: { node: kind, sourceCode: id },
         branches: [],
         returning: false,
-        viewState: { x: 0, y: 0, lw: 0, rw: 0, h: 0, clw: 0, crw: 0, ch: 0, ...(startNodeId ? { startNodeId } : {}) },
+        viewState: { x: 0, y: 0, lw: 0, rw: 0, h: 0, clw: 0, crw: 0, ch: 0 },
     } as FlowNode;
 }
 
-const agentBox = (id: string, startNodeId?: string) => makeNode(id, "DURABLE_AGENT_RUN", { agentBox: true }, startNodeId);
+// What the analysis emits for `agent.run(...)` written in a workflow body.
+const statementBox = (id: string) => makeNode(id, "DURABLE_AGENT_RUN", { agentBox: true, agentName: "claimAgent" });
+// What it emits for the agent's own canvas, which is the declaration rendered on its own.
+const syntheticBox = (id: string) =>
+    makeNode(id, "DURABLE_AGENT_RUN", { agentBox: true, agentDeclarationCanvas: true, agentName: "claimAgent" });
+
+const linkSources = (visitor: NodeFactoryVisitor) =>
+    ((visitor as any).links as Array<{ getSourcePort: () => { getNode: () => { getID: () => string } } }>).map((link) =>
+        link.getSourcePort().getNode().getID()
+    );
 
 describe("NodeFactoryVisitor agent run links", () => {
-    it("links the statement that follows an agent run in a straight chain", () => {
+    it("links the statement that follows an agent run", () => {
         const visitor = new NodeFactoryVisitor();
         visitor.beginVisitEventStart(makeNode("start", "EVENT_START"));
-        visitor.beginVisitDurableAgentRun(agentBox("run"));
+        visitor.beginVisitDurableAgentRun(statementBox("run"));
         visitor.beginVisitNode(makeNode("after", "EXPRESSION"));
 
-        const links = (visitor as any).links as Array<{ getSourcePort: () => { getNode: () => { getID: () => string } } }>;
-        const sources = links.map((link) => link.getSourcePort().getNode().getID());
-        expect(sources).toContain("run");
+        expect(linkSources(visitor)).toContain("run");
     });
 
-    it("links an agent run that opens a branch, where there is no preceding node", () => {
+    it("links what follows an agent run that opens a block, where nothing precedes it", () => {
+        const visitor = new NodeFactoryVisitor();
+        // A block's first statement is visited with no preceding node in the chain.
+        visitor.beginVisitDurableAgentRun(statementBox("run-in-branch"));
+        visitor.beginVisitNode(makeNode("after", "EXPRESSION"));
+
+        expect(linkSources(visitor)).toContain("run-in-branch");
+    });
+
+    it("joins the agent's own canvas to its start pill", () => {
         const visitor = new NodeFactoryVisitor();
         visitor.beginVisitEventStart(makeNode("start", "EVENT_START"));
-        // A branch's first child carries the start it hangs from, and no last node is set.
-        (visitor as any).lastNodeModel = undefined;
-        visitor.beginVisitDurableAgentRun(agentBox("run-in-branch", "start"));
-        visitor.beginVisitNode(makeNode("after", "EXPRESSION"));
+        visitor.beginVisitDurableAgentRun(syntheticBox("canvas-box"));
 
-        const links = (visitor as any).links as Array<{ getSourcePort: () => { getNode: () => { getID: () => string } } }>;
-        const sources = links.map((link) => link.getSourcePort().getNode().getID());
-        expect(sources).toContain("run-in-branch");
+        expect(linkSources(visitor)).toContain("start");
     });
 
-    it("keeps the synthetic box above the chain out of it", () => {
+    it("keeps the synthetic copy out of the chain when it floats above one", () => {
         const visitor = new NodeFactoryVisitor();
-        // The floating copy is visited before anything else: no preceding node and no start.
-        visitor.beginVisitDurableAgentRun(agentBox("floating-box"));
-        expect((visitor as any).links).toHaveLength(0);
-        expect((visitor as any).lastNodeModel).toBeUndefined();
+        visitor.beginVisitDurableAgentRun(syntheticBox("floating-box"));
+        visitor.beginVisitEventStart(makeNode("start", "EVENT_START"));
+        visitor.beginVisitNode(makeNode("first-statement", "EXPRESSION"));
+
+        // The pill, not the box, is what the first statement hangs from.
+        expect(linkSources(visitor)).toContain("start");
+        expect(linkSources(visitor)).not.toContain("floating-box");
     });
 });
