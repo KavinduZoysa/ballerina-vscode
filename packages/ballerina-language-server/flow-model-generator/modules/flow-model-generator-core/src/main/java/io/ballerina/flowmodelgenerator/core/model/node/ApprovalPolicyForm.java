@@ -45,6 +45,7 @@ public final class ApprovalPolicyForm {
 
     public static final String KEY = WorkflowUtil.APPROVAL_POLICY_FIELD;
     public static final String NO_APPROVAL_VALUE = "NoApproval";
+    public static final String NIL_VALUE = "()";
     public static final String HUMAN_APPROVAL_VALUE = "HumanApproval";
     private static final String LABEL = "Approval Policy";
     private static final String DOC = "Whether a person approves before this runs: no approval, or a review "
@@ -196,7 +197,9 @@ public final class ApprovalPolicyForm {
                     ReviewText.fromSource(fields.get("description")),
                     fields.getOrDefault("timeout", "")));
         }
-        if (WorkflowUtil.stripModulePrefix(trimmed).equals(NO_APPROVAL_VALUE)) {
+        // `NoApproval` is `()` in the module, so a declaration may hold either spelling and both
+        // mean the same absence of a gate.
+        if (NIL_VALUE.equals(trimmed) || WorkflowUtil.stripModulePrefix(trimmed).equals(NO_APPROVAL_VALUE)) {
             return new Form(NO_APPROVAL_VALUE, ReviewFormValues.empty());
         }
         return new Form(trimmed, ReviewFormValues.empty());

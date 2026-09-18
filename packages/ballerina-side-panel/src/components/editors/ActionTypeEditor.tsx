@@ -44,6 +44,7 @@ import { debounce } from "lodash";
 import styled from "@emotion/styled";
 import ReactMarkdown from "react-markdown";
 import { getFieldTypeLabel, NodeProperties, PropertyModel } from "@wso2/ballerina-core";
+import { canOfferTypeCreation } from "./typeCreationGate";
 
 const isGraphQLScalarType = (type: string): boolean => {
     const scalarTypes = [
@@ -618,7 +619,7 @@ export function ActionTypeEditor(props: ActionTypeEditorProps) {
                                 name={name}
                                 startAdornment={<EditorRibbon onClick={toggleTypeHelperPaneState} />}
                                 completions={types}
-                                showDefaultCompletion={showDefaultCompletion && !!openRecordEditor}
+                                showDefaultCompletion={canOfferTypeCreation(showDefaultCompletion, openRecordEditor)}
                                 getDefaultCompletion={() => getDefaultCompletion(value)}
                                 value={value}
                                 ariaLabel={field.label}

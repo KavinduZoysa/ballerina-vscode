@@ -30,6 +30,19 @@ describe("isCapabilityApprovalGated", () => {
         expect(isCapabilityApprovalGated({ approvalPolicy: "NoApproval" })).toBe(false);
     });
 
+    it("does not gate on the nil the constant actually is", () => {
+        // `public const NoApproval = ();` in the module, so a declaration may hold either spelling.
+        expect(isCapabilityApprovalGated({ approvalPolicy: "()" })).toBe(false);
+    });
+
+    it("does not gate on the constant written with its module prefix", () => {
+        expect(isCapabilityApprovalGated({ approvalPolicy: "workflow:NoApproval" })).toBe(false);
+    });
+
+    it("gates on a record literal, whose own colons are not a module prefix", () => {
+        expect(isCapabilityApprovalGated({ approvalPolicy: '{userRoles: ["finance"]}' })).toBe(true);
+    });
+
     it("gates on a policy the form cannot edit, such as a reference", () => {
         expect(isCapabilityApprovalGated({ approvalPolicy: "sharedPolicy" })).toBe(true);
     });

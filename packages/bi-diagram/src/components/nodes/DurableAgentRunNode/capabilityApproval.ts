@@ -19,6 +19,9 @@
 /** The value the form and the diagram both use for a capability that is not gated. */
 const NO_APPROVAL = "NoApproval";
 
+/** What `NoApproval` is in the module, so a declaration may hold either spelling. */
+const NIL = "()";
+
 /** The flag the 0.9 declaration carried, before a policy replaced it. */
 const LEGACY_FLAG = "requiresApproval";
 
@@ -37,9 +40,9 @@ export function isCapabilityApprovalGated(values: Record<string, unknown> | unde
     if (!values) {
         return false;
     }
-    const policy = asText(values[POLICY]);
+    const policy = stripModulePrefix(asText(values[POLICY]));
     if (policy !== "") {
-        return policy !== NO_APPROVAL;
+        return policy !== NO_APPROVAL && policy !== NIL;
     }
     // A declaration read by an older analysis, or one not yet migrated: the flag gated it unless it
     // said so itself.
@@ -49,4 +52,13 @@ export function isCapabilityApprovalGated(values: Record<string, unknown> | unde
 
 function asText(value: unknown): string {
     return typeof value === "string" ? value.trim() : "";
+}
+
+// `workflow:NoApproval` names the same constant as `NoApproval`, and the declaration may hold
+// either, so the prefix comes off before the comparison, as it does in the analysis. Only a
+// qualified name is touched: a record literal carries colons of its own.
+const QUALIFIED_NAME = /^[A-Za-z_][\w']*\s*:\s*([A-Za-z_][\w']*)$/;
+
+function stripModulePrefix(value: string): string {
+    return QUALIFIED_NAME.exec(value)?.[1] ?? value;
 }

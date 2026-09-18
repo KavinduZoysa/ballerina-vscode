@@ -41,6 +41,7 @@ import styled from "@emotion/styled";
 import ReactMarkdown from "react-markdown";
 import { getFieldTypeLabel, NodeProperties } from "@wso2/ballerina-core";
 import TypeModeSwitcher, { TypeInputMode } from "../TypeModeSwitcher";
+import { canOfferTypeCreation } from "./typeCreationGate";
 
 interface TypeEditorProps {
     field: FormField;
@@ -312,7 +313,7 @@ export function TypeEditor(props: TypeEditorProps) {
                                     undefined
                             }
                             completions={types}
-                            showDefaultCompletion={showDefaultCompletion && !!openRecordEditor}
+                            showDefaultCompletion={canOfferTypeCreation(showDefaultCompletion, openRecordEditor)}
                             getDefaultCompletion={() => getDefaultCompletion(value)}
                             value={value}
                             ariaLabel={field.label}
