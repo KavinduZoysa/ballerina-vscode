@@ -595,32 +595,35 @@ export const chipCommitKeymap = [
 
 export const expressionEditorKeymap = [
     {
-        // Jumps to (and activates) the next editable chip after the current one, so a
-        // multi-argument function call's placeholders can be filled without ever touching
-        // the mouse. Wraps back to the first chip past the last one.
+        // While a chip is in edit mode, jumps to (and activates) the next editable chip after
+        // it, so a multi-argument function call's placeholders can be filled without ever
+        // touching the mouse. Only handles Tab while a chip is already active, and never wraps
+        // past the last one - falling through (returning false) otherwise so Tab keeps its
+        // normal job of moving focus out of the editor. Without both of those, a document that
+        // merely contains a value/parameter chip (active or not) would permanently capture Tab
+        // and trap keyboard focus inside the editor (WCAG 2.1.2).
         key: "Tab",
         run: (view: EditorView) => {
-            const chips = getEditableChipRanges(view);
-            if (chips.length === 0) return false;
-
             const activeStart = view.state.field(activeEditableTokenField, false);
-            const referencePos = activeStart !== undefined ? activeStart : view.state.selection.main.head;
+            if (activeStart === undefined) return false;
 
-            const nextChip = chips.find(chip => chip.start > referencePos) ?? chips[0];
+            const nextChip = getEditableChipRanges(view).find(chip => chip.start > activeStart);
+            if (!nextChip) return false;
+
             return activateChipRange(view, nextChip);
         }
     },
     {
-        // Mirror of Tab above: jumps to the previous editable chip, wrapping to the last.
+        // Mirror of Tab above: jumps to the previous editable chip. Same guards apply - only
+        // while a chip is active, and never wraps past the first one.
         key: "Shift-Tab",
         run: (view: EditorView) => {
-            const chips = getEditableChipRanges(view);
-            if (chips.length === 0) return false;
-
             const activeStart = view.state.field(activeEditableTokenField, false);
-            const referencePos = activeStart !== undefined ? activeStart : view.state.selection.main.head;
+            if (activeStart === undefined) return false;
 
-            const prevChip = [...chips].reverse().find(chip => chip.start < referencePos) ?? chips[chips.length - 1];
+            const prevChip = [...getEditableChipRanges(view)].reverse().find(chip => chip.start < activeStart);
+            if (!prevChip) return false;
+
             return activateChipRange(view, prevChip);
         }
     },
