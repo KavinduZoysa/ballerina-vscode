@@ -1655,18 +1655,11 @@ public class CodeAnalyzer extends NodeVisitor {
                     String propertyKey = fieldToPropertyKey.get(fieldName);
                     if (propertyKey != null) {
                         // The cardinality enum may be module-qualified in source (workflow:SINGLE_EVENT);
-                        // the form's select options carry the bare enum names. String-literal values
-                        // of text-mode fields (name/title/description/roles) hydrate unquoted so the
-                        // form shows the text, not its source syntax.
-                        String value;
-                        if ("cardinality".equals(fieldName)) {
-                            value = WorkflowUtil.stripModulePrefix(rawValue);
-                        } else if (TEXT_MODE_CAPABILITY_FIELDS.contains(fieldName)) {
-                            value = stripQuotes(rawValue);
-                        } else {
-                            value = rawValue;
-                        }
-                        values.put(propertyKey, value);
+                        // the form's select options carry the bare enum names. Every other field
+                        // hydrates as source, so the form can tell a reference from the text that
+                        // spells it the same and pick the field's mode accordingly.
+                        values.put(propertyKey, "cardinality".equals(fieldName)
+                                ? WorkflowUtil.stripModulePrefix(rawValue) : rawValue);
                     }
                     if ("name".equals(fieldName)) {
                         declaredName = WorkflowUtil.capabilityName(rawValue);
@@ -1693,7 +1686,10 @@ public class CodeAnalyzer extends NodeVisitor {
                                           List<AgentCapabilityData> out) {
         for (WorkflowUtil.CapabilityEntry entry : WorkflowUtil.capabilityEntries(mapping)) {
             Map<String, String> values = new LinkedHashMap<>();
-            values.put(fieldToPropertyKey.getOrDefault("name", "name"), entry.name());
+            // The key is the name, already unquoted. Every value here is source, so it goes back
+            // as the literal it was, or the form would read it as a reference.
+            values.put(fieldToPropertyKey.getOrDefault("name", "name"),
+                    WorkflowUtil.stringLiteral(entry.name()));
             if (entry.config() != null) {
                 collectCapabilityFields(entry.config(), capabilityType, refField, fieldToPropertyKey, values);
             }
@@ -1728,20 +1724,17 @@ public class CodeAnalyzer extends NodeVisitor {
                 values.put(propertyKey, WorkflowUtil.stripModulePrefix(rawValue));
             } else if (ROLE_FIELDS.contains(fieldName)) {
                 // `userRoles: ()` says "only the named users decide"; the roles box stays empty for it.
-                values.put(propertyKey, nilAsBlank(stripQuotes(rawValue)));
-            } else if (TEXT_MODE_CAPABILITY_FIELDS.contains(fieldName)) {
-                values.put(propertyKey, stripQuotes(rawValue));
+                values.put(propertyKey, nilAsBlank(rawValue));
             } else {
+                // Source, one convention for every field: the form decides the mode from it, and a
+                // value decoded here would reach a dual-mode field with no way to tell a reference
+                // from the text that spells it the same.
                 values.put(propertyKey, rawValue);
             }
         }
     }
 
     private static final Set<String> ROLE_FIELDS = Set.of("roles", "userRoles");
-    // Capability declaration fields whose values render in text-mode form fields.
-    private static final Set<String> TEXT_MODE_CAPABILITY_FIELDS =
-            Set.of("name", "title", "description", "roles", "userRoles", "users", "excludedUsers", "excludedRoles",
-                    "administratorRoles", "administratorUsers");
 
     // The policy decomposes into the approval dropdown's selection plus its review fields, the way
     // retryPolicy does; a policy the form cannot read is carried as the selection itself.
@@ -2574,8 +2567,8 @@ public class CodeAnalyzer extends NodeVisitor {
 
         Property messageSubProp = new Property.Builder<Void>(null)
                 .metadata()
-                    .label("Message")
-                    .description("Request body payload (for POST, PUT, PATCH)")
+                    .label(RestActivityStrategy.MESSAGE_LABEL)
+                    .description(RestActivityStrategy.MESSAGE_DESCRIPTION)
                     .stepOut()
                 .type().fieldType(Property.ValueType.EXPRESSION)
                     .ballerinaType("http:RequestMessage").selected(true).stepOut()
@@ -2587,7 +2580,7 @@ public class CodeAnalyzer extends NodeVisitor {
         methodDynamicFields.put("GET", Map.of());
         methodDynamicFields.put("POST", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
         methodDynamicFields.put("PUT", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
-        methodDynamicFields.put("DELETE", Map.of());
+        methodDynamicFields.put("DELETE", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
         methodDynamicFields.put("PATCH", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
 
         nodeBuilder.properties().custom()
@@ -2608,8 +2601,8 @@ public class CodeAnalyzer extends NodeVisitor {
         // Hidden top-level message property — value store for method-driven dynamic sub-field.
         String message = src.getOrDefault(RestActivityStrategy.MESSAGE_KEY, "");
         nodeBuilder.properties().custom()
-                .metadata().label("Message")
-                    .description("Request body payload (for POST, PUT, PATCH)").stepOut()
+                .metadata().label(RestActivityStrategy.MESSAGE_LABEL)
+                    .description(RestActivityStrategy.MESSAGE_DESCRIPTION).stepOut()
                 .type().fieldType(Property.ValueType.EXPRESSION)
                     .ballerinaType("http:RequestMessage").selected(true).stepOut()
                 .value(message).editable(true).optional(true).hidden(true)
