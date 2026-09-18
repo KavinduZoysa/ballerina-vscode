@@ -390,12 +390,13 @@ describe("autoDistribute positioning workflows and connections", () => {
         autoDistribute(engine);
 
         const rowBAnchorY = getPortAnchorY(service, funcBPort);
-        const workflowHeight = workflow.height || 64;
-        const workflowCenterY = workflow.getY() + workflowHeight / 2;
-        expect(workflowCenterY).toBeCloseTo(rowBAnchorY);
+        // The workflow's own link anchor is its play button, not its box center (see
+        // getPortAnchorY's workflow "in" port case) - that's the point this positioning aligns.
+        const workflowInAnchorY = getPortAnchorY(workflow, workflow.getInPort());
+        expect(workflowInAnchorY).toBeCloseTo(rowBAnchorY);
 
         const serviceCenterY = service.getY() + service.height / 2;
-        expect(workflowCenterY).not.toBeCloseTo(serviceCenterY);
+        expect(workflowInAnchorY).not.toBeCloseTo(serviceCenterY);
     });
 
     test("keeps two connections whose desired centers would otherwise collide apart, in creation order", () => {
@@ -459,14 +460,17 @@ describe("autoDistribute refining entry/workflow nodes toward both neighbors", (
 
         autoDistribute(engine);
 
-        // Round 1 would center the workflow at the (32+832)/2=432 midpoint and leave both services
-        // frozen at 32/832. Round 2 lets each service settle halfway between its own listener (still
-        // matching its original position at that point) and the workflow: serviceA -> (32+432)/2=232,
-        // serviceB -> (832+432)/2=632 - and the workflow, re-averaging those two new centers,
-        // stays exactly at 432 by symmetry.
+        // Round 1 would put the workflow's real link anchor - its play button, 4px below its own
+        // box center at this height (see getPortAnchorY's workflow "in" port case) - at the
+        // (32+832)/2=432 midpoint, box center 428, and leave both services frozen at 32/832. Round
+        // 2 lets each service settle halfway between its own listener (still matching its original
+        // position at that point) and the workflow's anchor: serviceA -> (32+432)/2=232, serviceB ->
+        // (832+432)/2=632 - and the workflow, re-averaging those two new centers, stays exactly at
+        // anchor 432 / box center 428 by symmetry.
         expect(serviceA.getY() + serviceA.height / 2).toBeCloseTo(232);
         expect(serviceB.getY() + serviceB.height / 2).toBeCloseTo(632);
-        expect(workflow.getY() + workflow.height / 2).toBeCloseTo(432);
+        expect(getPortAnchorY(workflow, workflow.getInPort())).toBeCloseTo(432);
+        expect(workflow.getY() + workflow.height / 2).toBeCloseTo(428);
 
         // Each listener re-syncs to its service's FINAL (moved) center, not its original one.
         expect(listenerA.getY() + LISTENER_NODE_HEIGHT / 2).toBeCloseTo(232);
@@ -549,13 +553,16 @@ describe("autoDistribute refining entry/workflow nodes toward both neighbors", (
         // compromise too, since neither sender can do better than the workflow it's centering on).
         //
         // These exact numbers come from actually running this fixture (not hand algebra through a
-        // multi-round symmetric-collision resolution): with the fix, workflowA settles at 516; with
-        // the row-offset dropped (reverting to a plain average of `getPortAnchorY(sender, ...)` with
-        // no correction for the target's own port), it settles at 532 instead - a real, verified 16px
-        // difference this test would catch, even though neither sender's link ever becomes perfectly
-        // straight here (automation and the service sit close enough to collide with each other,
-        // so - as already covered above - they settle symmetrically around workflowA rather than
-        // exactly on it, for a reason unrelated to this fix).
+        // multi-round symmetric-collision resolution): with the fix, workflowA settles at 528.75;
+        // with the row-offset dropped (reverting to a plain average of `getPortAnchorY(sender, ...)`
+        // with no correction for the target's own port), it settles at 532 instead - a real,
+        // verified difference this test would catch, even though neither sender's link ever becomes
+        // perfectly straight here (automation and the service sit close enough to collide with each
+        // other, so - as already covered above - they settle symmetrically around workflowA rather
+        // than exactly on it, for a reason unrelated to this fix). workflowA's generic "in" port
+        // itself anchors at its play button (see getPortAnchorY), well off its box center for a
+        // workflow with an event row - which is why 528.75 lands off both senders' own average
+        // (475+589)/2=532 instead of matching it.
         const event = { name: "dataReady", attachedServices: [], attachedFunctions: [] };
         const workflowData: CDWorkflow = { ...makeWorkflow("workflow-a"), events: [event] };
         const workflowA = new EntryNodeModel(workflowData, "workflow");
@@ -582,7 +589,7 @@ describe("autoDistribute refining entry/workflow nodes toward both neighbors", (
 
         autoDistribute(engine);
 
-        expect(workflowA.getY() + workflowA.height / 2).toBeCloseTo(516);
+        expect(workflowA.getY() + workflowA.height / 2).toBeCloseTo(528.75);
         expect(automationNode.getY() + 32).toBeCloseTo(475);
         expect(serviceNode.getY() + 32).toBeCloseTo(589);
     });

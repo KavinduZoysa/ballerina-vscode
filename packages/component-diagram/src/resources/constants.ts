@@ -43,6 +43,12 @@ export const LISTENER_NODE_HEIGHT = CON_NODE_HEIGHT;
 export const NODE_BORDER_WIDTH = 1.5;
 export const NODE_PADDING = 8;
 
+// A workflow node's "in" port sits inside its play button (see PlayButtonCircle), not centered
+// on the box like other entry nodes' - these let getPortAnchorY derive the port's real on-screen
+// Y from the same numbers that position the button.
+export const WORKFLOW_PLAY_BUTTON_TOP = 22;
+export const WORKFLOW_PLAY_BUTTON_SIZE = 28;
+
 // Shared "quiet but legible" strength for the diagram's structural lines - a node's resting
 // border and a link both read as connective structure rather than content, so both derive from
 // the same base foreground color at the same strength (see NodeLinkWidget.tsx's stroke-opacity

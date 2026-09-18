@@ -19,7 +19,14 @@
 import styled from "@emotion/styled";
 import { PortWidget } from "@projectstorm/react-diagrams-core";
 import { Button, ThemeColors } from "@wso2/ui-toolkit";
-import { NODE_BORDER_WIDTH, ENTRY_NODE_WIDTH, ENTRY_NODE_HEIGHT, NODE_BORDER_COLOR } from "../../../../resources/constants";
+import {
+    NODE_BORDER_WIDTH,
+    ENTRY_NODE_WIDTH,
+    ENTRY_NODE_HEIGHT,
+    NODE_BORDER_COLOR,
+    WORKFLOW_PLAY_BUTTON_TOP,
+    WORKFLOW_PLAY_BUTTON_SIZE,
+} from "../../../../resources/constants";
 
 type NodeStyleProp = {
     hovered: boolean;
@@ -170,11 +177,11 @@ export const PlayButtonCircle = styled.div`
     display: flex;
     justify-content: center;
     align-items: center;
-    width: 28px;
-    height: 28px;
+    width: ${WORKFLOW_PLAY_BUTTON_SIZE}px;
+    height: ${WORKFLOW_PLAY_BUTTON_SIZE}px;
     position: absolute;
     left: -15px;
-    top: 22px;
+    top: ${WORKFLOW_PLAY_BUTTON_TOP}px;
     border: ${NODE_BORDER_WIDTH}px solid ${NODE_BORDER_COLOR};
     border-radius: 50%;
     background-color: ${ThemeColors.SURFACE_DIM};

@@ -42,6 +42,8 @@ import {
     CON_NODE_HEIGHT,
     NODE_BORDER_WIDTH,
     NODE_PADDING,
+    WORKFLOW_PLAY_BUTTON_TOP,
+    WORKFLOW_PLAY_BUTTON_SIZE,
 } from "../resources/constants";
 import { ListenerNodeModel } from "../components/nodes/ListenerNode";
 import { ConnectionNodeModel } from "../components/nodes/ConnectionNode";
@@ -450,6 +452,13 @@ export function getPortAnchorY(node: NodeModel, port: PortModel | null | undefin
     const center = (box.top + box.bottom) / 2;
     if (!port || !(node instanceof EntryNodeModel)) {
         return center;
+    }
+
+    if (node.type === "workflow" && port === node.getInPort()) {
+        // Unlike other entry nodes, a workflow's "in" port renders inside its play button
+        // (PlayButtonCircle), pinned near the header rather than centered on the box - so it
+        // needs its own anchor instead of falling into the generic center case below.
+        return box.top + WORKFLOW_PLAY_BUTTON_TOP + WORKFLOW_PLAY_BUTTON_SIZE / 2;
     }
 
     if (port === node.getInPort() || port === node.getOutPort()) {
