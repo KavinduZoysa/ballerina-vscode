@@ -59,6 +59,24 @@ public class McpOpenApiServiceGeneratorTest {
     }
 
     @Test
+    public void testSelectedEndpointsThrowsWhenTwoEndpointsShareAToolName() {
+        List<EndpointInfo> endpoints = List.of(endpoint("getPets"), endpoint("getPets"));
+        McpGenerationException error = Assert.expectThrows(McpGenerationException.class,
+                () -> McpOpenApiServiceGenerator.selectedEndpoints(endpoints, List.of("getPets")));
+
+        Assert.assertTrue(error.getMessage().contains("getPets"), "message should name the colliding tool");
+    }
+
+    @Test
+    public void testSelectedEndpointsIgnoresDuplicateRequestedNames() throws McpGenerationException {
+        EndpointInfo getPets = endpoint("getPets");
+        List<EndpointInfo> selected = McpOpenApiServiceGenerator.selectedEndpoints(
+                List.of(getPets), List.of("getPets", "getPets"));
+
+        Assert.assertEquals(selected, List.of(getPets));
+    }
+
+    @Test
     public void testApplyBasePathRewritesTheServiceDeclaration() throws McpGenerationException {
         String source = "service mcp:StreamableHttpService /petstore on mcpListener {\n}\n";
         String result = McpOpenApiServiceGenerator.applyBasePath(source, "store");

@@ -23,7 +23,7 @@ import { TitleBar } from "../../../components/TitleBar";
 import { isBetaModule } from "../ComponentListView/componentListUtils";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { FormField, FormImports, FormValues } from "@wso2/ballerina-side-panel";
-import { EVENT_TYPE, hasBlockingValidationErrors, LineRange, ModelResolutionIssue, RecordTypeField, ServiceInitModel, ValidationResult } from "@wso2/ballerina-core";
+import { DIRECTORY_MAP, EVENT_TYPE, hasBlockingValidationErrors, LineRange, ModelResolutionIssue, RecordTypeField, ServiceInitModel, ValidationResult } from "@wso2/ballerina-core";
 import { FormHeader } from "../../../components/FormHeader";
 import ArtifactForm from "../Forms/ArtifactForm";
 import styled from "@emotion/styled";
@@ -382,9 +382,12 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
         setServerValidationErrors([]);
 
         const strictMatch = res.artifacts.find((artifact) => artifact.isNew && model.moduleName === artifact.moduleName);
-        // Only the MCP OpenAPI import falls back to any new artifact; its edits may not carry the "mcp" moduleName.
+        // Only the MCP OpenAPI import falls back to a new SERVICE artifact; its edits may not carry the "mcp"
+        // moduleName, and generation can also emit a new TYPE artifact (types.bal) in the same response.
         const newArtifact = strictMatch
-            || (isMcpOpenApiImport ? res.artifacts.find((artifact) => artifact.isNew) : undefined);
+            || (isMcpOpenApiImport
+                ? res.artifacts.find((artifact) => artifact.isNew && artifact.type === DIRECTORY_MAP.SERVICE)
+                : undefined);
         if (newArtifact) {
             rpcClient.getVisualizerRpcClient().openView({ type: EVENT_TYPE.OPEN_VIEW, location: { documentUri: newArtifact.path, position: newArtifact.position } });
             setIsSaving(false);

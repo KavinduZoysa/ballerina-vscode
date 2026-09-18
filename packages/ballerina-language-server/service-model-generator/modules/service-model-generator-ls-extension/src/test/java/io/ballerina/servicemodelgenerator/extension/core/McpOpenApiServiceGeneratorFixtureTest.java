@@ -19,6 +19,7 @@
 package io.ballerina.servicemodelgenerator.extension.core;
 
 import io.ballerina.compiler.api.SemanticModel;
+import io.ballerina.mcp.core.generator.McpGenerationException;
 import io.ballerina.projects.BuildOptions;
 import io.ballerina.projects.Document;
 import io.ballerina.projects.Module;
@@ -92,6 +93,29 @@ public class McpOpenApiServiceGeneratorFixtureTest {
         Assert.assertEquals(httpImports, 0, generated);
         Assert.assertEquals(logImports, 1, generated);
         Assert.assertEquals(mcpImports, 0, generated);
+    }
+
+    @Test
+    public void testGenerateServiceThrowsWhenGeneratedTypeAlreadyExists() throws Exception {
+        Path projectPath = Paths.get(getClass().getClassLoader()
+                .getResource("mcp_openapi_generator/source/sample2").toURI());
+        Path specPath = Paths.get(getClass().getClassLoader()
+                .getResource("mcp_openapi_generator/openapi_with_schema.yaml").toURI());
+
+        Project project = BuildProject.load(projectPath, BuildOptions.builder().setOffline(true).build());
+        Module module = project.currentPackage().getDefaultModule();
+        Document mainDocument = module.document(module.documentIds().stream().findFirst().orElseThrow());
+        SemanticModel semanticModel = project.currentPackage().getCompilation()
+                .getSemanticModel(module.moduleId());
+
+        ServiceInitModel model = new ServiceInitModel.Builder().build();
+        model.addProperty("serviceName", new Value.ValueBuilder().value("Petstore").build());
+
+        McpOpenApiServiceGenerator generator = new McpOpenApiServiceGenerator(specPath, projectPath);
+        McpGenerationException error = Assert.expectThrows(McpGenerationException.class,
+                () -> generator.generateService(model, mainDocument, null, semanticModel));
+
+        Assert.assertTrue(error.getMessage().contains("Product"), error.getMessage());
     }
 
     private static long countOccurrences(String text, String needle) {

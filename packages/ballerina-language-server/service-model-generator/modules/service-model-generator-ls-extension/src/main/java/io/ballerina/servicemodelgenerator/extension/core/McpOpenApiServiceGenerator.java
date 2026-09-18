@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -76,6 +77,8 @@ public class McpOpenApiServiceGenerator {
             Pattern.compile("(service\\s+mcp:StreamableHttpService\\s+)\\S+(\\s+on\\s+mcpListener)");
     private static final Pattern LEADING_IMPORT_PATTERN =
             Pattern.compile("\\Aimport\\s+([\\w.]+)/([\\w.]+);[ \\t]*\\r?\\n");
+    private static final Pattern TYPE_DECL_PATTERN =
+            Pattern.compile("(?m)^(?:public\\s+)?type\\s+(\\w+)\\s");
 
     // Only basePath/listenerVarName carry a codedata type in mcp.json, so only those resolve via resolveValue().
     private static final String KEY_SERVICE_NAME = "serviceName";
@@ -121,11 +124,26 @@ public class McpOpenApiServiceGenerator {
                 // mcp-core ignores SpecInfo's port and always emits DEFAULT_PORT; this replace is what applies it.
                 .replace("new (" + DEFAULT_PORT + ")", "new (" + port + ")");
 
+        String typesSource = generateTypes();
+        if (!typesSource.isBlank()) {
+            // Unlike apiClient/mcpListener, a type name also appears as ordinary prose in the generated
+            // @mcp:Tool description (schema names are typically mentioned in the OpenAPI summary/description
+            // text) — a text-level rename would risk corrupting that prose, so a collision fails clearly
+            // instead of silently renaming.
+            Set<String> usedNames = Utils.getVisibleSymbols(semanticModel, mainDocument);
+            for (String typeName : declaredTypeNames(typesSource)) {
+                if (usedNames.contains(typeName)) {
+                    throw new McpGenerationException("Generated type '" + typeName
+                            + "' already exists in the project. Rename or remove it before importing this "
+                            + "specification.");
+                }
+            }
+        }
+
         Map<String, List<TextEdit>> edits = new LinkedHashMap<>();
         edits.put(projectPath.resolve(MAIN_BAL).toAbsolutePath().toString(),
                 appendGeneratedSource(mainModulePart, serviceSource));
 
-        String typesSource = generateTypes();
         if (!typesSource.isBlank()) {
             Path typesPath = projectPath.resolve(TYPES_BAL).toAbsolutePath();
             Document typesDocument = FileSystemUtils.getDocument(workspaceManager, typesPath);
@@ -133,6 +151,15 @@ public class McpOpenApiServiceGenerator {
                     appendGeneratedSource(typesDocument.syntaxTree().rootNode(), typesSource));
         }
         return edits;
+    }
+
+    private static List<String> declaredTypeNames(String typesSource) {
+        List<String> names = new ArrayList<>();
+        Matcher matcher = TYPE_DECL_PATTERN.matcher(typesSource);
+        while (matcher.find()) {
+            names.add(matcher.group(1));
+        }
+        return names;
     }
 
     /** Appends {@code generatedSource}, deduping its leading imports against ones already in {@code modulePart}. */
@@ -218,16 +245,23 @@ public class McpOpenApiServiceGenerator {
         if (selectedTools == null || selectedTools.isEmpty()) {
             return endpoints;
         }
+        Set<String> requestedTools = new LinkedHashSet<>(selectedTools);
         List<EndpointInfo> selected = new ArrayList<>();
         Set<String> matchedTools = new HashSet<>();
         for (EndpointInfo endpoint : endpoints) {
-            if (selectedTools.contains(endpoint.getToolName())) {
-                selected.add(endpoint);
-                matchedTools.add(endpoint.getToolName());
+            if (!requestedTools.contains(endpoint.getToolName())) {
+                continue;
             }
+            // Two operations sanitized/collided to the same tool name would otherwise generate two
+            // same-named functions, failing compilation with no indication of why.
+            if (!matchedTools.add(endpoint.getToolName())) {
+                throw new McpGenerationException(
+                        "Multiple operations map to the same tool name: " + endpoint.getToolName());
+            }
+            selected.add(endpoint);
         }
-        if (matchedTools.size() < selectedTools.size()) {
-            List<String> unresolved = selectedTools.stream().filter(tool -> !matchedTools.contains(tool)).toList();
+        if (matchedTools.size() < requestedTools.size()) {
+            List<String> unresolved = requestedTools.stream().filter(tool -> !matchedTools.contains(tool)).toList();
             throw new McpGenerationException(
                     "Selected tool(s) no longer exist in the OpenAPI specification: " + String.join(", ", unresolved));
         }
