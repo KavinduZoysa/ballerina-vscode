@@ -128,15 +128,34 @@ export function autoDistribute(engine: DiagramEngine) {
         entryNode.setPosition(entryX, entryNode.getY());
     });
 
-    // Every real link in the model, used below to find what actually feeds into or out of a node
-    // - see positionConnectedListener/positionColumnByIncomingLinks/refineNodesByAllLinks.
+    // Every real link in the model, bucketed once by endpoint (self-loops excluded, same as every
+    // filter below used to apply inline) so positionColumnByIncomingLinks/refineNodesByAllLinks -
+    // each called several times across both rounds - look a node's links up in O(1) instead of
+    // re-scanning the full link array per node, per call.
     const links = model.getLinks().filter((linkModel): linkModel is NodeLinkModel => linkModel instanceof NodeLinkModel);
+    const incomingLinksByNode = new Map<NodeModel, NodeLinkModel[]>();
+    const outgoingLinksByNode = new Map<NodeModel, NodeLinkModel[]>();
+    const addToBucket = (map: Map<NodeModel, NodeLinkModel[]>, node: NodeModel, link: NodeLinkModel) => {
+        const bucket = map.get(node);
+        if (bucket) {
+            bucket.push(link);
+        } else {
+            map.set(node, [link]);
+        }
+    };
+    links.forEach((link) => {
+        if (!link.sourceNode || !link.targetNode || link.sourceNode === link.targetNode) {
+            return;
+        }
+        addToBucket(outgoingLinksByNode, link.sourceNode, link);
+        addToBucket(incomingLinksByNode, link.targetNode, link);
+    });
 
     // Round 1: position everything downstream of entry nodes from their current (creation-order)
     // Y, exactly as before this round existed.
     connectedListeners.forEach((listenerNode) => positionConnectedListener(listenerNode, entryNodes as NodeModel[], listenerX));
-    positionColumnByIncomingLinks(workflowNodes as NodeModel[], links, workflowX, ENTRY_NODE_HEIGHT);
-    positionColumnByIncomingLinks(connectionNodes as NodeModel[], links, connectionX, CON_NODE_HEIGHT);
+    positionColumnByIncomingLinks(workflowNodes as NodeModel[], incomingLinksByNode, workflowX, ENTRY_NODE_HEIGHT);
+    positionColumnByIncomingLinks(connectionNodes as NodeModel[], incomingLinksByNode, connectionX, CON_NODE_HEIGHT);
 
     // Round 2: entry and workflow nodes sit *between* two neighbors (a listener/entry node on one
     // side, a workflow/connection on the other) that round 1 only let pull on whichever side comes
@@ -146,10 +165,10 @@ export function autoDistribute(engine: DiagramEngine) {
     // either (their sequence still reflects the source file, not link geometry) - lets a plain,
     // unbranched chain settle dead straight end to end, and gives a branching one the smallest
     // total disturbance instead of always favoring whichever neighbor happened to move first.
-    refineNodesByAllLinks(entryNodes as NodeModel[], links);
-    refineNodesByAllLinks(workflowNodes as NodeModel[], links);
+    refineNodesByAllLinks(entryNodes as NodeModel[], incomingLinksByNode, outgoingLinksByNode);
+    refineNodesByAllLinks(workflowNodes as NodeModel[], incomingLinksByNode, outgoingLinksByNode);
     connectedListeners.forEach((listenerNode) => positionConnectedListener(listenerNode, entryNodes as NodeModel[], listenerX));
-    positionColumnByIncomingLinks(connectionNodes as NodeModel[], links, connectionX, CON_NODE_HEIGHT);
+    positionColumnByIncomingLinks(connectionNodes as NodeModel[], incomingLinksByNode, connectionX, CON_NODE_HEIGHT);
 
     // Position unconnected listeners below all other nodes
     if (unconnectedListeners.length > 0) {
@@ -238,9 +257,14 @@ function computeDesiredCenterItem(
  * automation node - settle symmetrically around that shared center rather than one keeping it
  * outright and the other being shoved aside; see `resolveMinGapPositions`.
  */
-function positionColumnByIncomingLinks(nodes: NodeModel[], links: NodeLinkModel[], x: number, defaultHeight: number) {
+function positionColumnByIncomingLinks(
+    nodes: NodeModel[],
+    incomingLinksByNode: Map<NodeModel, NodeLinkModel[]>,
+    x: number,
+    defaultHeight: number
+) {
     const items = nodes.map((node) => {
-        const incomingLinks = links.filter((link) => link.targetNode === node && link.sourceNode && link.sourceNode !== node);
+        const incomingLinks = incomingLinksByNode.get(node) ?? [];
         return computeDesiredCenterItem(node, incomingLinks, defaultHeight);
     });
     // Free to reorder: a workflow/connection's vertical sequence carries no meaning of its own,
@@ -352,13 +376,13 @@ function positionConnectedListener(listenerNode: ListenerNodeModel, entryNodes: 
  * pulled from both sides settles wherever best serves both, not just whichever neighbor happened
  * to already have a real position when it was this node's turn.
  */
-function refineNodesByAllLinks(nodes: NodeModel[], links: NodeLinkModel[]): void {
+function refineNodesByAllLinks(
+    nodes: NodeModel[],
+    incomingLinksByNode: Map<NodeModel, NodeLinkModel[]>,
+    outgoingLinksByNode: Map<NodeModel, NodeLinkModel[]>
+): void {
     const items = nodes.map((node) => {
-        const neighborLinks = links.filter(
-            (link) =>
-                (link.sourceNode === node && link.targetNode && link.targetNode !== node) ||
-                (link.targetNode === node && link.sourceNode && link.sourceNode !== node)
-        );
+        const neighborLinks = [...(incomingLinksByNode.get(node) ?? []), ...(outgoingLinksByNode.get(node) ?? [])];
         return computeDesiredCenterItem(node, neighborLinks, ENTRY_NODE_HEIGHT);
     });
 
