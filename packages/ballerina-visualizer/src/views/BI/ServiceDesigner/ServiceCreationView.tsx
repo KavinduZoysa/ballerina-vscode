@@ -395,6 +395,7 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
     };
 
     const enabledDesignApproachProperties = getEnabledDesignApproachProperties(model);
+    // Existence, not value: this also drives field filtering below, so it must be true before a spec is picked.
     const isMcpOpenApiImport = moduleName === "mcp" && Boolean(enabledDesignApproachProperties?.spec);
     const visibleFormFields = isMcpOpenApiImport
         ? formFields.filter((field) => field.key === "designApproach")

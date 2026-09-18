@@ -100,26 +100,20 @@ public class McpOpenApiServiceGenerator {
         String serviceName = propValue(model, KEY_SERVICE_NAME, defaults.serviceName());
         String version = propValue(model, KEY_VERSION, defaults.version());
         int port = parsePort(propValue(model, KEY_LISTEN_TO, String.valueOf(defaults.port())), defaults.port());
-        String listenerName = resolveValue(model, KEY_LISTENER_VAR_NAME, ARG_TYPE_LISTENER_VAR_NAME,
+        String requestedListenerName = resolveValue(model, KEY_LISTENER_VAR_NAME, ARG_TYPE_LISTENER_VAR_NAME,
                 defaults.listenerName());
 
         SpecInfo filteredSpec = new SpecInfo(fullSpec.getBaseUrl(), port, serviceName, version, endpoints);
         String serviceSource = runSilently(() -> new MainBalGenerator().generate(filteredSpec));
         String basePath = resolveValue(model, PROPERTY_BASE_PATH, ARG_TYPE_SERVICE_BASE_PATH, null);
-        if (basePath != null && !basePath.isBlank()) {
-            basePath = basePath.trim();
-            String normalized = basePath.startsWith("/") ? basePath : "/" + basePath;
-            Matcher basePathMatcher = SERVICE_PATH_PATTERN.matcher(serviceSource);
-            if (!basePathMatcher.find()) {
-                throw new McpGenerationException(
-                        "Could not locate the generated service declaration to apply the base path");
-            }
-            serviceSource = basePathMatcher.replaceFirst("$1" + Matcher.quoteReplacement(normalized) + "$2");
-        }
+        serviceSource = applyBasePath(serviceSource, basePath);
         ModulePartNode mainModulePart = mainDocument.syntaxTree().rootNode();
-        // Uniquified like refreshListenerName, so a second import doesn't redeclare apiClient.
+        // Uniquified against the target file so a second import can't redeclare apiClient/mcpListener,
+        // even if the form's own validation missed a collision (e.g. a collapsed advanced-options field).
         String clientName = Utils.generateVariableIdentifier(semanticModel, mainDocument,
                 mainModulePart.lineRange().endLine(), DEFAULT_CLIENT_NAME);
+        String listenerName = Utils.generateVariableIdentifier(semanticModel, mainDocument,
+                mainModulePart.lineRange().endLine(), requestedListenerName);
         // Word-boundary match: a plain replace would also corrupt a tool name like "apiClientStatus".
         serviceSource = serviceSource.replaceAll("\\b" + DEFAULT_CLIENT_NAME + "\\b",
                         Matcher.quoteReplacement(clientName))
@@ -165,6 +159,21 @@ public class McpOpenApiServiceGenerator {
         return edits;
     }
 
+    /** Rewrites the generated service's path to {@code basePath}; a no-op if {@code basePath} is blank. */
+    static String applyBasePath(String serviceSource, String basePath) throws McpGenerationException {
+        if (basePath == null || basePath.isBlank()) {
+            return serviceSource;
+        }
+        basePath = basePath.trim();
+        String normalized = basePath.startsWith("/") ? basePath : "/" + basePath;
+        Matcher basePathMatcher = SERVICE_PATH_PATTERN.matcher(serviceSource);
+        if (!basePathMatcher.find()) {
+            throw new McpGenerationException(
+                    "Could not locate the generated service declaration to apply the base path");
+        }
+        return basePathMatcher.replaceFirst("$1" + Matcher.quoteReplacement(normalized) + "$2");
+    }
+
     public static McpServiceDefaults defaultsFor(SpecInfo specInfo) {
         String serviceName = Objects.requireNonNullElse(specInfo.getTitle(), DEFAULT_SERVICE_NAME);
         String version = Objects.requireNonNullElse(specInfo.getVersion(), DEFAULT_VERSION);
@@ -204,7 +213,7 @@ public class McpOpenApiServiceGenerator {
         }
     }
 
-    private static List<EndpointInfo> selectedEndpoints(List<EndpointInfo> endpoints, List<String> selectedTools)
+    static List<EndpointInfo> selectedEndpoints(List<EndpointInfo> endpoints, List<String> selectedTools)
             throws McpGenerationException {
         if (selectedTools == null || selectedTools.isEmpty()) {
             return endpoints;
