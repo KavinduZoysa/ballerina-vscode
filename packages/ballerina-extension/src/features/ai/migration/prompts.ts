@@ -563,7 +563,7 @@ what the migration tool flagged with \`// TODO\`.
 
 **Phase A: Load your work plan from Stage 1**
 
-The Stage 1 inventory is in your context (from the previous stage output). Use it as your work list.
+Your work plan — the Stage 1 inventory — is provided above under "Work plan from the previous stage". Use it as your work list.
 Process source files in this priority order:
 1. ❌ Missing — constructs the tool silently dropped (highest priority)
 2. ⚠️ Partial — constructs with \`// TODO\` or \`// FIXME\` markers

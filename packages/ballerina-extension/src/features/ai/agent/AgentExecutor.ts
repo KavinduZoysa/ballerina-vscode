@@ -397,7 +397,10 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
             const { allDisabled, projectSkills, userSkills, disabledSkillMetas } =
                 loadSkillsContext(projectRootPath || null);
 
-            const userMessageContent = getUserPrompt(params, tempProjectPath, projects, projectSkills, agentsMd.text);
+            const userMessageContent = getUserPrompt(params, tempProjectPath, projects, projectSkills, agentsMd.text, {
+                omitCodebaseDump: this.config.toolOptions?.omitCodebaseDump,
+                codebaseMapText: this.config.toolOptions?.codebaseMapText,
+            });
 
             // Estimate fixed overhead (system prompt + codebase) to decide if compaction is viable
             // TODO(auto-memory): memory-augmented prompt disabled for this release — using base system prompt.

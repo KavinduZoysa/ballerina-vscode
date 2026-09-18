@@ -30,6 +30,10 @@ import { MigrationDebugLogger } from "./debug-logger";
 import { TranscriptWriter } from "./transcript-writer";
 import { getWorkspaceTomlValues } from "../../../utils";
 import { setMigrationEnhancementActive } from "../../../utils/source-utils";
+import { buildMigrationCodebaseMap, extractPreviousStageWorkPlan } from "./project-map";
+
+/** Conservative token budget for a single stage's prompt + codebase map (≈4 chars/token). */
+const MIGRATION_STAGE_PROMPT_BUDGET_TOKENS = 700_000;
 
 // ── Wizard streaming emitter – exposed via extension.ts exports ──────────────
 const _wizardChatEmitter = new EventEmitter<ChatNotify>();
@@ -646,12 +650,25 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
             continue;
         }
 
+        // Stages no longer share chat history, so hand the previous stage's work plan forward explicitly.
+        let workPlanPreamble: string | undefined;
+        if (i > 0 && transcriptWriter) {
+            const prevTranscript = transcriptWriter.readStageTranscript(packageRelPath ?? "", i - 1, isWorkspaceValidation);
+            if (prevTranscript) {
+                workPlanPreamble = `## Work plan from the previous stage\n\n${extractPreviousStageWorkPlan(prevTranscript)}\n\n---\n\n`;
+            }
+        }
+
         // For partially-completed stages, inject transcript content as a resume preamble
         const partialTranscript = transcriptWriter?.readStageTranscript(packageRelPath ?? "", i, isWorkspaceValidation);
         if (partialTranscript) {
             const resumeHeader = `## ⚠️ STAGE RESUME — Previous partial work is shown below. Continue from where it left off.\n\n`;
             stages[i] = { ...stages[i], prompt: resumeHeader + partialTranscript + "\n\n---\n\n" + stages[i].prompt };
             console.log(`[MigrationEnhancement] Injected partial transcript for resume: ${stage.name}`);
+        }
+
+        if (workPlanPreamble) {
+            stages[i] = { ...stages[i], prompt: workPlanPreamble + stages[i].prompt };
         }
 
         if (transcriptWriter) {
@@ -697,6 +714,8 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
 
         const stageGenId = `${stageIdPrefix}-stage${i + 1}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
+        const codebaseMapText = await buildMigrationCodebaseMap(packagePath);
+
         // Scope the execution context to the single package so that
         // `getProjectSource` only loads this package's source files.
         const config: AICommandConfig = {
@@ -708,18 +727,18 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
             generationId: stageGenId,
             abortController,
             params: {
-                usecase: stage.prompt,
+                usecase: stages[i].prompt,
                 fileAttachmentContents: [],
                 isPlanMode: false,
             },
-            chatStorage: fromAIChat
-                ? { projectRootPath: projectRoot, threadId: "default", enabled: true }
-                : undefined,
+            chatStorage: undefined,
             lifecycle: useExistingTempPath
                 ? { existingTempPath: packagePath, skipFreshProjectSetup: true, cleanupStrategy: "review" as const }
                 : { cleanupStrategy: "immediate" as const },
             toolOptions: {
                 migrationSourcePath: sourcePath,
+                omitCodebaseDump: true,
+                codebaseMapText,
             },
             agentLimits: stage.agentLimits,
             debugLogger,
@@ -729,6 +748,19 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
             debugLogger.logMilestone(`${stage.name} — started (maxSteps: ${stage.agentLimits.maxSteps})`);
         }
         console.log(`[MigrationEnhancement] Running ${stage.name} (maxSteps: ${stage.agentLimits.maxSteps})`);
+
+        const estimatedPromptTokens = Math.ceil((stages[i].prompt.length + codebaseMapText.length) / 4);
+        if (estimatedPromptTokens > MIGRATION_STAGE_PROMPT_BUDGET_TOKENS) {
+            const reason = `${stage.name} prompt is estimated at ~${estimatedPromptTokens.toLocaleString()} tokens, over the ${MIGRATION_STAGE_PROMPT_BUDGET_TOKENS.toLocaleString()}-token budget — split this project into smaller packages and retry.`;
+            if (debugLogger) {
+                debugLogger.logError(stage.name, new Error(reason));
+            }
+            eventHandler({ type: "error", content: reason });
+            if (transcriptWriter) {
+                transcriptWriter.failStage(reason);
+            }
+            throw new Error(reason);
+        }
 
         // `AgentExecutor` reports a non-abort failure through `result.error` rather than
         // throwing — it has already surfaced the error to the UI. Without inspecting it, a
