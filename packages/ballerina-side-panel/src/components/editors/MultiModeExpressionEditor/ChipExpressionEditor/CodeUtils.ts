@@ -290,14 +290,15 @@ export const tokenField = StateField.define<TokenFieldState>({
             };
         });
 
-        let compounds = oldState.compounds.map(compound => {
-            const isActive = activeStartBeforeChange !== undefined && compound.start === activeStartBeforeChange;
-            return {
-                ...compound,
-                start: tr.changes.mapPos(compound.start, isActive ? -1 : 1),
-                end: tr.changes.mapPos(compound.end, isActive ? 1 : -1)
-            };
-        });
+        // Compounds are never individually editable today - CompoundTokenSequence.tokenType is
+        // TokenType.VARIABLE | TokenType.DOCUMENT, and isEditableValueChip only allows PARAMETER
+        // and VALUE - so a compound's start can never equal activeStartBeforeChange, and it
+        // always gets the plain, non-absorbing assoc.
+        let compounds = oldState.compounds.map(compound => ({
+            ...compound,
+            start: tr.changes.mapPos(compound.start, 1),
+            end: tr.changes.mapPos(compound.end, -1)
+        }));
 
         // A chip is actively being edited: its containing expression is typically mid-edit
         // (often syntactically incomplete), so an LS-backed token refresh landing right now
@@ -408,14 +409,20 @@ export const iterateTokenStream = (
     }
 };
 
-// All editable value-chip (and, once reachable, compound) ranges that actually get rendered
-// as their own chip/box - i.e. the same set iterateTokenStream hands to buildDecorations
-// below, not the raw tokenField.tokens/compounds arrays. A token absorbed into a compound
-// sequence (e.g. one of several tokens inside a ${...} interpolation), an orphan token inside
-// an unclosed interpolation, or a multi-line span never gets its own decoration, so it must
-// also never be an activation target for boundary clicks or Tab/Shift-Tab - otherwise the
-// editor can silently enter edit mode (and start suppressing LS token refreshes) for a token
-// with no on-screen active box to show for it.
+// All editable value-chip token ranges that actually get rendered as their own chip/box -
+// i.e. the same set iterateTokenStream hands to buildDecorations below, not the raw
+// tokenField.tokens array. A token absorbed into a compound sequence (e.g. one of several
+// tokens inside a ${...} interpolation), an orphan token inside an unclosed interpolation, or
+// a multi-line span never gets its own decoration, so it must also never be an activation
+// target for boundary clicks or Tab/Shift-Tab - otherwise the editor can silently enter edit
+// mode (and start suppressing LS token refreshes) for a token with no on-screen active box to
+// show for it.
+//
+// Compounds are never individually editable today - CompoundTokenSequence.tokenType is
+// TokenType.VARIABLE | TokenType.DOCUMENT, and isEditableValueChip only allows PARAMETER and
+// VALUE - so onCompound never contributes a range here. If compound editing is ever supported,
+// widen CompoundTokenSequence.tokenType and this function (and buildDecorations' onCompound
+// branch below) need to be revisited together.
 const getEditableChipRanges = (view: EditorView): { start: number; end: number }[] => {
     const tokenState = view.state.field(tokenField, false);
     if (!tokenState) return [];
@@ -424,12 +431,7 @@ const getEditableChipRanges = (view: EditorView): { start: number; end: number }
     const ranges: { start: number; end: number }[] = [];
 
     iterateTokenStream(tokenState.tokens, tokenState.compounds, docContent, {
-        onCompound: (compound) => {
-            if (docContent.slice(compound.start, compound.end).includes('\n')) return;
-            if (isEditableValueChip(compound.tokenType) && compound.start < compound.end) {
-                ranges.push({ start: compound.start, end: compound.end });
-            }
-        },
+        onCompound: () => { /* compounds are never individually editable today - see above */ },
         onToken: (token, text) => {
             if (text.includes('\n')) return;
             if (isEditableValueChip(token.type) && token.start < token.end) {
@@ -472,15 +474,9 @@ export const chipPlugin = ViewPlugin.fromClass(
                         return;
                     }
 
-                    if (
-                        isEditableValueChip(compound.tokenType) &&
-                        compound.start === activeStart &&
-                        compound.start < compound.end
-                    ) {
-                        widgets.push(activeChipMark.range(compound.start, compound.end));
-                        return;
-                    }
-
+                    // Compounds are never individually editable today (see the note on
+                    // getEditableChipRanges above), so they always render as a plain chip -
+                    // never the live/editable activeChipMark box the branch below gives tokens.
                     widgets.push(
                         createChip(
                             compound.displayText,
@@ -657,9 +653,10 @@ export const expressionEditorKeymap = [
                 compound => compound.start < cursor && compound.end >= cursor
             );
 
-            // While the compound is in edit mode its text is live/editable - let Backspace
-            // delete a single character normally instead of yanking the whole thing.
-            if (affectedCompound && affectedCompound.start !== activeStart) {
+            // Compounds are never individually editable today (see the note on
+            // getEditableChipRanges above), so Backspace always removes the whole sequence -
+            // there's no "compound is being edited, delete one character instead" case yet.
+            if (affectedCompound) {
                 // Delete all tokens in the compound sequence
                 const effects = [];
                 for (let i = affectedCompound.startIndex; i <= affectedCompound.endIndex; i++) {
