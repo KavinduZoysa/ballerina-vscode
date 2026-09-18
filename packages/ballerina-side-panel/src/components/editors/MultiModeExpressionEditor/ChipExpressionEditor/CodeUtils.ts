@@ -70,6 +70,11 @@ export const setActiveEditableTokenEffect = StateEffect.define<number | undefine
 export const activeEditableTokenField = StateField.define<number | undefined>({
     create: () => undefined,
     update(value, tr) {
+        // An external prop-value sync replaces the whole document out from under whatever was
+        // locally being edited - mapping the old position through that wholesale replace would
+        // produce a meaningless number, so treat the sync as authoritative and drop it instead.
+        if (tr.annotation(SyncDocValueWithPropValue)) return undefined;
+
         // assoc=-1 so typing right at the tracked start extends the active chip backwards
         // (mirrors tokenField's start mapping below) instead of excluding the new leading
         // text from the highlighted box until the next LS-backed refresh.
@@ -305,8 +310,12 @@ export const tokenField = StateField.define<TokenFieldState>({
         // would recompute the *whole* token stream from that transient/invalid parse - which
         // can misclassify or drop tokens for chips the user isn't even touching. Ignore it and
         // keep the locally-mapped tokens/compounds; the real refresh runs once editing commits
-        // (Enter/blur, see buildNeedTokenRefetchListner and buildOnFocusOutListner).
-        const isEditingChip = activeStartBeforeChange !== undefined;
+        // (Enter/blur, see buildNeedTokenRefetchListner and buildOnFocusOutListner). An external
+        // prop-value sync overrides this: it replaces the whole document out from under any
+        // local edit, so the locally-mapped positions are meaningless anyway and the refresh it
+        // carries must be applied instead of skipped, or the token stream is stuck describing a
+        // document that no longer exists until the next Enter/blur.
+        const isEditingChip = activeStartBeforeChange !== undefined && !tr.annotation(SyncDocValueWithPropValue);
 
         for (let effect of tr.effects) {
             if (effect.is(tokensChangeEffect)) {
@@ -568,7 +577,13 @@ export const activeChipSelectionGuard = EditorView.updateListener.of((update) =>
 
     const activeRange = tokenState.tokens.find(token => token.start === activeStart)
         ?? tokenState.compounds.find(compound => compound.start === activeStart);
-    if (!activeRange) return;
+    if (!activeRange) {
+        // The tracked chip no longer exists - clear instead of leaving isEditingChip stuck
+        // true, which would otherwise keep suppressing LS-backed token refreshes until an
+        // unrelated Enter/blur happens to come along and clear it.
+        update.view.dispatch({ effects: setActiveEditableTokenEffect.of(undefined) });
+        return;
+    }
 
     const { from, to } = update.state.selection.main;
     if (from < activeRange.start || to > activeRange.end) {
