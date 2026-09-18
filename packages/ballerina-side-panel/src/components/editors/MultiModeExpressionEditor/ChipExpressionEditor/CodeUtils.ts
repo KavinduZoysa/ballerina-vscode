@@ -547,7 +547,18 @@ export const chipBoundaryClickHandler = EditorView.domEventHandlers({
         // Only match against ranges that actually render as their own chip (see
         // getEditableChipRanges) - a raw token list would also match a token absorbed into a
         // compound sequence, which never gets its own decoration to activate.
-        const hit = getEditableChipRanges(view).find(range => pos === range.start || pos === range.end);
+        const hit = getEditableChipRanges(view).find(range => {
+            if (pos === range.start) return true;
+            if (pos !== range.end) return false;
+
+            // A click resolving to a chip's end can also mean "well past it, in blank
+            // space" - e.g. a trailing chip at the end of the document/line, where posAtCoords
+            // clamps every click past it to this same position. Only treat it as a boundary
+            // hit when the click is still on/at the chip's own rendered box; otherwise a chip
+            // at the end of a field could never be clicked-past to place the caret after it.
+            const endCoords = view.coordsAtPos(range.end, -1);
+            return endCoords != null && event.clientX <= endCoords.right;
+        });
         if (!hit) return false;
 
         event.preventDefault();
