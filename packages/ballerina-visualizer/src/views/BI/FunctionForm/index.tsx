@@ -94,6 +94,10 @@ export function FunctionForm(props: FunctionFormProps) {
     const fileName = filePath.split(/[\\/]/).pop();
     const formType = useRef("Function");
     const isMountedRef = useRef(true);
+    // Identifies the latest template load. If the effect re-fires while a request is in flight,
+    // only the newest attempt may write state — otherwise a slow failure can raise the error card
+    // over an already-loaded form. Mirrors `useServiceInitModel`'s `cancelled` flag.
+    const loadSeqRef = useRef(0);
     const functionNodeRef = useRef<FunctionNode>();
 
     useEffect(() => {
@@ -284,6 +288,7 @@ export function FunctionForm(props: FunctionFormProps) {
     }, [rpcClient, functionName, fileName, projectPath]);
 
     const getFunctionNode = async (kind: NodeKind) => {
+        const seq = ++loadSeqRef.current;
         setIsLoading(true);
         setLoadError(false);
         try {
@@ -349,19 +354,28 @@ export function FunctionForm(props: FunctionFormProps) {
                 }
             }
 
+            if (seq !== loadSeqRef.current) {
+                return;
+            }
             setFunctionNode(flowNode);
             console.log("Function Node: ", flowNode);
         } catch (error) {
             // Resolving the template pulls the package from Central, so this is the offline /
             // unresolvable-version path. Surface it instead of leaving the loader up forever.
             console.error(`>>> Error fetching the ${kind} node template`, error);
-            setLoadError(true);
+            if (seq === loadSeqRef.current) {
+                setLoadError(true);
+            }
         } finally {
-            setIsLoading(false);
+            if (seq === loadSeqRef.current) {
+                setIsLoading(false);
+            }
         }
     }
 
     const getExistingFunctionNode = async () => {
+        // Supersedes any in-flight create-path load (see `loadSeqRef`).
+        loadSeqRef.current += 1;
         setIsLoading(true);
         const res = await rpcClient
             .getBIDiagramRpcClient()
