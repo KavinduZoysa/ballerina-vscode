@@ -1023,6 +1023,9 @@ public class CodeAnalyzer extends NodeVisitor {
                     .symbol(SLEEP_METHOD_NAME);
 
         processFunctionSymbol(callNode, callNode.arguments(), functionSymbol, functionData);
+        // The step id arrives from the signature as a plain parameter, while the template puts it
+        // with the advanced configurations. Re-reading a sleep has to render the same form.
+        WorkflowUtil.markStepIdAdvanced(nodeBuilder.properties().build());
 
         SyntaxKind parentKind = callNode.parent().kind();
         boolean hasCheck = parentKind == SyntaxKind.CHECK_ACTION

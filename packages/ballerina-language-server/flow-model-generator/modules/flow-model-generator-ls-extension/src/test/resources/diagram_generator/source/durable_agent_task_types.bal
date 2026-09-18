@@ -36,6 +36,10 @@ final workflow:DurableAgent claimAgent = check new ({
     }
 });
 
+function driveClaimAgent() returns error? {
+    string instanceId = check claimAgent.run("Decide claim 42");
+}
+
 @workflow:Workflow
 function auditClaim(workflow:Context ctx, string claimId) returns error? {
 }

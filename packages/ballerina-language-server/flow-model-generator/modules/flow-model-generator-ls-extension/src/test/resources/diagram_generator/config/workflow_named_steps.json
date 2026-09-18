@@ -1,25 +1,29 @@
 {
   "start": {
-    "line": 38,
+    "line": 47,
     "offset": 0
   },
   "end": {
-    "line": 40,
+    "line": 50,
     "offset": 1
   },
   "source": "durable_agent_task_types.bal",
-  "description": "The agent box carries the declaration's result type and a keyed human task with its own input and completion types, so both load back into their forms",
+  "description": "A sleep and a child workflow start that name their steps load the names back, with the step id among the advanced fields",
   "diagram": {
     "fileName": "durable_agent_task_types.bal",
     "nodes": [
       {
-        "id": "70805",
+        "id": "80880",
         "metadata": {
           "label": "Start",
           "data": {
-            "kind": "Function",
-            "label": "driveClaimAgent",
+            "kind": "Workflow",
+            "label": "reconcileClaims",
             "isServiceFunction": false,
+            "parameters": [
+              "workflow:Context ctx",
+              "string claimId"
+            ],
             "return": "error?"
           }
         },
@@ -28,237 +32,260 @@
           "lineRange": {
             "fileName": "durable_agent_task_types.bal",
             "startLine": {
-              "line": 38,
-              "offset": 42
+              "line": 47,
+              "offset": 78
             },
             "endLine": {
-              "line": 40,
+              "line": 50,
               "offset": 1
             }
           },
-          "sourceCode": "function driveClaimAgent() returns error? {\n    string instanceId = check claimAgent.run(\"Decide claim 42\");\n}"
+          "sourceCode": "@workflow:Workflow\nfunction reconcileClaims(workflow:Context ctx, string claimId) returns error? {\n    check ctx.sleep({seconds: 5}, stepId = \"cool-off#1\");\n    string auditId = check ctx->runChildWorkflow(auditClaim, claimId, stepId = \"audit#1\");\n}"
         },
         "returning": false,
         "flags": 0
       },
       {
-        "id": "70620",
+        "id": "79541",
         "metadata": {
-          "label": "Configure Agent",
-          "description": "Configure the agent's role, instructions, model and reasoning limit",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_workflow_0.10.0.png",
-          "data": {
-            "agentName": "claimAgent",
-            "agentBox": true,
-            "agent": {
-              "role": "Claims desk",
-              "instructions": "Decide expense claims."
-            },
-            "model": {
-              "name": "claimModel",
-              "path": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
-              "type": "Wso2ModelProvider"
-            },
-            "activities": [],
-            "humanTasks": [
-              {
-                "name": "approveClaim",
-                "type": "humanTask",
-                "lineRange": {
-                  "fileName": "durable_agent_task_types.bal",
-                  "startLine": {
-                    "line": 29,
-                    "offset": 8
-                  },
-                  "endLine": {
-                    "line": 34,
-                    "offset": 9
-                  }
-                },
-                "values": {
-                  "taskName": "approveClaim",
-                  "userRoles": "finance",
-                  "taskInputType": "ClaimReview",
-                  "resultType": "ApprovalResult",
-                  "title": "Approve the claim"
-                }
-              }
-            ],
-            "tools": [],
-            "events": [],
-            "peers": [],
-            "declaration": {
-              "fileName": "durable_agent_task_types.bal",
-              "startLine": {
-                "line": 23,
-                "offset": 0
-              },
-              "endLine": {
-                "line": 36,
-                "offset": 3
-              }
-            }
-          }
+          "label": "Sleep",
+          "description": "Pause workflow execution for a specified duration",
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_workflow_0.10.0.png"
         },
         "codedata": {
-          "node": "DURABLE_AGENT_RUN",
+          "node": "SLEEP",
           "org": "ballerina",
           "module": "workflow",
           "packageName": "workflow",
-          "object": "DurableAgent",
-          "symbol": "buildAndRunAgent",
+          "object": "Context",
+          "symbol": "sleep",
           "version": "0.10.0",
           "lineRange": {
             "fileName": "durable_agent_task_types.bal",
             "startLine": {
-              "line": 39,
+              "line": 48,
               "offset": 4
             },
             "endLine": {
-              "line": 39,
-              "offset": 64
+              "line": 48,
+              "offset": 57
             }
           },
-          "sourceCode": "string instanceId = check claimAgent.run(\"Decide claim 42\");",
-          "parentSymbol": "claimAgent"
+          "sourceCode": "check ctx.sleep({seconds: 5}, stepId = \"cool-off#1\");"
         },
         "returning": false,
         "properties": {
-          "role": {
+          "duration": {
             "metadata": {
-              "label": "Role",
-              "description": "Define the agent's primary function"
+              "label": "Duration",
+              "description": "The duration to sleep"
             },
             "types": [
               {
-                "fieldType": "PROMPT",
-                "ballerinaType": "string",
-                "selected": true
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": false
-              }
-            ],
-            "value": "Claims desk",
-            "placeholder": "e.g., Customer Support Assistant",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "REQUIRED"
-            },
-            "defaultValue": ""
-          },
-          "instructions": {
-            "metadata": {
-              "label": "Instructions",
-              "description": "Detailed instructions for the agent"
-            },
-            "types": [
-              {
-                "fieldType": "PROMPT",
-                "ballerinaType": "string",
-                "selected": true
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": false
-              }
-            ],
-            "value": "Decide expense claims.",
-            "placeholder": "e.g., You are a friendly assistant. Your goal is to...",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "REQUIRED"
-            },
-            "defaultValue": ""
-          },
-          "model": {
-            "metadata": {
-              "label": "Model",
-              "description": "The model provider used for the agent's LLM calls"
-            },
-            "types": [
-              {
-                "fieldType": "SINGLE_SELECT",
-                "ballerinaType": "ai:ModelProvider",
-                "options": [
+                "fieldType": "RECORD_MAP_EXPRESSION",
+                "ballerinaType": "workflow:Duration",
+                "typeMembers": [
                   {
-                    "label": "claimModel",
-                    "value": "claimModel"
+                    "type": "Duration",
+                    "packageInfo": "ballerina:workflow:0.10.0",
+                    "packageName": "workflow",
+                    "kind": "RECORD_TYPE",
+                    "selected": true
                   }
                 ],
                 "selected": true
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "workflow:Duration",
+                "selected": false
               }
             ],
-            "value": "claimModel",
-            "placeholder": "Select a model provider",
+            "value": "{seconds: 5}",
+            "placeholder": "{}",
             "optional": false,
             "editable": true,
             "advanced": false,
-            "hidden": true,
+            "hidden": false,
             "codedata": {
               "kind": "REQUIRED",
-              "originalName": "model"
+              "originalName": "duration"
             }
           },
-          "inputType": {
+          "stepId": {
             "metadata": {
-              "label": "Input Type",
-              "description": "The structured input a run is given, e.g. json or a record type"
+              "label": "Step Id",
+              "description": "Identity of this step within the workflow, as for `callActivity`"
             },
             "types": [
               {
+                "fieldType": "TEXT",
+                "ballerinaType": "string",
+                "selected": true
+              },
+              {
                 "fieldType": "EXPRESSION",
+                "ballerinaType": "string?",
                 "selected": false
               }
             ],
-            "value": "json",
-            "optional": false,
+            "value": "\"cool-off#1\"",
+            "placeholder": "()",
+            "optional": true,
             "editable": true,
-            "advanced": false,
-            "hidden": false
+            "advanced": true,
+            "hidden": false,
+            "codedata": {
+              "kind": "DEFAULTABLE",
+              "originalName": "stepId"
+            },
+            "defaultValue": "()"
           },
-          "resultType": {
+          "checkError": {
             "metadata": {
-              "label": "Result Type",
-              "description": "The type a run produces, e.g. a record type; empty leaves the result untyped"
+              "label": "Check Error",
+              "description": "Trigger error flow"
             },
             "types": [
               {
-                "fieldType": "EXPRESSION",
-                "selected": false
+                "fieldType": "FLAG",
+                "selected": true
               }
             ],
-            "value": "ClaimDecision",
+            "value": true,
             "optional": false,
             "editable": true,
-            "advanced": false,
-            "hidden": false
+            "advanced": true,
+            "hidden": true
+          }
+        },
+        "flags": 1
+      },
+      {
+        "id": "80566",
+        "metadata": {
+          "label": "Run Child Workflow",
+          "description": "auditClaim",
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_workflow_0.10.0.png"
+        },
+        "codedata": {
+          "node": "CHILD_WORKFLOW_RUN",
+          "org": "ballerina",
+          "module": "workflow",
+          "packageName": ".",
+          "object": "Context",
+          "symbol": "auditClaim",
+          "version": "0.0.0",
+          "lineRange": {
+            "fileName": "durable_agent_task_types.bal",
+            "startLine": {
+              "line": 49,
+              "offset": 4
+            },
+            "endLine": {
+              "line": 49,
+              "offset": 90
+            }
           },
-          "query": {
+          "sourceCode": "string auditId = check ctx->runChildWorkflow(auditClaim, claimId, stepId = \"audit#1\");"
+        },
+        "returning": false,
+        "properties": {
+          "connection": {
             "metadata": {
-              "label": "Query",
-              "description": "The initial user query for the agent"
+              "label": "Connection",
+              "description": "Connection to use",
+              "data": {
+                "connectorType": "Default"
+              }
             },
             "types": [
               {
                 "fieldType": "EXPRESSION",
-                "selected": false
+                "selected": true
               }
             ],
-            "value": "\"Decide claim 42\"",
+            "value": "ctx",
+            "optional": false,
+            "editable": false,
+            "advanced": false,
+            "hidden": true
+          },
+          "childWorkflow": {
+            "metadata": {
+              "label": "Child Workflow",
+              "description": "The child workflow function (must have `@Workflow`)"
+            },
+            "types": [
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "function",
+                "selected": true
+              }
+            ],
+            "value": "auditClaim",
+            "placeholder": "",
             "optional": false,
             "editable": true,
             "advanced": false,
-            "hidden": false
+            "hidden": false,
+            "codedata": {
+              "kind": "REQUIRED",
+              "originalName": "childWorkflow"
+            }
+          },
+          "input": {
+            "metadata": {
+              "label": "Input",
+              "description": "Optional input for the child workflow. Must match the child workflow\nfunction's declared input parameter type (any `anydata` subtype)"
+            },
+            "types": [
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "anydata",
+                "selected": true
+              }
+            ],
+            "value": "claimId",
+            "placeholder": "{}",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "DEFAULTABLE",
+              "originalName": "input"
+            },
+            "defaultValue": "{}"
+          },
+          "stepId": {
+            "metadata": {
+              "label": "Step Id",
+              "description": "Identity of this step within the workflow, as for `callActivity`"
+            },
+            "types": [
+              {
+                "fieldType": "TEXT",
+                "ballerinaType": "string",
+                "selected": true
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string?",
+                "selected": false
+              }
+            ],
+            "value": "\"audit#1\"",
+            "placeholder": "()",
+            "optional": true,
+            "editable": true,
+            "advanced": true,
+            "hidden": false,
+            "codedata": {
+              "kind": "DEFAULTABLE",
+              "originalName": "stepId"
+            },
+            "defaultValue": "()"
           },
           "checkError": {
             "metadata": {
@@ -288,7 +315,7 @@
                 "selected": true
               }
             ],
-            "value": "instanceId",
+            "value": "auditId",
             "optional": false,
             "editable": false,
             "advanced": false,
@@ -297,12 +324,12 @@
               "lineRange": {
                 "fileName": "durable_agent_task_types.bal",
                 "startLine": {
-                  "line": 39,
+                  "line": 49,
                   "offset": 11
                 },
                 "endLine": {
-                  "line": 39,
-                  "offset": 21
+                  "line": 49,
+                  "offset": 18
                 }
               }
             }
