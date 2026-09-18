@@ -118,6 +118,14 @@ public class ServiceInitModel {
         this.properties.put(key, value);
     }
 
+    /** Inserts a property before all existing ones, since {@link LinkedHashMap} has no prepend. */
+    public void addPropertyFirst(String key, Value value) {
+        Map<String, Value> existing = new LinkedHashMap<>(properties);
+        properties.clear();
+        properties.put(key, value);
+        properties.putAll(existing);
+    }
+
     public List<String> getSelectedTools() {
         return selectedTools;
     }

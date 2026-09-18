@@ -229,7 +229,8 @@ export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
     const { rpcClient } = useRpcContext();
 
     const [step, setStep] = useState<WizardStep>("configure");
-    const [model, setModel] = useState<ServiceInitModel>(initialModel);
+    // Cloned so edits here don't leak into ServiceCreationView's own model state.
+    const [model, setModel] = useState<ServiceInitModel>(() => structuredClone(initialModel));
     const [formFields, setFormFields] = useState<FormField[]>([]);
     const [endpoints, setEndpoints] = useState<McpToolEndpoint[]>([]);
     const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
@@ -248,8 +249,8 @@ export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
                     return;
                 }
                 const modelWithDefaults = res.defaults
-                    ? applyMcpImportConfiguration(initialModel, toMcpImportConfiguration(res.defaults))
-                    : initialModel;
+                    ? applyMcpImportConfiguration(model, toMcpImportConfiguration(res.defaults))
+                    : model;
                 setEndpoints(res.endpoints);
                 setSelectedTools(new Set(res.endpoints.map((endpoint) => endpoint.toolName)));
                 setModel(modelWithDefaults);
@@ -266,7 +267,7 @@ export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
         return () => {
             isMounted = false;
         };
-        // Runs once per mounted wizard instance; specPath/initialModel are fixed for its lifetime.
+        // Runs once per mounted wizard instance; specPath is fixed for its lifetime.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -284,11 +285,6 @@ export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
         });
     };
 
-    const allSelected = endpoints.length > 0 && selectedTools.size === endpoints.length;
-    const toggleAll = (checked: boolean) => {
-        setSelectedTools(checked ? new Set(endpoints.map((endpoint) => endpoint.toolName)) : new Set());
-    };
-
     const toggleMethodFilter = (method: string) => {
         setMethodFilters((previous) => {
             const next = new Set(previous);
@@ -298,8 +294,7 @@ export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
     };
 
     const handleConfirmSelection = async () => {
-        model.selectedTools = Array.from(selectedTools);
-        await onCreate(model);
+        await onCreate({ ...model, selectedTools: Array.from(selectedTools) });
     };
 
     const distinctMethods = Array.from(new Set(endpoints.map((endpoint) => endpoint.method.toUpperCase())));
@@ -310,6 +305,17 @@ export function McpOpenApiImportWizard(props: McpOpenApiImportWizardProps) {
             || endpoint.toolName.toLowerCase().includes(query)
             || endpoint.method.toLowerCase().includes(query)
             || endpoint.description?.toLowerCase().includes(query)));
+
+    // Scoped to the filtered set so it doesn't silently touch hidden rows.
+    const allSelected = filteredEndpoints.length > 0
+        && filteredEndpoints.every((endpoint) => selectedTools.has(endpoint.toolName));
+    const toggleAll = (checked: boolean) => {
+        setSelectedTools((previous) => {
+            const next = new Set(previous);
+            filteredEndpoints.forEach((endpoint) => checked ? next.add(endpoint.toolName) : next.delete(endpoint.toolName));
+            return next;
+        });
+    };
 
     const specFileName = specPath.split(/[\\/]/).pop();
 

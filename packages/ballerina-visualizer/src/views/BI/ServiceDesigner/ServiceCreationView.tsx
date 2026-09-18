@@ -381,8 +381,10 @@ export function ServiceCreationView(props: ServiceCreationViewProps) {
         }
         setServerValidationErrors([]);
 
-        const newArtifact = res.artifacts.find((artifact) => artifact.isNew && model.moduleName === artifact.moduleName)
-            || res.artifacts.find((artifact) => artifact.isNew);
+        const strictMatch = res.artifacts.find((artifact) => artifact.isNew && model.moduleName === artifact.moduleName);
+        // Only the MCP OpenAPI import falls back to any new artifact; its edits may not carry the "mcp" moduleName.
+        const newArtifact = strictMatch
+            || (isMcpOpenApiImport ? res.artifacts.find((artifact) => artifact.isNew) : undefined);
         if (newArtifact) {
             rpcClient.getVisualizerRpcClient().openView({ type: EVENT_TYPE.OPEN_VIEW, location: { documentUri: newArtifact.path, position: newArtifact.position } });
             setIsSaving(false);

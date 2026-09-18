@@ -45,12 +45,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -107,18 +109,22 @@ public class McpOpenApiServiceGenerator {
         if (basePath != null && !basePath.isBlank()) {
             basePath = basePath.trim();
             String normalized = basePath.startsWith("/") ? basePath : "/" + basePath;
-            serviceSource = SERVICE_PATH_PATTERN.matcher(serviceSource)
-                    .replaceFirst("$1" + Matcher.quoteReplacement(normalized) + "$2");
+            Matcher basePathMatcher = SERVICE_PATH_PATTERN.matcher(serviceSource);
+            if (!basePathMatcher.find()) {
+                throw new McpGenerationException(
+                        "Could not locate the generated service declaration to apply the base path");
+            }
+            serviceSource = basePathMatcher.replaceFirst("$1" + Matcher.quoteReplacement(normalized) + "$2");
         }
         ModulePartNode mainModulePart = mainDocument.syntaxTree().rootNode();
         // Uniquified like refreshListenerName, so a second import doesn't redeclare apiClient.
         String clientName = Utils.generateVariableIdentifier(semanticModel, mainDocument,
                 mainModulePart.lineRange().endLine(), DEFAULT_CLIENT_NAME);
-        // Word-boundary match: a plain replace would also corrupt an OpenAPI-derived tool name
-        // like "apiClientStatus" that merely contains the default identifier as a substring.
+        // Word-boundary match: a plain replace would also corrupt a tool name like "apiClientStatus".
         serviceSource = serviceSource.replaceAll("\\b" + DEFAULT_CLIENT_NAME + "\\b",
                         Matcher.quoteReplacement(clientName))
                 .replaceAll("\\b" + DEFAULT_LISTENER_NAME + "\\b", Matcher.quoteReplacement(listenerName))
+                // mcp-core ignores SpecInfo's port and always emits DEFAULT_PORT; this replace is what applies it.
                 .replace("new (" + DEFAULT_PORT + ")", "new (" + port + ")");
 
         Map<String, List<TextEdit>> edits = new LinkedHashMap<>();
@@ -167,6 +173,7 @@ public class McpOpenApiServiceGenerator {
                 "/" + deriveServicePath(serviceName), DEFAULT_PORT, DEFAULT_LISTENER_NAME);
     }
 
+    // mcp-core has no API to return just the types source, so this scaffolds a full temp project for it.
     private String generateTypes() throws McpGenerationException, IOException {
         Path tempDir = Files.createTempDirectory("mcp-openapi-gen");
         try {
@@ -191,19 +198,29 @@ public class McpOpenApiServiceGenerator {
                         // Best-effort cleanup of generated temporary files.
                     }
                 });
+            } catch (IOException ignored) {
+                // Must not mask the try block's result/exception.
             }
         }
     }
 
-    private static List<EndpointInfo> selectedEndpoints(List<EndpointInfo> endpoints, List<String> selectedTools) {
+    private static List<EndpointInfo> selectedEndpoints(List<EndpointInfo> endpoints, List<String> selectedTools)
+            throws McpGenerationException {
         if (selectedTools == null || selectedTools.isEmpty()) {
             return endpoints;
         }
         List<EndpointInfo> selected = new ArrayList<>();
+        Set<String> matchedTools = new HashSet<>();
         for (EndpointInfo endpoint : endpoints) {
             if (selectedTools.contains(endpoint.getToolName())) {
                 selected.add(endpoint);
+                matchedTools.add(endpoint.getToolName());
             }
+        }
+        if (matchedTools.size() < selectedTools.size()) {
+            List<String> unresolved = selectedTools.stream().filter(tool -> !matchedTools.contains(tool)).toList();
+            throw new McpGenerationException(
+                    "Selected tool(s) no longer exist in the OpenAPI specification: " + String.join(", ", unresolved));
         }
         return selected;
     }
@@ -248,21 +265,19 @@ public class McpOpenApiServiceGenerator {
         return path.isBlank() ? "mcp" : path;
     }
 
-    // Serializes access since System.out/err are JVM-global, not per-call.
-    private static final Object STDIO_REDIRECT_LOCK = new Object();
+    // JVM-global, so concurrent calls must not race on swapping/restoring System.out.
+    private static final Object STDOUT_REDIRECT_LOCK = new Object();
 
+    // Keeps mcp-core's System.out progress/warning noise out of the LS's diagnostic output (System.err).
     static <T> T runSilently(SilentAction<T> action) throws McpGenerationException, IOException {
-        synchronized (STDIO_REDIRECT_LOCK) {
+        synchronized (STDOUT_REDIRECT_LOCK) {
             PrintStream originalOut = System.out;
-            PrintStream originalErr = System.err;
             PrintStream sink = new PrintStream(OutputStream.nullOutputStream(), true, StandardCharsets.UTF_8);
             System.setOut(sink);
-            System.setErr(sink);
             try {
                 return action.run();
             } finally {
                 System.setOut(originalOut);
-                System.setErr(originalErr);
                 sink.close();
             }
         }

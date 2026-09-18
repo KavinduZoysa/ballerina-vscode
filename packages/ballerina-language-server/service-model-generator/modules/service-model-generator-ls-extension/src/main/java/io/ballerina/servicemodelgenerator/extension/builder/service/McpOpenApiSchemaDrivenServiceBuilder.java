@@ -33,7 +33,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -60,10 +59,7 @@ public class McpOpenApiSchemaDrivenServiceBuilder extends SchemaDrivenServiceBui
             }
             Value designApproach = new Gson().fromJson(new JsonReader(
                     new InputStreamReader(stream, StandardCharsets.UTF_8)), Value.class);
-            Map<String, Value> properties = new LinkedHashMap<>(model.getProperties());
-            model.getProperties().clear();
-            model.addProperty(PROPERTY_DESIGN_APPROACH, designApproach);
-            model.addProperties(properties);
+            model.addPropertyFirst(PROPERTY_DESIGN_APPROACH, designApproach);
         } catch (IOException ignored) {
             // The schema-driven creation form remains available if the optional import model is absent.
         }
