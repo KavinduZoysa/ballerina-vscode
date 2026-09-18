@@ -109,9 +109,8 @@ public class DurableAgentRegisterToolBuilder extends CallBuilder {
 
         // ToolDecl gating: emitted as `{tool: <ref>, approvalPolicy: {userRoles: ...}}` on the
         // declaration's tools list when set; a bare reference otherwise.
-        // A capability's values travel as plain strings, so its wording fields are expressions only.
         ApprovalPolicyForm.addFormProperties(this, ApprovalPolicyForm.NO_APPROVAL_VALUE,
-                ActivityCallBuilder.ReviewFormValues.empty(), false);
+                ActivityCallBuilder.ReviewFormValues.empty());
         properties().checkError(true);
     }
 

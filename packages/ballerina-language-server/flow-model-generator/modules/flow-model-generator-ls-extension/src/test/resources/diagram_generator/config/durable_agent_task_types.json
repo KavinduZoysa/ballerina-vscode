@@ -77,10 +77,10 @@
                 },
                 "values": {
                   "taskName": "approveClaim",
-                  "userRoles": "finance",
+                  "userRoles": "\"finance\"",
                   "taskInputType": "ClaimReview",
                   "resultType": "ApprovalResult",
-                  "title": "Approve the claim"
+                  "title": "\"Approve the claim\""
                 }
               }
             ],

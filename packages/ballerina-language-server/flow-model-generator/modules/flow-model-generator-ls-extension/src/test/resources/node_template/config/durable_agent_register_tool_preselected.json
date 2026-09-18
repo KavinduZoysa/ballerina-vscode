@@ -227,9 +227,14 @@
               },
               "types": [
                 {
-                  "fieldType": "EXPRESSION",
+                  "fieldType": "TEXT",
                   "ballerinaType": "string",
                   "selected": true
+                },
+                {
+                  "fieldType": "EXPRESSION",
+                  "ballerinaType": "string",
+                  "selected": false
                 }
               ],
               "value": "",
@@ -245,9 +250,14 @@
               },
               "types": [
                 {
-                  "fieldType": "EXPRESSION",
+                  "fieldType": "TEXT",
                   "ballerinaType": "string",
                   "selected": true
+                },
+                {
+                  "fieldType": "EXPRESSION",
+                  "ballerinaType": "string",
+                  "selected": false
                 }
               ],
               "value": "",
@@ -404,9 +414,14 @@
         },
         "types": [
           {
-            "fieldType": "EXPRESSION",
+            "fieldType": "TEXT",
             "ballerinaType": "string",
             "selected": true
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string",
+            "selected": false
           }
         ],
         "value": "",
@@ -422,9 +437,14 @@
         },
         "types": [
           {
-            "fieldType": "EXPRESSION",
+            "fieldType": "TEXT",
             "ballerinaType": "string",
             "selected": true
+          },
+          {
+            "fieldType": "EXPRESSION",
+            "ballerinaType": "string",
+            "selected": false
           }
         ],
         "value": "",

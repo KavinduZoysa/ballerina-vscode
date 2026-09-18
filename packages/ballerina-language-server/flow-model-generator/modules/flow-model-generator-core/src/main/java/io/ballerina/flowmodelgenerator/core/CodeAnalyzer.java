@@ -1646,18 +1646,11 @@ public class CodeAnalyzer extends NodeVisitor {
                     String propertyKey = fieldToPropertyKey.get(fieldName);
                     if (propertyKey != null) {
                         // The cardinality enum may be module-qualified in source (workflow:SINGLE_EVENT);
-                        // the form's select options carry the bare enum names. String-literal values
-                        // of text-mode fields (name/title/description/roles) hydrate unquoted so the
-                        // form shows the text, not its source syntax.
-                        String value;
-                        if ("cardinality".equals(fieldName)) {
-                            value = WorkflowUtil.stripModulePrefix(rawValue);
-                        } else if (TEXT_MODE_CAPABILITY_FIELDS.contains(fieldName)) {
-                            value = stripQuotes(rawValue);
-                        } else {
-                            value = rawValue;
-                        }
-                        values.put(propertyKey, value);
+                        // the form's select options carry the bare enum names. Every other field
+                        // hydrates as source, so the form can tell a reference from the text that
+                        // spells it the same and pick the field's mode accordingly.
+                        values.put(propertyKey, "cardinality".equals(fieldName)
+                                ? WorkflowUtil.stripModulePrefix(rawValue) : rawValue);
                     }
                     if ("name".equals(fieldName)) {
                         declaredName = WorkflowUtil.capabilityName(rawValue);
@@ -1719,20 +1712,17 @@ public class CodeAnalyzer extends NodeVisitor {
                 values.put(propertyKey, WorkflowUtil.stripModulePrefix(rawValue));
             } else if (ROLE_FIELDS.contains(fieldName)) {
                 // `userRoles: ()` says "only the named users decide"; the roles box stays empty for it.
-                values.put(propertyKey, nilAsBlank(stripQuotes(rawValue)));
-            } else if (TEXT_MODE_CAPABILITY_FIELDS.contains(fieldName)) {
-                values.put(propertyKey, stripQuotes(rawValue));
+                values.put(propertyKey, nilAsBlank(rawValue));
             } else {
+                // Source, one convention for every field: the form decides the mode from it, and a
+                // value decoded here would reach a dual-mode field with no way to tell a reference
+                // from the text that spells it the same.
                 values.put(propertyKey, rawValue);
             }
         }
     }
 
     private static final Set<String> ROLE_FIELDS = Set.of("roles", "userRoles");
-    // Capability declaration fields whose values render in text-mode form fields.
-    private static final Set<String> TEXT_MODE_CAPABILITY_FIELDS =
-            Set.of("name", "title", "description", "roles", "userRoles", "users", "excludedUsers", "excludedRoles",
-                    "administratorRoles", "administratorUsers");
 
     // The policy decomposes into the approval dropdown's selection plus its review fields, the way
     // retryPolicy does; a policy the form cannot read is carried as the selection itself.
