@@ -714,8 +714,8 @@ This stage has **two strictly separate phases**. Always complete Phase A before 
 
 ### Preparation
 
-1. From the Stage 1 inventory in your context, collect the TESTS section — these are the source
-   test files to migrate. If the Stage 1 inventory is not available, ${testSourceFind}
+1. Your Stage 1 inventory is provided above under "Work plan from the previous stage" — collect the
+   TESTS section from it; these are the source test files to migrate. If it is not available, ${testSourceFind}
 2. Read the enhanced Ballerina source files (\`functions.bal\`, \`main.bal\`, \`data_mappings.bal\`,
    etc.) to understand current function signatures, return types, and error paths.
 

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { formatCodebaseMap, extractPreviousStageWorkPlan } from "../features/ai/migration/project-map-format";
+import { formatCodebaseMap, extractPreviousStageWorkPlan, groupDeclarationsByFile } from "../features/ai/migration/project-map-format";
 
 describe("formatCodebaseMap", () => {
     it("wraps the block in <codebase_map> tags with a one-line intro", () => {
@@ -88,12 +88,12 @@ describe("extractPreviousStageWorkPlan", () => {
         expect(result).toContain("FLOWS / PROCESSES");
     });
 
-    it("falls back to the whole transcript, trimmed, when no marker is found", () => {
+    it("returns undefined when no marker is found", () => {
         const transcript = "  \n  Just some agent narration with no inventory block.  \n  ";
 
         const result = extractPreviousStageWorkPlan(transcript);
 
-        expect(result).toBe("Just some agent narration with no inventory block.");
+        expect(result).toBeUndefined();
     });
 
     it("trims trailing content after the marker", () => {
@@ -102,5 +102,78 @@ describe("extractPreviousStageWorkPlan", () => {
         const result = extractPreviousStageWorkPlan(transcript);
 
         expect(result).toBe("SOURCE INVENTORY — Tibco\nline 1\nline 2");
+    });
+
+    it("strips a stray closing fence left after slicing from the marker", () => {
+        const transcript = [
+            "```",
+            "SOURCE INVENTORY — Mule",
+            "===================================",
+            "FLOWS / PROCESSES",
+            "  [✅] flow.xml  →  main.bal",
+            "```",
+            "",
+            "_Completed: 2026-01-01T00:00:00.000Z_",
+        ].join("\n");
+
+        const result = extractPreviousStageWorkPlan(transcript);
+
+        expect(result).not.toContain("```");
+        expect(result).toContain("FLOWS / PROCESSES");
+        expect(result).toContain("_Completed:");
+    });
+});
+
+describe("groupDeclarationsByFile", () => {
+    it("resolves a default-module declaration to the same relPath collectBalFiles would produce", () => {
+        const components: any = {
+            packages: [
+                {
+                    filePath: "file:///abs/pkg/",
+                    modules: [
+                        { functions: [{ name: "main", filePath: "main.bal" }] },
+                    ],
+                },
+            ],
+        };
+
+        const result = groupDeclarationsByFile(components, "/abs/pkg");
+
+        expect(result.get("main.bal")).toEqual(["function main"]);
+    });
+
+    it("resolves a sub-module declaration under modules/<name>/", () => {
+        const components: any = {
+            packages: [
+                {
+                    filePath: "file:///abs/pkg/",
+                    modules: [
+                        { name: "foo", services: [{ name: "/api", filePath: "svc.bal" }] },
+                    ],
+                },
+            ],
+        };
+
+        const result = groupDeclarationsByFile(components, "/abs/pkg");
+
+        expect(result.get("modules/foo/svc.bal")).toEqual(["service /api"]);
+    });
+
+    it("round-trips through formatCodebaseMap with a real declaration map", () => {
+        const components: any = {
+            packages: [
+                {
+                    filePath: "file:///abs/pkg/",
+                    modules: [
+                        { functions: [{ name: "main", filePath: "main.bal" }] },
+                    ],
+                },
+            ],
+        };
+
+        const declarations = groupDeclarationsByFile(components, "/abs/pkg");
+        const result = formatCodebaseMap([{ relPath: "main.bal", lineCount: 12 }], declarations);
+
+        expect(result).toContain('<file path="main.bal" lines="12">function main</file>');
     });
 });

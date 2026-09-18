@@ -17,9 +17,9 @@
 import * as fs from "fs";
 import * as path from "path";
 import { URI } from "vscode-uri";
-import { BallerinaProjectComponents, ComponentInfo, ComponentSummary } from "@wso2/ballerina-core";
+import { BallerinaProjectComponents } from "@wso2/ballerina-core";
 import { extension } from "../../../BalExtensionContext";
-import { CollectedBalFile, formatCodebaseMap, extractPreviousStageWorkPlan } from "./project-map-format";
+import { CollectedBalFile, formatCodebaseMap, extractPreviousStageWorkPlan, groupDeclarationsByFile, toPosixRelPath } from "./project-map-format";
 
 export { formatCodebaseMap, extractPreviousStageWorkPlan, CollectedBalFile };
 
@@ -61,52 +61,6 @@ function countLines(filePath: string): number {
     } catch {
         return 0;
     }
-}
-
-function toPosixRelPath(basePath: string, targetPath: string): string {
-    return path.relative(basePath, targetPath).split(path.sep).join("/");
-}
-
-const DECLARATION_CATEGORIES: Array<[keyof ComponentSummary, string]> = [
-    ["services", "service"],
-    ["functions", "function"],
-    ["records", "record"],
-    ["objects", "object"],
-    ["classes", "class"],
-    ["types", "type"],
-    ["constants", "const"],
-    ["enums", "enum"],
-    ["listeners", "listener"],
-    ["moduleVariables", "var"],
-];
-
-function groupDeclarationsByFile(components: BallerinaProjectComponents, packagePath: string): Map<string, string[]> {
-    const declarations = new Map<string, string[]>();
-
-    const addDeclaration = (info: ComponentInfo, label: string) => {
-        if (!info.filePath) {
-            return;
-        }
-        const relPath = toPosixRelPath(packagePath, info.filePath);
-        const existing = declarations.get(relPath);
-        const entry = `${label} ${info.name}`;
-        if (existing) {
-            existing.push(entry);
-        } else {
-            declarations.set(relPath, [entry]);
-        }
-    };
-
-    for (const pkg of components.packages ?? []) {
-        for (const module of pkg.modules ?? []) {
-            for (const [key, label] of DECLARATION_CATEGORIES) {
-                const items = module[key] as ComponentInfo[] | undefined;
-                items?.forEach(item => addDeclaration(item, label));
-            }
-        }
-    }
-
-    return declarations;
 }
 
 export async function buildMigrationCodebaseMap(packagePath: string): Promise<string> {

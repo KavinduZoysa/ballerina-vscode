@@ -58,6 +58,8 @@ export interface AICommandConfig<TParams = any> {
         projectRootPath: string;
         threadId: string;
         enabled: boolean;
+        /** Set to `false` to persist generations without replaying prior turns into the prompt. */
+        replayHistory?: boolean;
     };
 
     /**
@@ -403,7 +405,7 @@ export abstract class AICommandExecutor<TParams = any> {
      * @returns Array of chat messages, or empty array if storage disabled
      */
     protected getChatHistory(): any[] {
-        if (!this.config.chatStorage) {
+        if (!this.config.chatStorage || this.config.chatStorage.replayHistory === false) {
             return [];
         }
         const { projectRootPath, threadId } = this.config.chatStorage;
