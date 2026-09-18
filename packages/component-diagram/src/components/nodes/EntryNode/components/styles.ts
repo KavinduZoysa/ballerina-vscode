@@ -17,15 +17,14 @@
  */
 
 import styled from "@emotion/styled";
-import { PortWidget } from "@projectstorm/react-diagrams-core";
 import { Button, ThemeColors } from "@wso2/ui-toolkit";
 import {
     NODE_BORDER_WIDTH,
     NODE_PADDING,
     ENTRY_NODE_WIDTH,
-    ENTRY_NODE_HEIGHT,
     ENTRY_ROW_GAP,
     ENTRY_ROW_CONTENT_HEIGHT,
+    ENTRY_HEADER_CONTENT_HEIGHT,
     NODE_BORDER_COLOR,
     WORKFLOW_PLAY_BUTTON_TOP,
     WORKFLOW_PLAY_BUTTON_SIZE,
@@ -53,14 +52,6 @@ export const Header = styled.div<NodeStyleProp>`
     width: 100%;
     cursor: ${(props: NodeStyleProp) => props.inactive ? "default" : "pointer"};
 `;
-
-// PortWidget itself renders a bare, zero-height div, so its reported link-anchor position is
-// exactly wherever the flex row centers it - no margin nudge here, or "in"/"out" would sit off
-// that center by different amounts (see getPortAnchorY, which assumes dead center for both) and
-// every link's straight leg would render with a small, otherwise-unexplained slope.
-export const TopPortWidget = styled(PortWidget)``;
-
-export const BottomPortWidget = styled(PortWidget)``;
 
 export const StyledText = styled.div`
     font-size: 14px;
@@ -139,7 +130,7 @@ export const ServiceBox = styled.div<{ readonly?: boolean }>`
     align-items: center;
     gap: 10px;
     width: ${ENTRY_NODE_WIDTH}px;
-    height: ${ENTRY_NODE_HEIGHT - NODE_PADDING}px;
+    height: ${ENTRY_HEADER_CONTENT_HEIGHT}px;
     cursor: ${(props) => props.readonly ? "default" : "pointer"};
     &:hover {
         background-color: ${(props) => !props.readonly ? ThemeColors.PRIMARY_CONTAINER : "transparent"};

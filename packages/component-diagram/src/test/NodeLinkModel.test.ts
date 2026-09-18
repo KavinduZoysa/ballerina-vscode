@@ -120,21 +120,33 @@ describe("NodeLinkModel.getSVGPath - single segment (plain 2-point link)", () =>
     });
 
     test("snaps two near-level ports (within STRAIGHT_TOLERANCE) dead flat instead of a faint bow", () => {
-        // dy = 4 - the two ports are practically level (e.g. a real port's rendered Y landing a
-        // few px off the layout's computed anchor), but left untouched this would still draw a
-        // real, visible bow across a wide horizontal span. Regression test for exactly that: a
-        // link that should read as a clean horizontal line instead showed a faint S-curve wobble.
-        const link = buildLinkWithPoints([{ x: 0, y: 100 }, { x: 400, y: 104 }]);
+        // dy = 1 - the two ports are practically level (e.g. sub-pixel rounding drift off the
+        // layout's computed anchor), but left untouched this would still draw a real, visible bow
+        // across a wide horizontal span. Regression test for exactly that: a link that should read
+        // as a clean horizontal line instead showed a faint S-curve wobble.
+        const link = buildLinkWithPoints([{ x: 0, y: 100 }, { x: 400, y: 101 }]);
         const { start, segments } = parseBezierPath(link.getSVGPath());
         const { c1, c2, end } = segments[0];
 
-        expect(start.y).toBe(102);
-        expect(end.y).toBe(102);
-        expect(c1.y).toBe(102);
-        expect(c2.y).toBe(102);
+        expect(start.y).toBe(100.5);
+        expect(end.y).toBe(100.5);
+        expect(c1.y).toBe(100.5);
+        expect(c2.y).toBe(100.5);
         samples(20).forEach((t) => {
-            expect(cubicBezierAt(start, c1, c2, end, t).y).toBeCloseTo(102);
+            expect(cubicBezierAt(start, c1, c2, end, t).y).toBeCloseTo(100.5);
         });
+    });
+
+    test("leaves two ports at or beyond STRAIGHT_TOLERANCE at their own exact Y's, not flattened", () => {
+        // dy = 2 sits right at the tolerance boundary (STRAIGHT_TOLERANCE = 2, and flattening only
+        // applies strictly below it) - a real gap this size is an intentional slope, not rounding
+        // noise, so it must draw the real (bowed) curve between the two actual anchors rather than
+        // silently averaging them away.
+        const link = buildLinkWithPoints([{ x: 0, y: 100 }, { x: 400, y: 102 }]);
+        const { start, segments } = parseBezierPath(link.getSVGPath());
+
+        expect(start.y).toBe(100);
+        expect(segments[0].end.y).toBe(102);
     });
 
     test("the arrowhead-relevant tangent at the very end of the path is purely horizontal", () => {

@@ -48,6 +48,9 @@ export const NODE_PADDING = 8;
 // so the two can't drift out of sync the way a bare number restated in both places could.
 export const ENTRY_ROW_GAP = 8;
 export const ENTRY_ROW_CONTENT_HEIGHT = 40;
+// ServiceBox's own rendered height - same reasoning as ENTRY_ROW_CONTENT_HEIGHT above, so
+// diagram.ts's row-layout math and styles.ts's CSS both compute this the same one way.
+export const ENTRY_HEADER_CONTENT_HEIGHT = ENTRY_NODE_HEIGHT - NODE_PADDING;
 
 // A workflow node's "in" port sits inside its play button (see PlayButtonCircle), not centered
 // on the box like other entry nodes' - these let getPortAnchorY derive the port's real on-screen
