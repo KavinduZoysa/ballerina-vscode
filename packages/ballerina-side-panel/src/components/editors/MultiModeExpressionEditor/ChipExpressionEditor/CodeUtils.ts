@@ -575,10 +575,14 @@ const activateChipRange = (view: EditorView, range: { start: number; end: number
     return true;
 };
 
-export const expressionEditorKeymap = [
+// Commits the chip currently in edit mode (re-collapses it back into a chip); falls through
+// (returns false) when no chip is being edited. Kept separate from expressionEditorKeymap
+// (and registered ahead of listContinuationKeymap - see ChipExpressionEditor.tsx) so
+// committing a chip always takes priority over a host editor's own Enter handling, e.g. the
+// prompt editor's list-continuation, instead of the chip getting stuck in edit mode while an
+// unrelated Enter behavior fires first.
+export const chipCommitKeymap = [
     {
-        // Commits the chip currently in edit mode (re-collapses it back into a chip); does
-        // nothing (falls through to default Enter handling) when no chip is being edited.
         key: "Enter",
         run: (view: EditorView) => {
             const activeStart = view.state.field(activeEditableTokenField, false);
@@ -586,7 +590,10 @@ export const expressionEditorKeymap = [
             view.dispatch({ effects: setActiveEditableTokenEffect.of(undefined) });
             return true;
         }
-    },
+    }
+];
+
+export const expressionEditorKeymap = [
     {
         // Jumps to (and activates) the next editable chip after the current one, so a
         // multi-argument function call's placeholders can be filled without ever touching
