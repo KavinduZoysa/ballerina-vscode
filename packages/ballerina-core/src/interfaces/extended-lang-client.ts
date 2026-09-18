@@ -32,6 +32,7 @@ import { DMModel, ExpandedDMModel, IntermediateClause, Mapping, VisualizableFiel
 import { ArtifactData, DataMapperMetadata, SCOPE } from "./shared-types";
 import { ToolParameters } from "../rpc-types/ai-agent/interfaces";
 import { OpenApiEndpointsRequest, OpenApiEndpointsResponse } from "../rpc-types/service-designer/interfaces";
+import { normalizeSvgDocument } from "../utils/icon-utils";
 
 export interface DidOpenParams {
     textDocument: TextDocumentItem;
@@ -2237,7 +2238,17 @@ export function toIconDescriptor(icon?: string | IconDescriptor): IconDescriptor
     if (icon === undefined || icon === null) {
         return undefined;
     }
-    return typeof icon === "string" ? { url: icon } : icon;
+    if (typeof icon === "string") {
+        return { url: icon };
+    }
+    if (icon.light === undefined && icon.dark === undefined) {
+        return icon;
+    }
+    return {
+        ...icon,
+        light: normalizeSvgDocument(icon.light) ?? icon.light,
+        dark: normalizeSvgDocument(icon.dark) ?? icon.dark,
+    };
 }
 
 export interface BaseArtifact<T = any> {

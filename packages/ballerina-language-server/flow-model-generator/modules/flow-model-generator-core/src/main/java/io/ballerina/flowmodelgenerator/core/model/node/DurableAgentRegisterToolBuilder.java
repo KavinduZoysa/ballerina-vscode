@@ -54,11 +54,6 @@ public class DurableAgentRegisterToolBuilder extends CallBuilder {
     public static final String TOOL_LABEL = "Tool";
     public static final String TOOL_DOC = "The @ai:AgentTool function to register with the agent";
 
-    public static final String REQUIRES_APPROVAL_KEY = "requiresApproval";
-    public static final String USER_ROLES_KEY = "userRoles";
-    public static final String REQUIRES_APPROVAL_DOC =
-            "Gate this tool: before the agent runs it, a review activity is created and the agent suspends "
-            + "durably until a reviewer proceeds (optionally editing the arguments) or rejects.";
 
     @Override
     protected NodeKind getFunctionNodeKind() {
@@ -112,24 +107,12 @@ public class DurableAgentRegisterToolBuilder extends CallBuilder {
                 .stepOut()
                 .addProperty(TOOL_KEY);
 
-        // ToolDecl gating: emitted as `{tool: <ref>, requiresApproval: true, userRoles: ...}`
-        // on the declaration's tools list when set; a bare reference otherwise.
-        WorkflowUtil.addApprovalGateProperties(this, REQUIRES_APPROVAL_KEY, REQUIRES_APPROVAL_DOC, USER_ROLES_KEY,
-                "Role(s) permitted to decide the approval review of this tool, "
-                        + "e.g. \"support-lead\" or [\"finance\", \"manager\"].");
+        // ToolDecl gating: emitted as `{tool: <ref>, approvalPolicy: {userRoles: ...}}` on the
+        // declaration's tools list when set; a bare reference otherwise.
+        // A capability's values travel as plain strings, so its wording fields are expressions only.
+        ApprovalPolicyForm.addFormProperties(this, ApprovalPolicyForm.NO_APPROVAL_VALUE,
+                ActivityCallBuilder.ReviewFormValues.empty(), false);
         properties().checkError(true);
-    }
-
-    private static boolean isGated(SourceBuilder sourceBuilder) {
-        return sourceBuilder.getProperty(REQUIRES_APPROVAL_KEY)
-                .map(p -> p.value() != null && "true".equals(p.value().toString()))
-                .orElse(false);
-    }
-
-    private static String userRolesSource(SourceBuilder sourceBuilder) {
-        return sourceBuilder.getProperty(USER_ROLES_KEY)
-                .map(WorkflowUtil::roleSource)
-                .orElse("");
     }
 
     @Override
@@ -144,21 +127,9 @@ public class DurableAgentRegisterToolBuilder extends CallBuilder {
         if (toolRef.isBlank()) {
             throw new UserFacingException("An agent tool function must be selected");
         }
-        boolean gated = isGated(sourceBuilder);
-        String userRoles = userRolesSource(sourceBuilder);
-        String entry;
-        if (!gated && userRoles.isBlank()) {
-            entry = toolRef;
-        } else {
-            StringBuilder mapping = new StringBuilder("{tool: ").append(toolRef);
-            if (gated) {
-                mapping.append(", requiresApproval: true");
-            }
-            if (!userRoles.isBlank()) {
-                mapping.append(", userRoles: ").append(userRoles);
-            }
-            entry = mapping.append("}").toString();
-        }
+        String approvalPolicy = ApprovalPolicyForm.literal(sourceBuilder.flowNode.properties());
+        String entry = approvalPolicy == null ? toolRef
+                : "{tool: " + toolRef + ", " + ApprovalPolicyForm.KEY + ": " + approvalPolicy + "}";
         return WorkflowUtil.upsertAgentCapabilityEntry(sourceBuilder, "tools", entry);
     }
 
