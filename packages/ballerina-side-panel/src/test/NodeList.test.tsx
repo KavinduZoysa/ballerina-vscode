@@ -224,32 +224,39 @@ describe("NodeList (rpc-driven)", () => {
     });
     // Regression (wso2/product-integrator): two columns of a side panel are too narrow for a
     // name like "Send Data to Child Workflow", and the row used to cut it to one clipped line.
-    // The name now wraps within its row rather than being held on one line. Both the row and the
-    // tooltip's heading carry it, and neither may hold it on one line.
+    // The name now wraps within its row rather than being held on one line.
     it("INVARIANT: a long node name wraps rather than being held on one line", async () => {
         const label = "Send Data to Child Workflow";
         const categories = [{ title: "Child Workflows", items: [node("CHILD_WORKFLOW_SEND_DATA", label)] }];
-        const { findAllByText } = renderWithRpc(
+        const { findByText } = renderWithRpc(
             <NodeList {...props(categories)} searchText="Child" />,
             fakeRpc()
         );
 
-        const shown = await findAllByText(label);
-        expect(shown.length).toBeGreaterThan(0);
-        shown.forEach((el) => expect(getComputedStyle(el).whiteSpace).not.toBe("nowrap"));
+        const shown = await findByText(label);
+        expect(shown.textContent).toBe(label);
+        expect(getComputedStyle(shown).whiteSpace).not.toBe("nowrap");
     });
 
-    // The row's own tooltip is the only one: a second, native one on the name would put two
-    // tooltips under the same hover.
-    it("INVARIANT: a node row carries no native tooltip of its own", async () => {
+    // One tooltip per row and no more. The styled one carries the description; a node that has
+    // none falls back to the browser's own with the name, so a clipped name is still readable.
+    // The name must not appear twice in the document: the styled tooltip's content is mounted
+    // whether or not it is shown, and a duplicate breaks every locator that matches on the name.
+    it.each([
+        ["described", "Sends a data event to a running child workflow", 0],
+        ["undescribed", "", 1],
+    ])("INVARIANT: a %s node row carries exactly one tooltip", async (_desc, description, nativeTitles) => {
         const label = "Send Data to Child Workflow";
-        const categories = [{ title: "Child Workflows", items: [node("CHILD_WORKFLOW_SEND_DATA", label)] }];
-        const { container, findAllByText } = renderWithRpc(
-            <NodeList {...props(categories)} searchText="Child" />,
+        const item = { ...node("CHILD_WORKFLOW_SEND_DATA", label), description };
+        const { container, findByText } = renderWithRpc(
+            <NodeList {...props([{ title: "Child Workflows", items: [item] }])} searchText="Child" />,
             fakeRpc()
         );
 
-        await findAllByText(label);
-        expect(container.querySelectorAll(`[title="${label}"]`)).toHaveLength(0);
+        await findByText(label);
+        expect(container.querySelectorAll(`[title="${label}"]`)).toHaveLength(nativeTitles);
+        const showingTheName = Array.from(container.querySelectorAll("div"))
+            .filter((el) => el.textContent === label && el.children.length === 0);
+        expect(showingTheName).toHaveLength(1);
     });
 });
