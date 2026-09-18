@@ -33,13 +33,22 @@ const CODEBASE_MAP_INTRO =
     "This is a map of the codebase — file paths, line counts, and top-level declarations only; " +
     "file bodies are not included. Use `file_read` to read a file before editing it.";
 
+function escapeXmlText(value: string): string {
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
 export function formatCodebaseMap(files: CollectedBalFile[], declarations?: Map<string, string[]>): string {
     const fileLines = files.map(file => {
         const decls = declarations?.get(file.relPath);
         const declText = decls && decls.length > 0 ? decls.join("; ") : undefined;
+        const escapedPath = escapeXmlText(file.relPath);
         return declText
-            ? `<file path="${file.relPath}" lines="${file.lineCount}">${declText}</file>`
-            : `<file path="${file.relPath}" lines="${file.lineCount}"/>`;
+            ? `<file path="${escapedPath}" lines="${file.lineCount}">${escapeXmlText(declText)}</file>`
+            : `<file path="${escapedPath}" lines="${file.lineCount}"/>`;
     });
     return [`<codebase_map>`, CODEBASE_MAP_INTRO, ...fileLines, `</codebase_map>`].join("\n");
 }
@@ -56,6 +65,8 @@ const DECLARATION_CATEGORIES: Array<[keyof ComponentSummary, string]> = [
     ["listeners", "listener"],
     ["moduleVariables", "var"],
     ["configurableVariables", "configurable"],
+    ["automations", "automation"],
+    ["naturalFunctions", "natural function"],
 ];
 
 function resolvePackageRoot(pkg: PackageSummary, fallback: string): string {

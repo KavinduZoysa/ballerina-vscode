@@ -17,6 +17,48 @@
  */
 
 import { formatCodebaseMap, extractPreviousStageWorkPlan, groupDeclarationsByFile } from "../features/ai/migration/project-map-format";
+import { BallerinaProjectComponents, ComponentInfo, ComponentSummary, ModuleSummary, PackageSummary } from "@wso2/ballerina-core";
+
+function componentInfo(overrides: Partial<ComponentInfo> & { name: string; filePath: string }): ComponentInfo {
+    return {
+        startLine: 0,
+        startColumn: 0,
+        endLine: 0,
+        endColumn: 0,
+        ...overrides,
+    };
+}
+
+function emptyComponents(): ComponentSummary {
+    return {
+        functions: [],
+        services: [],
+        records: [],
+        objects: [],
+        classes: [],
+        types: [],
+        constants: [],
+        enums: [],
+        listeners: [],
+        moduleVariables: [],
+        automations: [],
+        configurableVariables: [],
+        naturalFunctions: [],
+    };
+}
+
+function moduleWith(overrides: Partial<ComponentSummary> & { name?: string } = {}): ModuleSummary {
+    const { name, ...rest } = overrides;
+    return { name: name ?? "", ...emptyComponents(), ...rest };
+}
+
+function packageWith(filePath: string, modules: ModuleSummary[]): PackageSummary {
+    return { name: "pkg", filePath, modules };
+}
+
+function projectComponents(packages: PackageSummary[]): BallerinaProjectComponents {
+    return { packages };
+}
 
 describe("formatCodebaseMap", () => {
     it("wraps the block in <codebase_map> tags with a one-line intro", () => {
@@ -126,16 +168,11 @@ describe("extractPreviousStageWorkPlan", () => {
 
 describe("groupDeclarationsByFile", () => {
     it("resolves a default-module declaration to the same relPath collectBalFiles would produce", () => {
-        const components: any = {
-            packages: [
-                {
-                    filePath: "file:///abs/pkg/",
-                    modules: [
-                        { functions: [{ name: "main", filePath: "main.bal" }] },
-                    ],
-                },
-            ],
-        };
+        const components = projectComponents([
+            packageWith("file:///abs/pkg/", [
+                moduleWith({ functions: [componentInfo({ name: "main", filePath: "main.bal" })] }),
+            ]),
+        ]);
 
         const result = groupDeclarationsByFile(components, "/abs/pkg");
 
@@ -143,16 +180,11 @@ describe("groupDeclarationsByFile", () => {
     });
 
     it("resolves a sub-module declaration under modules/<name>/", () => {
-        const components: any = {
-            packages: [
-                {
-                    filePath: "file:///abs/pkg/",
-                    modules: [
-                        { name: "foo", services: [{ name: "/api", filePath: "svc.bal" }] },
-                    ],
-                },
-            ],
-        };
+        const components = projectComponents([
+            packageWith("file:///abs/pkg/", [
+                moduleWith({ name: "foo", services: [componentInfo({ name: "/api", filePath: "svc.bal" })] }),
+            ]),
+        ]);
 
         const result = groupDeclarationsByFile(components, "/abs/pkg");
 
@@ -160,20 +192,44 @@ describe("groupDeclarationsByFile", () => {
     });
 
     it("round-trips through formatCodebaseMap with a real declaration map", () => {
-        const components: any = {
-            packages: [
-                {
-                    filePath: "file:///abs/pkg/",
-                    modules: [
-                        { functions: [{ name: "main", filePath: "main.bal" }] },
-                    ],
-                },
-            ],
-        };
+        const components = projectComponents([
+            packageWith("file:///abs/pkg/", [
+                moduleWith({ functions: [componentInfo({ name: "main", filePath: "main.bal" })] }),
+            ]),
+        ]);
 
         const declarations = groupDeclarationsByFile(components, "/abs/pkg");
         const result = formatCodebaseMap([{ relPath: "main.bal", lineCount: 12 }], declarations);
 
         expect(result).toContain('<file path="main.bal" lines="12">function main</file>');
+    });
+
+    it("includes automations and natural functions in the grouped declarations", () => {
+        const components = projectComponents([
+            packageWith("file:///abs/pkg/", [
+                moduleWith({
+                    automations: [componentInfo({ name: "myAutomation", filePath: "auto.bal" })],
+                    naturalFunctions: [componentInfo({ name: "natFn", filePath: "nat.bal" })],
+                }),
+            ]),
+        ]);
+
+        const result = groupDeclarationsByFile(components, "/abs/pkg");
+
+        expect(result.get("auto.bal")).toEqual(["automation myAutomation"]);
+        expect(result.get("nat.bal")).toEqual(["natural function natFn"]);
+    });
+});
+
+describe("formatCodebaseMap escaping", () => {
+    it("escapes special characters in the path attribute and declaration text", () => {
+        const relPath = 'weird&"<name>.bal';
+        const declarations = new Map<string, string[]>([[relPath, ["function foo<T>"]]]);
+
+        const result = formatCodebaseMap([{ relPath, lineCount: 3 }], declarations);
+
+        expect(result).toContain('<file path="weird&amp;&quot;&lt;name&gt;.bal" lines="3">function foo&lt;T&gt;</file>');
+        expect(result).not.toContain('"<');
+        expect(result).not.toContain('foo<T>');
     });
 });

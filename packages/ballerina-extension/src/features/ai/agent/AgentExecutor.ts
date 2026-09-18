@@ -25,6 +25,7 @@ import { populateHistoryForAgent, getErrorMessage, getErrorCode, buildChatError 
 import { seedAiBaselines } from '../utils/project/ls-schema-notifications';
 import { mapWithConcurrency } from '../utils/concurrency';
 import { getSystemPrompt, getUserPrompt } from './prompts';
+import { shouldFailForMissingCompaction } from './compaction-gate';
 import { FollowupSituation, startFollowupSuggestions } from './followups';
 import { prepareAgentsMdForTurn } from './agents-md';
 import { resolveChatStoreKey } from './chatStoreKey';
@@ -409,6 +410,13 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
 
 
             const compactionOptions = buildCompactionProviderOptions(loginMethod, floorTokens);
+            if (shouldFailForMissingCompaction(supportsCompaction(loginMethod), compactionOptions, this.config.toolOptions?.failWhenCompactionUnavailable)) {
+                throw new Error(
+                    `This stage's prompt floor is ~${floorTokens.toLocaleString()} tokens, at or above the ` +
+                    `${COMPACT_TRIGGER_TOKENS.toLocaleString()}-token compaction trigger, and compaction is unavailable — ` +
+                    `split the project into smaller packages and retry.`
+                );
+            }
             if (supportsCompaction(loginMethod) && compactionOptions === undefined) {
                 warnCompactionDisabledOnce(projectRootPath, this.config.eventHandler);
             }

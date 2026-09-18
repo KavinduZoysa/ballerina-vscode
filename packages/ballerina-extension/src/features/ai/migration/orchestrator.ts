@@ -755,6 +755,7 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
                 migrationSourcePath: sourcePath,
                 omitCodebaseDump: true,
                 codebaseMapText,
+                failWhenCompactionUnavailable: true,
             },
             agentLimits: stage.agentLimits,
             debugLogger,

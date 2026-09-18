@@ -116,6 +116,8 @@ export interface AICommandConfig<TParams = any> {
         omitCodebaseDump?: boolean;
         /** Compact codebase map to inline instead of the full dump, when omitCodebaseDump is set. */
         codebaseMapText?: string;
+        /** Throw instead of silently disabling compaction when the prompt floor is at/over the trigger. */
+        failWhenCompactionUnavailable?: boolean;
     };
 
     /**
