@@ -32,6 +32,8 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.CONTEXT_CLASS_NAME;
 import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.WORKFLOW_MODULE;
@@ -65,13 +67,36 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
         }
     }
 
-    // Every context utility function, by the method name a `ctx.<method>()` call carries, so
-    // reading a workflow back can rebuild the same node the palette wrote.
-    private static final Map<String, FunctionSpec> SPECS_BY_METHOD = new LinkedHashMap<>();
+    private static final FunctionSpec CURRENT_TIME_SPEC = new FunctionSpec(NodeKind.WORKFLOW_CURRENT_TIME,
+            Workflow.CURRENT_TIME_METHOD_NAME, Workflow.CURRENT_TIME_LABEL, Workflow.CURRENT_TIME_DESCRIPTION,
+            "time:Utc", false, "now", "ballerina", "time");
+    private static final FunctionSpec IS_REPLAYING_SPEC = new FunctionSpec(NodeKind.WORKFLOW_IS_REPLAYING,
+            Workflow.IS_REPLAYING_METHOD_NAME, Workflow.IS_REPLAYING_LABEL, Workflow.IS_REPLAYING_DESCRIPTION,
+            "boolean", false, "replaying", null, null);
+    private static final FunctionSpec GET_WORKFLOW_ID_SPEC = new FunctionSpec(NodeKind.WORKFLOW_GET_ID,
+            Workflow.GET_WORKFLOW_ID_METHOD_NAME, Workflow.GET_WORKFLOW_ID_LABEL,
+            Workflow.GET_WORKFLOW_ID_DESCRIPTION, "string", true, "workflowId", null, null);
+    private static final FunctionSpec GET_WORKFLOW_TYPE_SPEC = new FunctionSpec(NodeKind.WORKFLOW_GET_TYPE,
+            Workflow.GET_WORKFLOW_TYPE_METHOD_NAME, Workflow.GET_WORKFLOW_TYPE_LABEL,
+            Workflow.GET_WORKFLOW_TYPE_DESCRIPTION, "string", true, "workflowType", null, null);
+    private static final FunctionSpec LAST_HUMAN_TASK_COMPLETION_SPEC = new FunctionSpec(
+            NodeKind.WORKFLOW_LAST_HUMAN_TASK_COMPLETION, Workflow.LAST_HUMAN_TASK_COMPLETION_METHOD_NAME,
+            Workflow.LAST_HUMAN_TASK_COMPLETION_LABEL,
+            Workflow.LAST_HUMAN_TASK_COMPLETION_DESCRIPTION, Workflow.HUMAN_TASK_COMPLETION_TYPE, false,
+            "completion", null, null, true);
+    private static final FunctionSpec LAST_REVIEW_DECISION_SPEC = new FunctionSpec(
+            NodeKind.WORKFLOW_LAST_REVIEW_DECISION, Workflow.LAST_REVIEW_DECISION_METHOD_NAME,
+            Workflow.LAST_REVIEW_DECISION_LABEL,
+            Workflow.LAST_REVIEW_DECISION_DESCRIPTION, Workflow.REVIEW_DECISION_TYPE, false,
+            "decision", null, null, true);
 
-    private static void register(FunctionSpec spec) {
-        SPECS_BY_METHOD.put(spec.methodName(), spec);
-    }
+    // Every context utility function, by the method name a `ctx.<method>()` call carries, so
+    // reading a workflow back can rebuild the same node the palette wrote. The specs live here
+    // rather than on the subclasses so this map does not read a class that is not initialized yet.
+    private static final Map<String, FunctionSpec> SPECS_BY_METHOD = Stream.of(
+                    CURRENT_TIME_SPEC, IS_REPLAYING_SPEC, GET_WORKFLOW_ID_SPEC, GET_WORKFLOW_TYPE_SPEC,
+                    LAST_HUMAN_TASK_COMPLETION_SPEC, LAST_REVIEW_DECISION_SPEC)
+            .collect(Collectors.toMap(FunctionSpec::methodName, spec -> spec, (a, b) -> a, LinkedHashMap::new));
 
     public static FunctionSpec specForMethod(String methodName) {
         return SPECS_BY_METHOD.get(methodName);
@@ -182,89 +207,54 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
     /** Generates {@code time:Utc now = ctx.currentTime();}. */
     public static class CurrentTime extends WorkflowContextFunctionBuilder {
 
-        private static final FunctionSpec SPEC = new FunctionSpec(NodeKind.WORKFLOW_CURRENT_TIME,
-                Workflow.CURRENT_TIME_METHOD_NAME, Workflow.CURRENT_TIME_LABEL, Workflow.CURRENT_TIME_DESCRIPTION,
-                "time:Utc", false, "now", "ballerina", "time");
-
         @Override
         protected FunctionSpec spec() {
-            return SPEC;
+            return CURRENT_TIME_SPEC;
         }
     }
 
     /** Generates {@code boolean replaying = ctx.isReplaying();}. */
     public static class IsReplaying extends WorkflowContextFunctionBuilder {
 
-        private static final FunctionSpec SPEC = new FunctionSpec(NodeKind.WORKFLOW_IS_REPLAYING,
-                Workflow.IS_REPLAYING_METHOD_NAME, Workflow.IS_REPLAYING_LABEL, Workflow.IS_REPLAYING_DESCRIPTION,
-                "boolean", false, "replaying", null, null);
-
         @Override
         protected FunctionSpec spec() {
-            return SPEC;
+            return IS_REPLAYING_SPEC;
         }
     }
 
     /** Generates {@code string workflowId = check ctx.getWorkflowId();}. */
     public static class GetWorkflowId extends WorkflowContextFunctionBuilder {
 
-        private static final FunctionSpec SPEC = new FunctionSpec(NodeKind.WORKFLOW_GET_ID,
-                Workflow.GET_WORKFLOW_ID_METHOD_NAME, Workflow.GET_WORKFLOW_ID_LABEL,
-                Workflow.GET_WORKFLOW_ID_DESCRIPTION, "string", true, "workflowId", null, null);
-
         @Override
         protected FunctionSpec spec() {
-            return SPEC;
+            return GET_WORKFLOW_ID_SPEC;
         }
     }
 
     /** Generates {@code workflow:HumanTaskCompletion? completion = ctx.lastHumanTaskCompletion();}. */
     public static class LastHumanTaskCompletion extends WorkflowContextFunctionBuilder {
 
-        private static final FunctionSpec SPEC = new FunctionSpec(NodeKind.WORKFLOW_LAST_HUMAN_TASK_COMPLETION,
-                Workflow.LAST_HUMAN_TASK_COMPLETION_METHOD_NAME, Workflow.LAST_HUMAN_TASK_COMPLETION_LABEL,
-                Workflow.LAST_HUMAN_TASK_COMPLETION_DESCRIPTION, Workflow.HUMAN_TASK_COMPLETION_TYPE, false,
-                "completion", null, null, true);
-
         @Override
         protected FunctionSpec spec() {
-            return SPEC;
+            return LAST_HUMAN_TASK_COMPLETION_SPEC;
         }
     }
 
     /** Generates {@code workflow:ReviewDecisionRecord? decision = ctx.lastReviewDecision();}. */
     public static class LastReviewDecision extends WorkflowContextFunctionBuilder {
 
-        private static final FunctionSpec SPEC = new FunctionSpec(NodeKind.WORKFLOW_LAST_REVIEW_DECISION,
-                Workflow.LAST_REVIEW_DECISION_METHOD_NAME, Workflow.LAST_REVIEW_DECISION_LABEL,
-                Workflow.LAST_REVIEW_DECISION_DESCRIPTION, Workflow.REVIEW_DECISION_TYPE, false,
-                "decision", null, null, true);
-
         @Override
         protected FunctionSpec spec() {
-            return SPEC;
+            return LAST_REVIEW_DECISION_SPEC;
         }
     }
 
     /** Generates {@code string workflowType = check ctx.getWorkflowType();}. */
     public static class GetWorkflowType extends WorkflowContextFunctionBuilder {
 
-        private static final FunctionSpec SPEC = new FunctionSpec(NodeKind.WORKFLOW_GET_TYPE,
-                Workflow.GET_WORKFLOW_TYPE_METHOD_NAME, Workflow.GET_WORKFLOW_TYPE_LABEL,
-                Workflow.GET_WORKFLOW_TYPE_DESCRIPTION, "string", true, "workflowType", null, null);
-
         @Override
         protected FunctionSpec spec() {
-            return SPEC;
+            return GET_WORKFLOW_TYPE_SPEC;
         }
-    }
-
-    static {
-        register(CurrentTime.SPEC);
-        register(IsReplaying.SPEC);
-        register(GetWorkflowId.SPEC);
-        register(GetWorkflowType.SPEC);
-        register(LastHumanTaskCompletion.SPEC);
-        register(LastReviewDecision.SPEC);
     }
 }
