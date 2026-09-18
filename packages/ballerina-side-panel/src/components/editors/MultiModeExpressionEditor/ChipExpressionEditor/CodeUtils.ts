@@ -837,7 +837,12 @@ export const buildNeedTokenRefetchListner = (onTrigger: () => void) => {
             return;
         }
 
-        if (update.docChanged && (
+        // While a chip is active, tokenField.update discards any tokensChangeEffect anyway
+        // (see the isEditingChip check there), so triggering a refetch here would just be a
+        // wasted LS round-trip for a response that's thrown away the moment it lands.
+        const isEditingChip = update.state.field(activeEditableTokenField, false) !== undefined;
+
+        if (!isEditingChip && update.docChanged && (
             userEvent === "input.type" ||
             userEvent === "input.paste" ||
             userEvent === "delete.backward" ||
