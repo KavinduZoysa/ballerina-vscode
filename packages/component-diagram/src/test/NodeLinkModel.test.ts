@@ -355,4 +355,12 @@ describe("buildBezierPath edge cases", () => {
         expect(middle.c1.y).toBe(50);
         expect(middle.c2.y).toBe(50);
     });
+
+    test("stays total for a 0-point or 1-point input instead of reading off an undefined start", () => {
+        expect(buildBezierPath([])).toBe("");
+        expect(sampleBezierPath([], 4)).toEqual([]);
+
+        expect(buildBezierPath([{ x: 10, y: 20 }])).toBe("M 10 20");
+        expect(sampleBezierPath([{ x: 10, y: 20 }], 4)).toEqual([{ x: 10, y: 20 }]);
+    });
 });

@@ -142,13 +142,16 @@ function getBezierSegments(points: Point2D[]): BezierSegment[] {
  * detour `avoidLinkObstructions` (utils/diagram.ts) routed around an obstruction.
  */
 export function buildBezierPath(points: Point2D[]): string {
+    if (points.length === 0) {
+        return "";
+    }
     const segments = getBezierSegments(points);
     // Read the start back off the first segment - not the raw `points[0]` - so the "M" always
     // matches whatever getBezierSegments actually drew from (its own near-level flattening
     // included), rather than the two silently disagreeing on where the path begins. `segments` is
-    // only ever empty for a <2-point `points` (getBezierSegments/flattenIfNearLevel never drop
-    // points otherwise), in which case there's nothing to have flattened - falling back to
-    // `points[0]` keeps this total rather than throwing on that input.
+    // only ever empty for a 1-point `points` here (the 0-point case is handled above), in which
+    // case there's nothing to have flattened - falling back to `points[0]` keeps this total rather
+    // than throwing on that input.
     const start = segments[0]?.start ?? points[0];
     const commands = segments.map(
         ({ control1, control2, end }) => `C ${control1.x} ${control1.y} ${control2.x} ${control2.y} ${end.x} ${end.y}`
@@ -179,10 +182,13 @@ function pointOnSegment({ start, control1, control2, end }: BezierSegment, t: nu
  * a link crosses a node it should be routed around.
  */
 export function sampleBezierPath(points: Point2D[], samplesPerSegment: number): Point2D[] {
+    if (points.length === 0) {
+        return [];
+    }
     const segments = getBezierSegments(points);
     // Same reasoning as buildBezierPath's start point - read off the first segment rather than
-    // the raw `points[0]`, so a near-level flattening is reflected here too, with the same <2-point
-    // fallback (segments is only ever empty then).
+    // the raw `points[0]`, so a near-level flattening is reflected here too, with the same 1-point
+    // fallback (segments is only ever empty then; the 0-point case is handled above).
     const samples: Point2D[] = [segments[0]?.start ?? points[0]];
     segments.forEach((segment) => {
         for (let step = 1; step <= samplesPerSegment; step++) {
