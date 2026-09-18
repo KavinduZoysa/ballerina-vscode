@@ -182,6 +182,7 @@ import io.ballerina.flowmodelgenerator.core.model.node.VariableBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.VectorStoreBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.WaitBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.WaitDataBuilder;
+import io.ballerina.flowmodelgenerator.core.model.node.WorkflowContextFunctionBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.WorkflowRunBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.XmlPayloadBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.builtin.BuiltinActivityStrategy;
@@ -1040,6 +1041,68 @@ public class CodeAnalyzer extends NodeVisitor {
         boolean hasCheck = parentKind == SyntaxKind.CHECK_ACTION
                 || parentKind == SyntaxKind.CHECK_EXPRESSION;
         nodeBuilder.properties().checkError(hasCheck);
+    }
+
+    /**
+     * Populates node properties for a context utility function call such as
+     * {@code ctx.currentTime()}, so it reads back as the node the palette writes. The variable
+     * name is set here, which keeps the generic type/variable handling away from a form that has
+     * only a name.
+     */
+    private void populateContextFunctionProperties(MethodCallExpressionNode callNode,
+                                                   WorkflowContextFunctionBuilder.FunctionSpec spec) {
+        nodeBuilder
+                .metadata()
+                    .label(spec.label())
+                    .description(spec.description())
+                    .stepOut()
+                .codedata()
+                    .node(spec.kind())
+                    .org(WORKFLOW_ORG)
+                    .module(WORKFLOW_MODULE)
+                    .object(CONTEXT_CLASS_NAME)
+                    .symbol(spec.methodName());
+
+        AssignmentStatementNode assignment = this.typedBindingPatternNode == null
+                ? enclosingAssignment(callNode) : null;
+        WorkflowContextFunctionBuilder.addVariableProperty(nodeBuilder, assignment == null
+                ? this.typedBindingPatternNode.bindingPattern().toSourceCode().strip()
+                : CommonUtils.getVariableName(assignment.varRef()));
+        if (assignment != null) {
+            WorkflowContextFunctionBuilder.addAssignmentProperty(nodeBuilder);
+        }
+
+        if (spec.takesTaskName()) {
+            ExpressionNode taskName = callNode.arguments().isEmpty() ? null
+                    : argumentExpression(callNode.arguments().get(0));
+            boolean literal = taskName != null && taskName.kind() == SyntaxKind.STRING_LITERAL;
+            String value = taskName == null ? ""
+                    : (literal ? WorkflowUtil.stringLiteralText(taskName.toSourceCode().trim())
+                            : taskName.toSourceCode().trim());
+            WorkflowContextFunctionBuilder.addTaskNameProperty(nodeBuilder, value, taskName != null && !literal);
+        }
+    }
+
+    // The assignment a call is the right-hand side of, or null when it is not in one. The walk
+    // stops at the enclosing statement so a call nested in something else is not claimed.
+    private static AssignmentStatementNode enclosingAssignment(MethodCallExpressionNode callNode) {
+        for (Node parent = callNode.parent(); parent != null; parent = parent.parent()) {
+            if (parent instanceof AssignmentStatementNode assignment) {
+                return assignment;
+            }
+            if (parent instanceof StatementNode) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    // The expression a call argument carries, whichever way it was written.
+    private static ExpressionNode argumentExpression(FunctionArgumentNode argument) {
+        if (argument instanceof PositionalArgumentNode positional) {
+            return positional.expression();
+        }
+        return argument instanceof NamedArgumentNode named ? named.expression() : null;
     }
 
     // Object-model durable agent: builds the node for `<agentVar>.run(...)` and renders the
@@ -4437,6 +4500,23 @@ public class CodeAnalyzer extends NodeVisitor {
             startNode(NodeKind.SLEEP, expressionNode.parent());
             populateSleepNodeProperties(methodCallExpressionNode, functionSymbol);
             return;
+        }
+
+        // ctx.currentTime(), ctx.isReplaying(), ctx.lastReviewDecision(...) and the rest of the
+        // context utility functions. Without mapping them back, reading a workflow renders them
+        // as plain method calls instead of the nodes the palette wrote.
+        if (CONTEXT_CLASS_NAME.equals(classSymbol.getName().orElse(""))
+                && isWorkflowModule(classSymbol.getModule())) {
+            WorkflowContextFunctionBuilder.FunctionSpec contextSpec =
+                    WorkflowContextFunctionBuilder.specForMethod(functionName);
+            // Only a call whose result is bound: the form's one field is the name it binds to, and
+            // a bare call statement has none, so saving it would introduce a variable of its own.
+            if (contextSpec != null && (this.typedBindingPatternNode != null
+                    || enclosingAssignment(methodCallExpressionNode) != null)) {
+                startNode(contextSpec.kind(), expressionNode.parent());
+                populateContextFunctionProperties(methodCallExpressionNode, contextSpec);
+                return;
+            }
         }
 
         // Object-model durable agent: `<agentVar>.run(...)` renders the agent's declaration as
