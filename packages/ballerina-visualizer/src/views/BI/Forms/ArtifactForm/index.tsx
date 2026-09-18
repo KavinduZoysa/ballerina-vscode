@@ -1104,7 +1104,10 @@ export function ArtifactForm(props: ArtifactFormProps) {
                     formFields={fieldsValues}
                     projectPath={projectPath}
                     openRecordEditor={handleOpenTypeEditor}
-                    openFormTypeEditor={handleOpenFormTypeEditor}
+                    // A host that does not allow creating types must not offer the guided editor
+                    // either; it was gated on the type helper's entry alone
+                    // (wso2/product-integrator#2079).
+                    openFormTypeEditor={allowTypeCreation ? handleOpenFormTypeEditor : undefined}
                     onCancelForm={onBack || onCancel}
                     popupManager={popupManager}
                     submitText={submitText}
