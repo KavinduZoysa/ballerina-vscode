@@ -51,6 +51,27 @@ runs:
       with:
         distributionVersion: nightly
 
+    # TEMPORARY: the distribution still bundles a Java 21 JRE, and its launcher hardcodes
+    #   JAVA_COMMAND=java
+    #   if test -d ".../dependencies/jdk-21.0.5+11-jre"; then JAVA_COMMAND=".../bin/java"
+    # with no JAVA_HOME handling, so bal runs on Java 21 and cannot load the Java 25 classes
+    # that bal pack validates via interop. Moving the bundled JRE aside makes every test -d
+    # fail, leaving JAVA_COMMAND=java, which resolves through PATH to the JDK 25 set up above.
+    # Remove once the distribution ships a Java 25 JRE.
+    - name: Run bal on the runner JDK
+      shell: bash
+      continue-on-error: true
+      run: |
+        BAL_BIN=$(command -v bal || true)
+        [[ -z "$BAL_BIN" ]] && { echo "bal not on PATH; nothing to do"; exit 0; }
+        DEPS="$(dirname "$(readlink -f "$BAL_BIN")")/../dependencies"
+        for jre in "$DEPS"/jdk-*-jre; do
+          [[ -d "$jre" ]] || continue
+          echo "moving aside $jre"
+          sudo mv "$jre" "$jre.disabled"
+        done
+        echo "bal now runs on: $(bal version 2>&1 | head -1)"
+
     # TEMPORARY DIAGNOSTIC: balPack fails with UnsupportedClassVersionError, meaning bal ran
     # on a Java 21 JRE. The 2201.14.0 launcher only overrides JAVA_HOME when a directory named
     # exactly 'jdk-25.0.3+9-jre' exists, and the nightly bundles jdk-21.0.5+11-jre, so it
