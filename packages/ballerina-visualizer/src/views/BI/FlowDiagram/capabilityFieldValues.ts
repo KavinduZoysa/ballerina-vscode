@@ -71,24 +71,33 @@ function literalText(source: string): string {
             text += body[i];
             continue;
         }
-        const escaped = body[++i];
-        if (escaped === "u" && body[i + 1] === "{") {
-            // `\u{1F600}`, the only escape with a body. The language server decodes it too, and a
-            // literal must not read differently depending on which side looked at it.
-            const close = body.indexOf("}", i + 2);
-            const code = close === -1 ? NaN : Number.parseInt(body.slice(i + 2, close), 16);
-            if (close !== -1 && Number.isFinite(code)) {
+        const escaped = body[i + 1];
+        if (escaped === "u") {
+            // `\u{1F600}`, the only escape with a body. An escape the syntax does not define, an
+            // invalid code point or a lone surrogate stays as written, the way the language server
+            // leaves it, so a literal does not read differently depending on which side decoded it.
+            const close = body[i + 2] === "{" ? body.indexOf("}", i + 3) : -1;
+            const digits = close === -1 ? "" : body.slice(i + 3, close);
+            const code = /^[0-9a-fA-F]+$/.test(digits) ? Number.parseInt(digits, 16) : NaN;
+            if (Number.isInteger(code) && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff)) {
                 text += String.fromCodePoint(code);
                 i = close;
                 continue;
             }
+            text += "\\";
+            continue;
         }
         switch (escaped) {
+            case "\\": text += "\\"; break;
+            case "\"": text += "\""; break;
             case "n": text += "\n"; break;
             case "t": text += "\t"; break;
             case "r": text += "\r"; break;
-            default: text += escaped; break;
+            // Not an escape the literal syntax defines: the backslash stays and the character
+            // after it is read on its own.
+            default: text += "\\"; continue;
         }
+        i++;
     }
     return text;
 }

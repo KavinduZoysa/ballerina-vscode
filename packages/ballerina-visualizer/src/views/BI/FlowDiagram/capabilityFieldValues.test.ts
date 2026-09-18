@@ -79,6 +79,32 @@ describe("seedCapabilityValue", () => {
         expect(property.value).toBe("ends with \\");
     });
 
+    it("decodes a numeric escape the way the language server does", () => {
+        const property = dualMode();
+        seedCapabilityValue(property, '"grin \\u{1F600}"');
+        expect(property.value).toBe("grin \u{1F600}");
+    });
+
+    it("leaves an out-of-range code point as written instead of throwing", () => {
+        // `String.fromCodePoint` rejects anything above 0x10FFFF, and a throw here would stop the
+        // whole form from opening. The language server leaves the escape as written.
+        const property = dualMode();
+        seedCapabilityValue(property, '"grin \\u{110000}"');
+        expect(property.value).toBe("grin \\u{110000}");
+    });
+
+    it("leaves a lone surrogate as written", () => {
+        const property = dualMode();
+        seedCapabilityValue(property, '"half \\u{D800}"');
+        expect(property.value).toBe("half \\u{D800}");
+    });
+
+    it("keeps the backslash of an escape the syntax does not define", () => {
+        const property = dualMode();
+        seedCapabilityValue(property, '"no brace \\uabc"');
+        expect(property.value).toBe("no brace \\uabc");
+    });
+
     it("does not mistake a concatenation that merely starts and ends with a quote", () => {
         const property = dualMode();
         seedCapabilityValue(property, '"a" + b + "c"');

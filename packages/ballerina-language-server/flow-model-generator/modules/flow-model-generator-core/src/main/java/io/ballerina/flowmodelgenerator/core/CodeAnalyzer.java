@@ -2558,8 +2558,8 @@ public class CodeAnalyzer extends NodeVisitor {
 
         Property messageSubProp = new Property.Builder<Void>(null)
                 .metadata()
-                    .label("Message")
-                    .description("Request body payload (for POST, PUT, PATCH)")
+                    .label(RestActivityStrategy.MESSAGE_LABEL)
+                    .description(RestActivityStrategy.MESSAGE_DESCRIPTION)
                     .stepOut()
                 .type().fieldType(Property.ValueType.EXPRESSION)
                     .ballerinaType("http:RequestMessage").selected(true).stepOut()
@@ -2571,7 +2571,7 @@ public class CodeAnalyzer extends NodeVisitor {
         methodDynamicFields.put("GET", Map.of());
         methodDynamicFields.put("POST", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
         methodDynamicFields.put("PUT", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
-        methodDynamicFields.put("DELETE", Map.of());
+        methodDynamicFields.put("DELETE", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
         methodDynamicFields.put("PATCH", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
 
         nodeBuilder.properties().custom()
@@ -2592,8 +2592,8 @@ public class CodeAnalyzer extends NodeVisitor {
         // Hidden top-level message property — value store for method-driven dynamic sub-field.
         String message = src.getOrDefault(RestActivityStrategy.MESSAGE_KEY, "");
         nodeBuilder.properties().custom()
-                .metadata().label("Message")
-                    .description("Request body payload (for POST, PUT, PATCH)").stepOut()
+                .metadata().label(RestActivityStrategy.MESSAGE_LABEL)
+                    .description(RestActivityStrategy.MESSAGE_DESCRIPTION).stepOut()
                 .type().fieldType(Property.ValueType.EXPRESSION)
                     .ballerinaType("http:RequestMessage").selected(true).stepOut()
                 .value(message).editable(true).optional(true).hidden(true)

@@ -47,6 +47,8 @@ public class RestActivityStrategy implements BuiltinActivityStrategy {
     public static final String METHOD_KEY = "method";
     public static final String PATH_KEY = "path";
     public static final String MESSAGE_KEY = "message";
+    public static final String MESSAGE_LABEL = "Message";
+    public static final String MESSAGE_DESCRIPTION = "Request body, sent with POST, PUT, PATCH and DELETE";
     public static final String HEADERS_KEY = "headers";
 
     // HTTP method options
@@ -78,8 +80,8 @@ public class RestActivityStrategy implements BuiltinActivityStrategy {
         // body typed under another method is not carried into it.
         Property messageSubProp = new Property.Builder<Void>(null)
                 .metadata()
-                    .label("Message")
-                    .description("Request body, sent with POST, PUT, PATCH and DELETE")
+                    .label(MESSAGE_LABEL)
+                    .description(MESSAGE_DESCRIPTION)
                     .stepOut()
                 .type().fieldType(Property.ValueType.EXPRESSION)
                     .ballerinaType("http:RequestMessage").selected(true).stepOut()
@@ -130,8 +132,8 @@ public class RestActivityStrategy implements BuiltinActivityStrategy {
         // Hidden top-level message property — stores saved value; visible sub-field lives in dynamicFormFields
         nodeBuilder.properties().custom()
                 .metadata()
-                    .label("Message")
-                    .description("Request body, sent with POST, PUT, PATCH and DELETE")
+                    .label(MESSAGE_LABEL)
+                    .description(MESSAGE_DESCRIPTION)
                     .stepOut()
                 .type().fieldType(Property.ValueType.EXPRESSION)
                     .ballerinaType("http:RequestMessage").selected(true).stepOut()
