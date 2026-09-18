@@ -51,31 +51,6 @@ runs:
       with:
         distributionVersion: nightly
 
-    # TEMPORARY DIAGNOSTIC: balPack fails with UnsupportedClassVersionError, meaning bal ran
-    # on a Java 21 JRE. The 2201.14.0 launcher only overrides JAVA_HOME when a directory named
-    # exactly 'jdk-25.0.3+9-jre' exists, and the nightly bundles jdk-21.0.5+11-jre, so it
-    # should have fallen through to this runner's JDK 25. Find out which launcher shipped,
-    # which JRE is present, and which Java bal actually picks. Remove once understood.
-    - name: Diagnose the Ballerina runtime
-      shell: bash
-      continue-on-error: true
-      run: |
-        echo "JAVA_HOME=$JAVA_HOME"
-        java -version 2>&1 | head -2
-        BAL_BIN=$(command -v bal || true)
-        echo "bal on PATH: ${BAL_BIN:-<none>}"
-        if [[ -n "$BAL_BIN" ]]; then
-          BAL_REAL=$(readlink -f "$BAL_BIN")
-          echo "resolves to: $BAL_REAL"
-          echo "--- JVM selection in the launcher ---"
-          grep -nE "JAVA_HOME|JAVA_COMMAND|JAVA_PATH|jdk-[0-9]" "$BAL_REAL" | head -20 || true
-          echo "--- dependencies dir alongside the install ---"
-          ls -la "$(dirname "$BAL_REAL")/../dependencies" 2>/dev/null || echo "  (no dependencies dir)"
-          ls -la "$(dirname "$BAL_REAL")/../../dependencies" 2>/dev/null || true
-        fi
-        echo "--- what bal reports ---"
-        bal version 2>&1 | head -3 || true
-
     # The build resolves Ballerina packages into a build-owned home
     # (build/ballerina_dependencies/home) rather than ~/.ballerina, and the
     # cache key hashes the locked dependency project — so the cache is only
