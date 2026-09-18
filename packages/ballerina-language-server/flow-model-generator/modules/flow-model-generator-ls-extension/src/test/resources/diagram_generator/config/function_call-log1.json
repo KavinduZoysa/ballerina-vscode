@@ -167,7 +167,8 @@
                   },
                   "error": {
                     "metadata": {
-                      "label": "Error"
+                      "label": "Error",
+                      "description": "The error struct to be logged"
                     },
                     "types": [
                       {
@@ -183,7 +184,7 @@
                     "hidden": false,
                     "codedata": {
                       "kind": "DEFAULTABLE",
-                      "originalName": "error"
+                      "originalName": "'error"
                     },
                     "defaultValue": "()"
                   },
@@ -331,7 +332,8 @@
           },
           "error": {
             "metadata": {
-              "label": "Error"
+              "label": "Error",
+              "description": "The error struct to be logged"
             },
             "types": [
               {
@@ -347,7 +349,7 @@
             "hidden": false,
             "codedata": {
               "kind": "DEFAULTABLE",
-              "originalName": "error"
+              "originalName": "'error"
             },
             "defaultValue": "()"
           },
@@ -807,7 +809,8 @@
                   },
                   "error": {
                     "metadata": {
-                      "label": "Error"
+                      "label": "Error",
+                      "description": "The error struct to be logged"
                     },
                     "types": [
                       {
@@ -823,7 +826,7 @@
                     "hidden": false,
                     "codedata": {
                       "kind": "DEFAULTABLE",
-                      "originalName": "error"
+                      "originalName": "'error"
                     },
                     "defaultValue": "()"
                   },
@@ -988,7 +991,8 @@
                   },
                   "error": {
                     "metadata": {
-                      "label": "Error"
+                      "label": "Error",
+                      "description": "The error struct to be logged"
                     },
                     "types": [
                       {
@@ -1004,7 +1008,7 @@
                     "hidden": false,
                     "codedata": {
                       "kind": "DEFAULTABLE",
-                      "originalName": "error"
+                      "originalName": "'error"
                     },
                     "defaultValue": "()"
                   },
