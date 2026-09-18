@@ -378,70 +378,61 @@ export function FunctionForm(props: FunctionFormProps) {
     }
 
     const getExistingFunctionNode = async () => {
-        // Claims the load (superseding any in-flight create-path one) on the same terms.
+        // Claims the load, superseding any in-flight create-path one so its result cannot land on
+        // top of this one's. Rejection handling is deliberately left as it was: only the create
+        // path, where the package pull happens, reports failures.
         const seq = ++loadSeqRef.current;
         setIsLoading(true);
-        setLoadError(false);
-        try {
-            const res = await rpcClient
-                .getBIDiagramRpcClient()
-                .getFunctionNode({
-                    functionName,
-                    fileName,
-                    projectPath
-                });
-            let flowNode = hideTypeDescriptionField(res.functionDefinition);
-            if (isNpFunction) {
-                /* 
-                * TODO: Remove this once the LS is updated
-                * HACK: Add the advanced fields under parameters.advanceProperties
-                */
-                // Get all the advanced fields
-                let properties = flowNode.properties as NodeProperties;
-                const advancedProperties = Object.fromEntries(
-                    Object.entries(properties).filter(([_, property]) => property.advanced)
-                );
-                // Remove the advanced fields from properties
-                properties = Object.fromEntries(
-                    Object.entries(properties).filter(([_, property]) => !property.advanced)
-                );
-                flowNode.properties = properties;
+        const res = await rpcClient
+            .getBIDiagramRpcClient()
+            .getFunctionNode({
+                functionName,
+                fileName,
+                projectPath
+            });
+        let flowNode = hideTypeDescriptionField(res.functionDefinition);
+        if (isNpFunction) {
+            /* 
+            * TODO: Remove this once the LS is updated
+            * HACK: Add the advanced fields under parameters.advanceProperties
+            */
+            // Get all the advanced fields
+            let properties = flowNode.properties as NodeProperties;
+            const advancedProperties = Object.fromEntries(
+                Object.entries(properties).filter(([_, property]) => property.advanced)
+            );
+            // Remove the advanced fields from properties
+            properties = Object.fromEntries(
+                Object.entries(properties).filter(([_, property]) => !property.advanced)
+            );
+            flowNode.properties = properties;
 
-                // Add the all the advanced fields to advanceProperties
-                flowNode.properties.parameters = {
-                    ...flowNode.properties.parameters,
-                    advanceProperties: advancedProperties
-                }
-            }
-
-            // Override the node kind so the correct builder (WorkflowBuilder / ActivityBuilder)
-            // is used when generating source code for an existing workflow or activity function.
-            // ModuleNodeAnalyzer returns FUNCTION_DEFINITION for these; using the wrong kind causes
-            // the artifact-update subscription to filter for FUNCTION instead of WORKFLOW/ACTIVITY,
-            // resulting in a 10-second timeout and incorrect source generation (e.g. adds `public`).
-            if (isWorkflow) {
-                flowNode = { ...flowNode, codedata: { ...flowNode.codedata, node: 'WORKFLOW' as NodeKind } };
-            } else if (isDurableAgent) {
-                flowNode = { ...flowNode, codedata: { ...flowNode.codedata, node: 'DURABLE_AGENT' as NodeKind } };
-            } else if (isActivity) {
-                flowNode = { ...flowNode, codedata: { ...flowNode.codedata, node: 'ACTIVITY' as NodeKind } };
-            }
-
-            if (!isCurrentLoad(seq)) {
-                return;
-            }
-            setFunctionNode(flowNode);
-            console.log("Existing Function Node: ", flowNode);
-        } catch (error) {
-            console.error(">>> Error fetching the existing function node", error);
-            if (isCurrentLoad(seq)) {
-                setLoadError(true);
-            }
-        } finally {
-            if (isCurrentLoad(seq)) {
-                setIsLoading(false);
+            // Add the all the advanced fields to advanceProperties
+            flowNode.properties.parameters = {
+                ...flowNode.properties.parameters,
+                advanceProperties: advancedProperties
             }
         }
+
+        // Override the node kind so the correct builder (WorkflowBuilder / ActivityBuilder)
+        // is used when generating source code for an existing workflow or activity function.
+        // ModuleNodeAnalyzer returns FUNCTION_DEFINITION for these; using the wrong kind causes
+        // the artifact-update subscription to filter for FUNCTION instead of WORKFLOW/ACTIVITY,
+        // resulting in a 10-second timeout and incorrect source generation (e.g. adds `public`).
+        if (isWorkflow) {
+            flowNode = { ...flowNode, codedata: { ...flowNode.codedata, node: 'WORKFLOW' as NodeKind } };
+        } else if (isDurableAgent) {
+            flowNode = { ...flowNode, codedata: { ...flowNode.codedata, node: 'DURABLE_AGENT' as NodeKind } };
+        } else if (isActivity) {
+            flowNode = { ...flowNode, codedata: { ...flowNode.codedata, node: 'ACTIVITY' as NodeKind } };
+        }
+
+        if (!isCurrentLoad(seq)) {
+            return;
+        }
+        setFunctionNode(flowNode);
+        setIsLoading(false);
+        console.log("Existing Function Node: ", flowNode);
     }
 
     // Writes the WSO2 default provider's Config.toml entry (service URL + token) after an
@@ -766,9 +757,14 @@ export function FunctionForm(props: FunctionFormProps) {
                     {loadError && !isLoading && (
                         <LoadingContainer>
                             <StatusCard>
-                                <Icon name="bi-error" sx={{ color: ThemeColors.ERROR, fontSize: "18px" }} />
+                                <Icon
+                                    name="bi-error"
+                                    sx={{ color: ThemeColors.ERROR, fontSize: "18px", width: "18px", height: "18px" }}
+                                />
+                                {/* Both loaders share this card, and only the create path resolves a node
+                                    template, so the message names neither the template nor the package. */}
                                 <Typography variant="body2">
-                                    {`Failed to load the ${formType.current.toLowerCase()} template. Please try again.`}
+                                    {`Failed to load the ${formType.current.toLowerCase()}. Please try again.`}
                                 </Typography>
                                 <Button appearance="secondary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
                                     Retry
