@@ -229,11 +229,12 @@ public abstract class WorkflowContextFunctionBuilder extends NodeBuilder {
             sourceBuilder.getProperty(Workflow.CONTEXT_TASK_NAME_KEY)
                     .filter(property -> property.value() != null && !property.value().toString().isBlank())
                     .ifPresent(property -> {
-                        String taskName = property.value().toString().trim();
                         // The text box holds decoded text, so it is escaped back into a literal
-                        // unconditionally; the expression editor holds source and keeps it.
+                        // unconditionally and keeps its own spaces, which are part of the name.
+                        // The expression editor holds source, where surrounding space is not.
+                        String taskName = property.value().toString();
                         sourceBuilder.token().name(WorkflowUtil.isExpressionModeSelected(property)
-                                ? taskName : WorkflowUtil.stringLiteral(taskName));
+                                ? taskName.trim() : WorkflowUtil.stringLiteral(taskName));
                     });
         }
         sourceBuilder.token()
