@@ -268,7 +268,19 @@ function resolveMinGapPositions<T>(items: Array<{ item: T; desiredCenter: number
     const result = new Map<T, number>();
     blocks.forEach((block) => {
         const blockCenter = block.sumDesired / block.count;
-        let cursor = blockCenter - block.totalHeight / 2;
+        // `totalHeight / 2` is only the right distance from the block's edge to the mean of its
+        // members' own (packed) centers when every member is the same height - otherwise that mean
+        // sits off-center toward whichever end has the taller member(s), so anchoring on it would
+        // silently drag the whole block away from blockCenter. Packing from an arbitrary cursor of
+        // 0 first gives that real mean, so the block can be shifted by exactly the offset needed to
+        // land it on blockCenter instead.
+        let offset = 0;
+        let sumOffset = 0;
+        block.members.forEach(({ height }) => {
+            sumOffset += offset + height / 2;
+            offset += height + gap;
+        });
+        let cursor = blockCenter - sumOffset / block.members.length;
         block.members.forEach(({ item, height }) => {
             result.set(item, cursor + height / 2);
             cursor += height + gap;

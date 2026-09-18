@@ -295,7 +295,7 @@ exports[`Component Diagram - Snapshot Tests renders ai agent complex correctly: 
       >
         <div
           class="node css-7"
-          style="top: -40.33333333333334px; left: 1010px;"
+          style="top: -20.666666666666686px; left: 1010px;"
         >
           <div
             class="css-8"
@@ -370,7 +370,7 @@ exports[`Component Diagram - Snapshot Tests renders ai agent complex correctly: 
         </div>
         <div
           class="node css-7"
-          style="top: 73.66666666666666px; left: 610px;"
+          style="top: 93.33333333333331px; left: 610px;"
         >
           <div
             class="css-19"
@@ -505,7 +505,7 @@ exports[`Component Diagram - Snapshot Tests renders ai agent complex correctly: 
         </div>
         <div
           class="node css-7"
-          style="top: 342.66666666666663px; left: 610px;"
+          style="top: 362.3333333333333px; left: 610px;"
         >
           <div
             class="css-19"
@@ -598,7 +598,7 @@ exports[`Component Diagram - Snapshot Tests renders ai agent complex correctly: 
         </div>
         <div
           class="node css-7"
-          style="top: -40.33333333333334px; left: 610px;"
+          style="top: -20.666666666666686px; left: 610px;"
         >
           <div
             class="css-19"
@@ -674,7 +674,7 @@ exports[`Component Diagram - Snapshot Tests renders ai agent complex correctly: 
         </div>
         <div
           class="node css-7"
-          style="top: 372.16666666666663px; left: 250px;"
+          style="top: 391.8333333333333px; left: 250px;"
         >
           <div
             class="css-31"
@@ -753,7 +753,7 @@ exports[`Component Diagram - Snapshot Tests renders ai agent complex correctly: 
         </div>
         <div
           class="node css-7"
-          style="top: 151.16666666666663px; left: 250px;"
+          style="top: 170.83333333333331px; left: 250px;"
         >
           <div
             class="css-31"
@@ -1095,7 +1095,7 @@ exports[`Component Diagram - Snapshot Tests renders connections complex correctl
       >
         <div
           class="node css-7"
-          style="top: -45.75px; left: 1010px;"
+          style="top: -7px; left: 1010px;"
         >
           <div
             class="css-8"
@@ -1170,7 +1170,7 @@ exports[`Component Diagram - Snapshot Tests renders connections complex correctl
         </div>
         <div
           class="node css-7"
-          style="top: 68.25px; left: 610px;"
+          style="top: 107px; left: 610px;"
         >
           <div
             class="css-19"
@@ -1305,7 +1305,7 @@ exports[`Component Diagram - Snapshot Tests renders connections complex correctl
         </div>
         <div
           class="node css-7"
-          style="top: -45.75px; left: 610px;"
+          style="top: -7px; left: 610px;"
         >
           <div
             class="css-19"
@@ -1381,7 +1381,7 @@ exports[`Component Diagram - Snapshot Tests renders connections complex correctl
         </div>
         <div
           class="node css-7"
-          style="top: 145.75px; left: 250px;"
+          style="top: 184.5px; left: 250px;"
         >
           <div
             class="css-31"
@@ -2038,7 +2038,7 @@ exports[`Component Diagram - Snapshot Tests renders graphql complex correctly: g
       >
         <div
           class="node css-7"
-          style="top: -88.75px; left: 1010px;"
+          style="top: -36px; left: 1010px;"
         >
           <div
             class="css-8"
@@ -2113,7 +2113,7 @@ exports[`Component Diagram - Snapshot Tests renders graphql complex correctly: g
         </div>
         <div
           class="node css-7"
-          style="top: 25.25px; left: 610px;"
+          style="top: 78px; left: 610px;"
         >
           <div
             class="css-19"
@@ -2206,7 +2206,7 @@ exports[`Component Diagram - Snapshot Tests renders graphql complex correctly: g
         </div>
         <div
           class="node css-7"
-          style="top: 198.25px; left: 610px;"
+          style="top: 251px; left: 610px;"
         >
           <div
             class="css-19"
@@ -2276,7 +2276,7 @@ exports[`Component Diagram - Snapshot Tests renders graphql complex correctly: g
         </div>
         <div
           class="node css-7"
-          style="top: 328.25px; left: 610px;"
+          style="top: 381px; left: 610px;"
         >
           <div
             class="css-19"
@@ -2411,7 +2411,7 @@ exports[`Component Diagram - Snapshot Tests renders graphql complex correctly: g
         </div>
         <div
           class="node css-7"
-          style="top: -88.75px; left: 610px;"
+          style="top: -36px; left: 610px;"
         >
           <div
             class="css-19"
@@ -2487,7 +2487,7 @@ exports[`Component Diagram - Snapshot Tests renders graphql complex correctly: g
         </div>
         <div
           class="node css-7"
-          style="top: 54.75px; left: 250px;"
+          style="top: 107.5px; left: 250px;"
         >
           <div
             class="css-32"
@@ -2566,7 +2566,7 @@ exports[`Component Diagram - Snapshot Tests renders graphql complex correctly: g
         </div>
         <div
           class="node css-7"
-          style="top: 206.25px; left: 250px;"
+          style="top: 259px; left: 250px;"
         >
           <div
             class="css-32"
@@ -2645,7 +2645,7 @@ exports[`Component Diagram - Snapshot Tests renders graphql complex correctly: g
         </div>
         <div
           class="node css-7"
-          style="top: 405.75px; left: 250px;"
+          style="top: 458.5px; left: 250px;"
         >
           <div
             class="css-32"
@@ -3098,7 +3098,7 @@ exports[`Component Diagram - Snapshot Tests renders multiple connections complex
       >
         <div
           class="node css-7"
-          style="top: -88.75px; left: 1010px;"
+          style="top: -36px; left: 1010px;"
         >
           <div
             class="css-8"
@@ -3173,7 +3173,7 @@ exports[`Component Diagram - Snapshot Tests renders multiple connections complex
         </div>
         <div
           class="node css-7"
-          style="top: 25.25px; left: 610px;"
+          style="top: 78px; left: 610px;"
         >
           <div
             class="css-19"
@@ -3266,7 +3266,7 @@ exports[`Component Diagram - Snapshot Tests renders multiple connections complex
         </div>
         <div
           class="node css-7"
-          style="top: 198.25px; left: 610px;"
+          style="top: 251px; left: 610px;"
         >
           <div
             class="css-19"
@@ -3336,7 +3336,7 @@ exports[`Component Diagram - Snapshot Tests renders multiple connections complex
         </div>
         <div
           class="node css-7"
-          style="top: 328.25px; left: 610px;"
+          style="top: 381px; left: 610px;"
         >
           <div
             class="css-19"
@@ -3471,7 +3471,7 @@ exports[`Component Diagram - Snapshot Tests renders multiple connections complex
         </div>
         <div
           class="node css-7"
-          style="top: -88.75px; left: 610px;"
+          style="top: -36px; left: 610px;"
         >
           <div
             class="css-19"
@@ -3547,7 +3547,7 @@ exports[`Component Diagram - Snapshot Tests renders multiple connections complex
         </div>
         <div
           class="node css-7"
-          style="top: 54.75px; left: 250px;"
+          style="top: 107.5px; left: 250px;"
         >
           <div
             class="css-32"
@@ -3626,7 +3626,7 @@ exports[`Component Diagram - Snapshot Tests renders multiple connections complex
         </div>
         <div
           class="node css-7"
-          style="top: 206.25px; left: 250px;"
+          style="top: 259px; left: 250px;"
         >
           <div
             class="css-32"
@@ -3705,7 +3705,7 @@ exports[`Component Diagram - Snapshot Tests renders multiple connections complex
         </div>
         <div
           class="node css-7"
-          style="top: 405.75px; left: 250px;"
+          style="top: 458.5px; left: 250px;"
         >
           <div
             class="css-32"
@@ -5058,13 +5058,13 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
             pointer-events="all"
           >
             <path
-              d="M 400 300 C 685 300 685 47.790509259259224 970 47.790509259259224 C 1130 47.790509259259224 1130 47.790509259259224 1290 47.790509259259224 C 845 47.790509259259224 845 300 400 300"
+              d="M 400 300 C 685 300 685 65.81828703703701 970 65.81828703703701 C 1130 65.81828703703701 1130 65.81828703703701 1290 65.81828703703701 C 845 65.81828703703701 845 300 400 300"
               fill="none"
               stroke="transparent"
               stroke-width="16"
             />
             <path
-              d="M 400 300 C 685 300 685 47.790509259259224 970 47.790509259259224 C 1130 47.790509259259224 1130 47.790509259259224 1290 47.790509259259224 C 845 47.790509259259224 845 300 400 300"
+              d="M 400 300 C 685 300 685 65.81828703703701 970 65.81828703703701 C 1130 65.81828703703701 1130 65.81828703703701 1290 65.81828703703701 C 845 65.81828703703701 845 300 400 300"
               fill="none"
               stroke="var(--vscode-foreground)"
               stroke-opacity="0.7"
@@ -5284,7 +5284,7 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
       >
         <div
           class="node css-7"
-          style="top: 70.85879629629625px; left: 1410px;"
+          style="top: 87.24768518518516px; left: 1410px;"
         >
           <div
             class="css-8"
@@ -5359,7 +5359,7 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
         </div>
         <div
           class="node css-7"
-          style="top: 184.85879629629625px; left: 1410px;"
+          style="top: 201.24768518518516px; left: 1410px;"
         >
           <div
             class="css-8"
@@ -5614,7 +5614,7 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
         </div>
         <div
           class="node css-7"
-          style="top: 74.7222222222222px; left: 610px;"
+          style="top: 94.38888888888886px; left: 610px;"
         >
           <div
             class="css-19"
@@ -5713,7 +5713,7 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
         </div>
         <div
           class="node css-7"
-          style="top: 247.72222222222217px; left: 610px;"
+          style="top: 267.38888888888886px; left: 610px;"
         >
           <div
             class="css-19"
@@ -5812,7 +5812,7 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
         </div>
         <div
           class="node css-7"
-          style="top: -39.2777777777778px; left: 610px;"
+          style="top: -19.611111111111143px; left: 610px;"
         >
           <div
             class="css-19"
@@ -5888,7 +5888,7 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
         </div>
         <div
           class="node css-7"
-          style="top: 104.2222222222222px; left: 250px;"
+          style="top: 123.88888888888886px; left: 250px;"
         >
           <div
             class="css-33"
@@ -5967,7 +5967,7 @@ exports[`Component Diagram - Snapshot Tests renders stacked workflows overlap co
         </div>
         <div
           class="node css-7"
-          style="top: 277.2222222222222px; left: 250px;"
+          style="top: 296.88888888888886px; left: 250px;"
         >
           <div
             class="css-33"
@@ -6304,13 +6304,13 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
             pointer-events="all"
           >
             <path
-              d="M 400 300 C 400 300 400 300 400 300"
+              d="M 400 300 C 685 300 685 67 970 67 C 1130 67 1130 67 1290 67 C 845 67 845 300 400 300"
               fill="none"
               stroke="transparent"
               stroke-width="16"
             />
             <path
-              d="M 400 300 C 400 300 400 300 400 300"
+              d="M 400 300 C 685 300 685 67 970 67 C 1130 67 1130 67 1290 67 C 845 67 845 300 400 300"
               fill="none"
               stroke="var(--vscode-foreground)"
               stroke-opacity="0.7"
@@ -6475,7 +6475,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
       >
         <div
           class="node css-7"
-          style="top: 60.875px; left: 1410px;"
+          style="top: 80.54166666666666px; left: 1410px;"
         >
           <div
             class="css-8"
@@ -6550,7 +6550,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
         </div>
         <div
           class="node css-7"
-          style="top: 321.625px; left: 1410px;"
+          style="top: 341.29166666666663px; left: 1410px;"
         >
           <div
             class="css-8"
@@ -6805,7 +6805,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
         </div>
         <div
           class="node css-7"
-          style="top: 87.125px; left: 610px;"
+          style="top: 106.79166666666666px; left: 610px;"
         >
           <div
             class="css-19"
@@ -6904,7 +6904,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
         </div>
         <div
           class="node css-7"
-          style="top: 260.125px; left: 610px;"
+          style="top: 279.79166666666663px; left: 610px;"
         >
           <div
             class="css-19"
@@ -7003,7 +7003,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
         </div>
         <div
           class="node css-7"
-          style="top: -26.875px; left: 610px;"
+          style="top: -7.208333333333343px; left: 610px;"
         >
           <div
             class="css-19"
@@ -7079,7 +7079,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
         </div>
         <div
           class="node css-7"
-          style="top: 116.625px; left: 250px;"
+          style="top: 136.29166666666666px; left: 250px;"
         >
           <div
             class="css-33"
@@ -7158,7 +7158,7 @@ exports[`Component Diagram - Snapshot Tests renders workflow function-port overl
         </div>
         <div
           class="node css-7"
-          style="top: 289.625px; left: 250px;"
+          style="top: 309.29166666666663px; left: 250px;"
         >
           <div
             class="css-33"
