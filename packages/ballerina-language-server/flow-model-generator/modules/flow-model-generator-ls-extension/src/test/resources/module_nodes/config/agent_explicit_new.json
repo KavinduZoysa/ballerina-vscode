@@ -1,114 +1,165 @@
 {
-  "start": {
-    "line": 26,
-    "offset": 0
-  },
-  "end": {
-    "line": 28,
-    "offset": 1
-  },
-  "source": "agent_14/agents.bal",
-  "description": "Tests agents defined without model parameter",
-  "diagram": {
-    "fileName": "agents.bal",
-    "nodes": [
+  "source": "agent_explicit_new",
+  "description": "Agent created with explicit-new syntax (check new ai:Agent(...))",
+  "flowModel": {
+    "fileName": "agent_explicit_new",
+    "nodes": [],
+    "connections": [
       {
-        "id": "58777",
+        "id": "33813",
         "metadata": {
-          "label": "Start",
-          "data": {
-            "kind": "Function",
-            "label": "main",
-            "isServiceFunction": false,
-            "return": "error?"
-          }
+          "label": "Model Provider",
+          "description": "Creates a default model provider based on the provided `wso2ProviderConfig`.",
+          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png"
         },
         "codedata": {
-          "node": "EVENT_START",
+          "node": "MODEL_PROVIDER",
+          "org": "ballerina",
+          "module": "ai",
+          "symbol": "getDefaultModelProvider",
           "lineRange": {
-            "fileName": "agents.bal",
+            "fileName": "main.bal",
             "startLine": {
-              "line": 26,
-              "offset": 38
+              "line": 2,
+              "offset": 0
             },
             "endLine": {
-              "line": 28,
-              "offset": 1
+              "line": 2,
+              "offset": 85
             }
           },
-          "sourceCode": "public function main() returns error? {\n    string result1 = check chatAgent.run(\"What's the weather in London?\");\n}"
+          "sourceCode": "final ai:Wso2ModelProvider customerSupportModel = check ai:getDefaultModelProvider();"
         },
         "returning": false,
-        "flags": 0
+        "properties": {
+          "checkError": {
+            "metadata": {
+              "label": "Check Error",
+              "description": "Terminate on error"
+            },
+            "types": [
+              {
+                "fieldType": "FLAG",
+                "selected": true
+              }
+            ],
+            "value": true,
+            "optional": false,
+            "editable": false,
+            "advanced": true,
+            "hidden": true
+          },
+          "scope": {
+            "metadata": {
+              "label": "Connection Scope",
+              "description": "Scope of the connection, Global or Local"
+            },
+            "types": [
+              {
+                "fieldType": "ENUM",
+                "selected": true
+              }
+            ],
+            "value": "Global",
+            "optional": false,
+            "editable": true,
+            "advanced": true,
+            "hidden": true
+          },
+          "variable": {
+            "metadata": {
+              "label": "Variable Name",
+              "description": "Name of the variable"
+            },
+            "types": [
+              {
+                "fieldType": "IDENTIFIER",
+                "selected": true
+              }
+            ],
+            "value": "customerSupportModel",
+            "optional": false,
+            "editable": false,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "lineRange": {
+                "fileName": "main.bal",
+                "startLine": {
+                  "line": 2,
+                  "offset": 27
+                },
+                "endLine": {
+                  "line": 2,
+                  "offset": 47
+                }
+              }
+            }
+          },
+          "type": {
+            "metadata": {
+              "label": "Variable Type",
+              "description": "Type of the variable"
+            },
+            "types": [
+              {
+                "fieldType": "TYPE",
+                "selected": true
+              }
+            ],
+            "value": "ai:Wso2ModelProvider",
+            "placeholder": "var",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {}
+          }
+        },
+        "flags": 1
       },
       {
-        "id": "58726",
+        "id": "35869",
         "metadata": {
-          "label": "run",
-          "description": "Executes the agent for a given user query.",
+          "label": "Agent",
+          "description": "Represents an agent.",
           "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
           "data": {
             "agentInfo": {
               "systemPrompt": {
-                "instructions": "Help users with weather and time queries.",
-                "role": "\"Assistant\""
+                "instructions": "You are a helpful assistant",
+                "role": "Customer Support Assistant"
               },
               "modelProvider": {
                 "presentation": {
-                  "name": "check ai:getDefaultModelProvider()"
+                  "name": "customerSupportModel",
+                  "path": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
+                  "type": "Wso2ModelProvider"
                 }
               }
             }
           }
         },
         "codedata": {
-          "node": "AGENT_CALL",
+          "node": "AGENT",
           "org": "ballerina",
           "module": "ai",
           "packageName": "ai",
           "object": "Agent",
-          "symbol": "run",
+          "symbol": "init",
           "version": "1.15.0",
           "lineRange": {
-            "fileName": "agents.bal",
+            "fileName": "main.bal",
             "startLine": {
-              "line": 27,
-              "offset": 4
+              "line": 4,
+              "offset": 0
             },
             "endLine": {
-              "line": 27,
-              "offset": 74
+              "line": 9,
+              "offset": 2
             }
           },
-          "sourceCode": "string result1 = check chatAgent.run(\"What's the weather in London?\");",
-          "inferredReturnType": "td",
-          "data": {
-            "agentCodedata": {
-              "node": "AGENT",
-              "org": "ballerina",
-              "module": "ai",
-              "packageName": "ai",
-              "object": "Agent",
-              "symbol": "init",
-              "version": "1.15.0",
-              "lineRange": {
-                "fileName": "agents.bal",
-                "startLine": {
-                  "line": 18,
-                  "offset": 0
-                },
-                "endLine": {
-                  "line": 24,
-                  "offset": 3
-                }
-              },
-              "sourceCode": "final ai:Agent chatAgent = check new ({\n    systemPrompt: {\n        role: \"Assistant\",\n        instructions: string `Help users with weather and time queries.`\n    },\n    model: check ai:getDefaultModelProvider()\n});",
-              "isNew": false,
-              "data": {
-                "scope": "Global"
-              }
-            }
-          }
+          "sourceCode": "final ai:Agent mathTutorAgent = check new ai:Agent(\n    systemPrompt = {\n        role: string `Customer Support Assistant`,\n        instructions: string `You are a helpful assistant`\n    }, model = customerSupportModel\n);"
         },
         "returning": false,
         "properties": {
@@ -121,22 +172,22 @@
               {
                 "fieldType": "PROMPT",
                 "ballerinaType": "string",
-                "selected": false
+                "selected": true
               },
               {
                 "fieldType": "EXPRESSION",
                 "ballerinaType": "string",
-                "selected": true
+                "selected": false
               }
             ],
-            "value": "\"Assistant\"",
+            "value": "Customer Support Assistant",
             "placeholder": "e.g., Customer Support Assistant, Sales Advisor, Data Analyst",
-            "optional": true,
+            "optional": false,
             "editable": true,
             "advanced": false,
             "hidden": false,
             "codedata": {
-              "kind": "DEFAULTABLE"
+              "kind": "REQUIRED"
             },
             "defaultValue": ""
           },
@@ -157,14 +208,14 @@
                 "selected": false
               }
             ],
-            "value": "Help users with weather and time queries.",
+            "value": "You are a helpful assistant",
             "placeholder": "e.g., You are a friendly assistant. Your goal is to...",
-            "optional": true,
+            "optional": false,
             "editable": true,
             "advanced": false,
             "hidden": false,
             "codedata": {
-              "kind": "DEFAULTABLE"
+              "kind": "REQUIRED"
             },
             "defaultValue": ""
           },
@@ -183,10 +234,10 @@
                     "packageInfo": "ballerina:ai:1.15.0",
                     "packageName": "ai",
                     "kind": "RECORD_TYPE",
-                    "selected": false
+                    "selected": true
                   }
                 ],
-                "selected": false
+                "selected": true
               },
               {
                 "fieldType": "EXPRESSION",
@@ -194,7 +245,7 @@
                 "selected": false
               }
             ],
-            "value": "{\n        role: \"Assistant\",\n        instructions: string `Help users with weather and time queries.`\n    }",
+            "value": "{\n        role: string `Customer Support Assistant`,\n        instructions: string `You are a helpful assistant`\n    }",
             "placeholder": "{role: \"\", instructions: \"\"}",
             "optional": false,
             "editable": true,
@@ -215,15 +266,15 @@
               {
                 "fieldType": "EXPRESSION",
                 "ballerinaType": "ai:ModelProvider",
-                "selected": false
+                "selected": true
               }
             ],
-            "value": "check ai:getDefaultModelProvider()",
+            "value": "customerSupportModel",
             "placeholder": "object {}",
             "optional": false,
             "editable": true,
             "advanced": false,
-            "hidden": true,
+            "hidden": false,
             "codedata": {
               "kind": "INCLUDED_FIELD",
               "originalName": "model"
@@ -321,7 +372,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "maxIter"
             },
-            "defaultValue": "INFER_TOOL_COUNT"
+            "defaultValue": "\"INFER_TOOL_COUNT\""
           },
           "verbose": {
             "metadata": {
@@ -400,7 +451,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "\"NO_FILTER\"",
+            "placeholder": "\"LLM_FILTER\"",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -409,7 +460,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "toolLoadingStrategy"
             },
-            "defaultValue": "NO_FILTER"
+            "defaultValue": "\"LLM_FILTER\""
           },
           "executeToolCallsInParallel": {
             "metadata": {
@@ -437,7 +488,7 @@
               "kind": "INCLUDED_FIELD",
               "originalName": "executeToolCallsInParallel"
             },
-            "defaultValue": "true"
+            "defaultValue": "false"
           },
           "credential": {
             "metadata": {
@@ -475,373 +526,6 @@
               "originalName": "credential"
             },
             "defaultValue": "{id: \"\", secret: \"\"}"
-          },
-          "type": {
-            "metadata": {
-              "label": "Variable Type",
-              "description": "Type of the variable"
-            },
-            "types": [
-              {
-                "fieldType": "TYPE",
-                "selected": true
-              }
-            ],
-            "value": "string",
-            "placeholder": "var",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {}
-          },
-          "variable": {
-            "metadata": {
-              "label": "Variable Name",
-              "description": "Name of the variable"
-            },
-            "types": [
-              {
-                "fieldType": "IDENTIFIER",
-                "selected": true
-              }
-            ],
-            "value": "result1",
-            "optional": false,
-            "editable": false,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "lineRange": {
-                "fileName": "agents.bal",
-                "startLine": {
-                  "line": 27,
-                  "offset": 11
-                },
-                "endLine": {
-                  "line": 27,
-                  "offset": 18
-                }
-              }
-            }
-          },
-          "checkError": {
-            "metadata": {
-              "label": "Check Error",
-              "description": "Trigger error flow"
-            },
-            "types": [
-              {
-                "fieldType": "FLAG",
-                "selected": true
-              }
-            ],
-            "value": true,
-            "optional": false,
-            "editable": true,
-            "advanced": true,
-            "hidden": true
-          },
-          "scope": {
-            "metadata": {
-              "label": "Connection Scope",
-              "description": "Scope of the connection, Global or Local"
-            },
-            "types": [
-              {
-                "fieldType": "ENUM",
-                "selected": true
-              }
-            ],
-            "value": "Global",
-            "optional": false,
-            "editable": true,
-            "advanced": true,
-            "hidden": true
-          },
-          "connection": {
-            "metadata": {
-              "label": "Object",
-              "description": "The object which you want to call the method on"
-            },
-            "types": [
-              {
-                "fieldType": "EXPRESSION",
-                "selected": true
-              }
-            ],
-            "value": "chatAgent",
-            "optional": false,
-            "editable": false,
-            "advanced": false,
-            "hidden": false
-          },
-          "td": {
-            "metadata": {
-              "label": "Type Descriptor",
-              "description": "Type descriptor specifying the expected return type format"
-            },
-            "types": [
-              {
-                "fieldType": "SINGLE_SELECT",
-                "options": [
-                  {
-                    "label": "string",
-                    "value": "string"
-                  },
-                  {
-                    "label": "ai:Trace",
-                    "value": "ai:Trace"
-                  }
-                ],
-                "selected": true
-              }
-            ],
-            "value": "string",
-            "placeholder": "ai:Trace|anydata",
-            "optional": true,
-            "editable": true,
-            "advanced": true,
-            "hidden": false,
-            "codedata": {
-              "kind": "PARAM_FOR_TYPE_INFER",
-              "originalName": "td"
-            },
-            "defaultValue": "ai:Trace|anydata"
-          },
-          "query": {
-            "metadata": {
-              "label": "Query",
-              "description": "A query to start a new turn (`string`/`Prompt`), or a `Resume` to continue a paused run"
-            },
-            "types": [
-              {
-                "fieldType": "PROMPT",
-                "ballerinaType": "ai:Prompt",
-                "selected": false
-              },
-              {
-                "fieldType": "RECORD_MAP_EXPRESSION",
-                "ballerinaType": "ai:Resume",
-                "typeMembers": [
-                  {
-                    "type": "Resume",
-                    "packageInfo": "ballerina:ai:1.15.0",
-                    "packageName": "ai",
-                    "kind": "RECORD_TYPE",
-                    "selected": false
-                  }
-                ],
-                "selected": false
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "anydata|ai:Prompt|ai:Resume",
-                "selected": false
-              }
-            ],
-            "value": "\"What's the weather in London?\"",
-            "placeholder": "{}",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "REQUIRED",
-              "originalName": "query"
-            }
-          },
-          "sessionId": {
-            "metadata": {
-              "label": "Session ID",
-              "description": "The ID associated with the agent memory"
-            },
-            "types": [
-              {
-                "fieldType": "TEXT",
-                "ballerinaType": "string",
-                "selected": false
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": false
-              }
-            ],
-            "placeholder": "\"\"",
-            "optional": true,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "DEFAULTABLE",
-              "originalName": "sessionId"
-            },
-            "defaultValue": "\"\""
-          },
-          "context": {
-            "metadata": {
-              "label": "Context",
-              "description": "The additional context that can be used during agent tool execution"
-            },
-            "types": [
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "ai:Context",
-                "selected": false
-              }
-            ],
-            "placeholder": "new ()",
-            "optional": true,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "DEFAULTABLE",
-              "originalName": "context"
-            },
-            "defaultValue": "new ()"
-          }
-        },
-        "flags": 1
-      }
-    ],
-    "connections": [
-      {
-        "id": "49789",
-        "metadata": {
-          "label": "Agent",
-          "description": "Represents an agent.",
-          "icon": "https://bcentral-packageicons.azureedge.net/images/ballerina_ai_1.15.0.png",
-          "data": {
-            "agentInfo": {
-              "systemPrompt": {
-                "instructions": "Help users with weather and time queries.",
-                "role": "\"Assistant\""
-              },
-              "modelProvider": {
-                "presentation": {
-                  "name": "check ai:getDefaultModelProvider()"
-                }
-              }
-            }
-          }
-        },
-        "codedata": {
-          "node": "AGENT",
-          "org": "ballerina",
-          "module": "ai",
-          "packageName": "ai",
-          "object": "Agent",
-          "symbol": "init",
-          "version": "1.15.0",
-          "lineRange": {
-            "fileName": "agents.bal",
-            "startLine": {
-              "line": 18,
-              "offset": 0
-            },
-            "endLine": {
-              "line": 24,
-              "offset": 3
-            }
-          },
-          "sourceCode": "final ai:Agent chatAgent = check new ({\n    systemPrompt: {\n        role: \"Assistant\",\n        instructions: string `Help users with weather and time queries.`\n    },\n    model: check ai:getDefaultModelProvider()\n});"
-        },
-        "returning": false,
-        "properties": {
-          "role": {
-            "metadata": {
-              "label": "Role",
-              "description": "Define the agent's primary function"
-            },
-            "types": [
-              {
-                "fieldType": "PROMPT",
-                "ballerinaType": "string",
-                "selected": false
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": true
-              }
-            ],
-            "value": "\"Assistant\"",
-            "placeholder": "e.g., Customer Support Assistant, Sales Advisor, Data Analyst",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "REQUIRED"
-            },
-            "defaultValue": ""
-          },
-          "instructions": {
-            "metadata": {
-              "label": "Instructions",
-              "description": "Detailed instructions for the agent"
-            },
-            "types": [
-              {
-                "fieldType": "PROMPT",
-                "ballerinaType": "string",
-                "selected": true
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": false
-              }
-            ],
-            "value": "Help users with weather and time queries.",
-            "placeholder": "e.g., You are a friendly assistant. Your goal is to...",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "REQUIRED"
-            },
-            "defaultValue": ""
-          },
-          "config": {
-            "metadata": {
-              "label": "Agent Configuration",
-              "description": "Configuration used to initialize an agent"
-            },
-            "types": [
-              {
-                "fieldType": "RECORD_MAP_EXPRESSION",
-                "ballerinaType": "ai:AgentConfiguration",
-                "typeMembers": [
-                  {
-                    "type": "AgentConfiguration",
-                    "packageInfo": "ballerina:ai:1.15.0",
-                    "packageName": "ai",
-                    "kind": "RECORD_TYPE",
-                    "selected": true
-                  }
-                ],
-                "selected": true
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "ai:AgentConfiguration",
-                "selected": false
-              }
-            ],
-            "value": "{\n    systemPrompt: {\n        role: \"Assistant\",\n        instructions: string `Help users with weather and time queries.`\n    },\n    model: check ai:getDefaultModelProvider()\n}",
-            "placeholder": "{systemPrompt: {role: \"\", instructions: \"\"}, model: object {}}",
-            "optional": true,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "INCLUDED_RECORD",
-              "originalName": "config"
-            }
           },
           "checkError": {
             "metadata": {
@@ -888,21 +572,21 @@
                 "selected": true
               }
             ],
-            "value": "chatAgent",
+            "value": "mathTutorAgent",
             "optional": false,
             "editable": false,
             "advanced": false,
             "hidden": false,
             "codedata": {
               "lineRange": {
-                "fileName": "agents.bal",
+                "fileName": "main.bal",
                 "startLine": {
-                  "line": 18,
+                  "line": 4,
                   "offset": 15
                 },
                 "endLine": {
-                  "line": 18,
-                  "offset": 24
+                  "line": 4,
+                  "offset": 29
                 }
               }
             }
@@ -929,6 +613,7 @@
         },
         "flags": 1
       }
-    ]
+    ],
+    "variables": []
   }
 }
