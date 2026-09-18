@@ -2241,7 +2241,11 @@ export function toIconDescriptor(icon?: string | IconDescriptor): IconDescriptor
     if (icon.light === undefined && icon.dark === undefined) {
         return icon;
     }
-    return { ...icon, light: normalizeSvgDocument(icon.light), dark: normalizeSvgDocument(icon.dark) };
+    return {
+        ...icon,
+        light: normalizeSvgDocument(icon.light) ?? icon.light,
+        dark: normalizeSvgDocument(icon.dark) ?? icon.dark,
+    };
 }
 
 export interface BaseArtifact<T = any> {

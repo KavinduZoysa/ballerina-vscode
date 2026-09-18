@@ -214,11 +214,16 @@ describe("toIconDescriptor", () => {
         });
     });
 
-    it("drops a document with no root element, leaving url/glyph to take over", () => {
-        const descriptor = toIconDescriptor({ url: "https://example.com/ftp.png", light: "", dark });
+    describe.each(["light", "dark"] as const)("%s variant", (variant) => {
+        it.each([undefined, "", "not an SVG", "<!-- unterminated"])(
+            "preserves an unnormalizable value (%s) without losing the other theme",
+            (svg) => {
+                const icon = { light: withPrologue(light), dark: withPrologue(dark), [variant]: svg };
+                const descriptor = toIconDescriptor(icon);
 
-        expect(descriptor?.light).toBeUndefined();
-        expect(descriptor?.dark).toBe(dark);
+                expect(descriptor).toEqual({ light, dark, [variant]: svg });
+            }
+        );
     });
 
     it("reads a bare string as a legacy url", () => {
