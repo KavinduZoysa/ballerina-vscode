@@ -177,6 +177,45 @@ export function autoDistribute(engine: DiagramEngine) {
 }
 
 /**
+ * The `{ item, desiredCenter, height }` that `positionColumnByIncomingLinks` and
+ * `refineNodesByAllLinks` both build for a node before handing it to `resolveMinGapPositions` -
+ * factored out so their shared row-offset math (see the class doc below) only needs fixing in one
+ * place; the two callers differ only in which links they consider "relevant" (incoming-only vs.
+ * every link touching the node) and what they do with the result afterward.
+ *
+ * `node`'s desired center is the average, across `relevantLinks`, of the center that would put
+ * *this* node's own end of that link exactly on the other end's real anchor - each computed via
+ * its own row offset from `getPortAnchorY`, so a link landing on a specific row (not a generic
+ * port) pulls correctly rather than assuming the node's plain center. A node nothing relevant
+ * touches keeps its own current center.
+ */
+function computeDesiredCenterItem(
+    node: NodeModel,
+    relevantLinks: NodeLinkModel[],
+    defaultHeight: number
+): { item: NodeModel; desiredCenter: number; height: number } {
+    const height = node.height || defaultHeight;
+    if (relevantLinks.length === 0) {
+        return { item: node, desiredCenter: node.getY() + height / 2, height };
+    }
+    const nodeBox = getNodeBoundingBox(node);
+    const currentCenter = (nodeBox.top + nodeBox.bottom) / 2;
+    const desiredCenter =
+        relevantLinks.reduce((sum, link) => {
+            const isSource = link.sourceNode === node;
+            const ownPort = isSource ? link.getSourcePort() : link.getTargetPort();
+            const otherNode = isSource ? link.targetNode : link.sourceNode;
+            const otherPort = isSource ? link.getTargetPort() : link.getSourcePort();
+            // How far this link's own row sits from the node's current center - 0 for a generic
+            // in/out port, some real row offset for a specific function/event port.
+            const rowOffset = getPortAnchorY(node, ownPort, nodeBox) - currentCenter;
+            // The center that would put *this* row exactly on the other end's anchor.
+            return sum + (getPortAnchorY(otherNode, otherPort) - rowOffset);
+        }, 0) / relevantLinks.length;
+    return { item: node, desiredCenter, height };
+}
+
+/**
  * Centers every node in `nodes` on the average real anchor Y of whatever links target it (falling
  * back to its current center when nothing does), then stacks them downward wherever two desired
  * centers would otherwise overlap - the same technique `autoDistribute` already uses for
@@ -202,20 +241,7 @@ export function autoDistribute(engine: DiagramEngine) {
 function positionColumnByIncomingLinks(nodes: NodeModel[], links: NodeLinkModel[], x: number, defaultHeight: number) {
     const items = nodes.map((node) => {
         const incomingLinks = links.filter((link) => link.targetNode === node && link.sourceNode && link.sourceNode !== node);
-        if (incomingLinks.length === 0) {
-            return { item: node, desiredCenter: node.getY() + (node.height || defaultHeight) / 2, height: node.height || defaultHeight };
-        }
-        const nodeBox = getNodeBoundingBox(node);
-        const currentCenter = (nodeBox.top + nodeBox.bottom) / 2;
-        const desiredCenter =
-            incomingLinks.reduce((sum, link) => {
-                // How far this link's own arrival row sits from the node's current center - 0 for
-                // the generic in port, some real row offset for a specific event/function port.
-                const rowOffset = getPortAnchorY(node, link.getTargetPort(), nodeBox) - currentCenter;
-                // The center that would put *this* row exactly on the sender's anchor.
-                return sum + (getPortAnchorY(link.sourceNode, link.getSourcePort()) - rowOffset);
-            }, 0) / incomingLinks.length;
-        return { item: node, desiredCenter, height: node.height || defaultHeight };
+        return computeDesiredCenterItem(node, incomingLinks, defaultHeight);
     });
     // Free to reorder: a workflow/connection's vertical sequence carries no meaning of its own,
     // so sorting by desired center first is what lets crossing-minimization actually happen (two
@@ -333,25 +359,7 @@ function refineNodesByAllLinks(nodes: NodeModel[], links: NodeLinkModel[]): void
                 (link.sourceNode === node && link.targetNode && link.targetNode !== node) ||
                 (link.targetNode === node && link.sourceNode && link.sourceNode !== node)
         );
-        const height = node.height || ENTRY_NODE_HEIGHT;
-        if (neighborLinks.length === 0) {
-            return { item: node, desiredCenter: node.getY() + height / 2, height };
-        }
-        const nodeBox = getNodeBoundingBox(node);
-        const currentCenter = (nodeBox.top + nodeBox.bottom) / 2;
-        const desiredCenter =
-            neighborLinks.reduce((sum, link) => {
-                const isSource = link.sourceNode === node;
-                const ownPort = isSource ? link.getSourcePort() : link.getTargetPort();
-                const otherNode = isSource ? link.targetNode : link.sourceNode;
-                const otherPort = isSource ? link.getTargetPort() : link.getSourcePort();
-                // How far this link's own row sits from the node's current center - 0 for a
-                // generic in/out port, some real row offset for a specific function/event port.
-                const rowOffset = getPortAnchorY(node, ownPort, nodeBox) - currentCenter;
-                // The center that would put *this* row exactly on the other end's anchor.
-                return sum + (getPortAnchorY(otherNode, otherPort) - rowOffset);
-            }, 0) / neighborLinks.length;
-        return { item: node, desiredCenter, height };
+        return computeDesiredCenterItem(node, neighborLinks, ENTRY_NODE_HEIGHT);
     });
 
     // Kept in the nodes' EXISTING vertical order (not re-sorted by desiredCenter), so a node
