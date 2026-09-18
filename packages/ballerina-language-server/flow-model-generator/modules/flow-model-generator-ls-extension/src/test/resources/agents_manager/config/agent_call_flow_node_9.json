@@ -112,6 +112,62 @@
         },
         "returning": false,
         "properties": {
+          "role": {
+            "metadata": {
+              "label": "Role",
+              "description": "Define the agent's primary function"
+            },
+            "types": [
+              {
+                "fieldType": "PROMPT",
+                "ballerinaType": "string",
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string",
+                "selected": true
+              }
+            ],
+            "value": "\"Assistant\"",
+            "placeholder": "e.g., Customer Support Assistant, Sales Advisor, Data Analyst",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "DEFAULTABLE"
+            },
+            "defaultValue": ""
+          },
+          "instructions": {
+            "metadata": {
+              "label": "Instructions",
+              "description": "Detailed instructions for the agent"
+            },
+            "types": [
+              {
+                "fieldType": "PROMPT",
+                "ballerinaType": "string",
+                "selected": true
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string",
+                "selected": false
+              }
+            ],
+            "value": "Help users with weather and time queries.",
+            "placeholder": "e.g., You are a friendly assistant. Your goal is to...",
+            "optional": true,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "DEFAULTABLE"
+            },
+            "defaultValue": ""
+          },
           "systemPrompt": {
             "metadata": {
               "label": "System Prompt",
@@ -503,62 +559,6 @@
             "advanced": true,
             "hidden": true
           },
-          "role": {
-            "metadata": {
-              "label": "Role",
-              "description": "Define the agent's primary function"
-            },
-            "types": [
-              {
-                "fieldType": "PROMPT",
-                "ballerinaType": "string",
-                "selected": false
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": true
-              }
-            ],
-            "value": "\"Assistant\"",
-            "placeholder": "e.g., Customer Support Assistant, Sales Advisor, Data Analyst",
-            "optional": true,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "DEFAULTABLE"
-            },
-            "defaultValue": ""
-          },
-          "instructions": {
-            "metadata": {
-              "label": "Instructions",
-              "description": "Detailed instructions for the agent"
-            },
-            "types": [
-              {
-                "fieldType": "PROMPT",
-                "ballerinaType": "string",
-                "selected": true
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": false
-              }
-            ],
-            "value": "Help users with weather and time queries.",
-            "placeholder": "e.g., You are a friendly assistant. Your goal is to...",
-            "optional": true,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "DEFAULTABLE"
-            },
-            "defaultValue": ""
-          },
           "connection": {
             "metadata": {
               "label": "Object",
@@ -615,6 +615,11 @@
               "description": "A query to start a new turn (`string`/`Prompt`), or a `Resume` to continue a paused run"
             },
             "types": [
+              {
+                "fieldType": "PROMPT",
+                "ballerinaType": "ai:Prompt",
+                "selected": false
+              },
               {
                 "fieldType": "RECORD_MAP_EXPRESSION",
                 "ballerinaType": "ai:Resume",
@@ -745,6 +750,62 @@
         },
         "returning": false,
         "properties": {
+          "role": {
+            "metadata": {
+              "label": "Role",
+              "description": "Define the agent's primary function"
+            },
+            "types": [
+              {
+                "fieldType": "PROMPT",
+                "ballerinaType": "string",
+                "selected": false
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string",
+                "selected": true
+              }
+            ],
+            "value": "\"Assistant\"",
+            "placeholder": "e.g., Customer Support Assistant, Sales Advisor, Data Analyst",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "REQUIRED"
+            },
+            "defaultValue": ""
+          },
+          "instructions": {
+            "metadata": {
+              "label": "Instructions",
+              "description": "Detailed instructions for the agent"
+            },
+            "types": [
+              {
+                "fieldType": "PROMPT",
+                "ballerinaType": "string",
+                "selected": true
+              },
+              {
+                "fieldType": "EXPRESSION",
+                "ballerinaType": "string",
+                "selected": false
+              }
+            ],
+            "value": "Help users with weather and time queries.",
+            "placeholder": "e.g., You are a friendly assistant. Your goal is to...",
+            "optional": false,
+            "editable": true,
+            "advanced": false,
+            "hidden": false,
+            "codedata": {
+              "kind": "REQUIRED"
+            },
+            "defaultValue": ""
+          },
           "config": {
             "metadata": {
               "label": "Agent Configuration",
@@ -815,62 +876,6 @@
             "editable": true,
             "advanced": true,
             "hidden": true
-          },
-          "role": {
-            "metadata": {
-              "label": "Role",
-              "description": "Define the agent's primary function"
-            },
-            "types": [
-              {
-                "fieldType": "PROMPT",
-                "ballerinaType": "string",
-                "selected": false
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": true
-              }
-            ],
-            "value": "\"Assistant\"",
-            "placeholder": "e.g., Customer Support Assistant, Sales Advisor, Data Analyst",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "REQUIRED"
-            },
-            "defaultValue": ""
-          },
-          "instructions": {
-            "metadata": {
-              "label": "Instructions",
-              "description": "Detailed instructions for the agent"
-            },
-            "types": [
-              {
-                "fieldType": "PROMPT",
-                "ballerinaType": "string",
-                "selected": true
-              },
-              {
-                "fieldType": "EXPRESSION",
-                "ballerinaType": "string",
-                "selected": false
-              }
-            ],
-            "value": "Help users with weather and time queries.",
-            "placeholder": "e.g., You are a friendly assistant. Your goal is to...",
-            "optional": false,
-            "editable": true,
-            "advanced": false,
-            "hidden": false,
-            "codedata": {
-              "kind": "REQUIRED"
-            },
-            "defaultValue": ""
           },
           "variable": {
             "metadata": {

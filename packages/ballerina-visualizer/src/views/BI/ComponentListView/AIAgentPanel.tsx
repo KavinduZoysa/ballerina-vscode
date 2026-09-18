@@ -33,7 +33,7 @@ import ButtonCard from "../../../components/ButtonCard";
 import { AI_CHAT_AGENT_CARD, ARTIFACT_CATEGORY_META, DURABLE_AGENT_CARD } from "../components/artifactCards";
 import { cardMatchesSearch, isBetaModule, OutOfScopeComponentTooltip } from "./componentListUtils";
 import { RelativeLoader } from "../../../components/RelativeLoader";
-import { getEntryNodeIcon } from "./EventIntegrationPanel";
+import { getIntegrationIcon } from "./integrationIcon";
 import { effectiveTriggerKind } from "./triggerKind";
 
 interface AIAgentPanelProps {
@@ -130,7 +130,7 @@ export function AIAgentPanel(props: AIAgentPanelProps) {
                         id={`trigger-${item.moduleName.replace(/\./g, "-")}`}
                         key={item.id}
                         title={item.name}
-                        icon={getEntryNodeIcon(item)}
+                        icon={getIntegrationIcon(item)}
                         onClick={() => handleMcpClick(DIRECTORY_MAP.SERVICE, item)}
                         disabled={isDisabled}
                         tooltip={isDisabled ? OutOfScopeComponentTooltip : ""}
