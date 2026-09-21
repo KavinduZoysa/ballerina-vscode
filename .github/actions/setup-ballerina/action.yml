@@ -61,6 +61,6 @@ runs:
         echo "version=${version}" >> "$GITHUB_OUTPUT"
 
     - name: Install Ballerina
-      uses: ballerina-platform/setup-ballerina@97fd67111e3c3ecdfafff96fc24d95ad909ab299 # v1.1.4
+      uses: ballerina-platform/setup-ballerina@585120e3f0e540bf127376ee6e75d39e8ce6aaa4 # v1.1.5
       with:
         version: ${{ inputs.distributionVersion || steps.version.outputs.version }}
