@@ -255,12 +255,11 @@ the suite are still Linux-only — a `zip` shell-out for failure snapshots, a `b
 does not resolve `bal.bat`, a hard-coded `/tmp` path in one spec, and `SIGKILL` teardown that leaves
 Windows file locks behind. Those are tracked separately.
 
-There are four places that let Windows through, and making it a gate means reverting all four: the
-`continue-on-error` expression on the `E2E` job, the `windows` branch in `Report`'s download loop,
-the `windows` branch in `Report`'s aggregation loop, and the `runner.os != 'Windows'` guard on
-`run-e2e-group`'s re-run step — a gating platform wants the failed-serial-block pass back. That guard
-pairs with the `Surface Windows first-attempt failure` step just above it, which exists only because
-the guard removes the one step that would otherwise fail the job; drop both together.
+There are three places that let Windows through, and making it a gate means reverting all three: the
+`continue-on-error` expression on the `E2E` job, the `windows` branch in `Report`'s download loop, and
+the `windows` branch in `Report`'s aggregation loop. (`run-e2e-group`'s re-run step and its
+`Surface first-attempt failure` guard are no longer Windows-specific — see below — so they don't need
+reverting to gate on Windows specifically.)
 
 **The Windows legs run with `BI_E2E_RETRIES: 0`.** `playwright.config.js` otherwise retries a failed
 test twice, and the suite is serial (`workers: 1`) with a 20-minute per-test timeout — so while the
@@ -272,14 +271,21 @@ failure until retries are turned back on. `maxFailures: 10` is deliberately left
 a badly-failing group early, which is what keeps a leg inside the job timeout and producing an
 artifact at all.
 
-Two things follow from zero retries. `run-e2e-group`'s failed-serial-block re-run is a second whole
-invocation whose condition is independent of the retry count, so on Windows it is skipped on a first
-attempt — it would re-execute up to ten platform failures against what is left of the 60-minute
-budget, which is the cost zero retries removes from the first pass. It still runs on a manual
-"Re-run failed jobs", the resume path it exists for. And `trace: 'on-first-retry'` captures nothing
-when nothing is retried, so the Windows legs set `BI_E2E_TRACE: retain-on-first-failure`; the trace
-is the only one of the three diagnostics that depends on a retry, since the screenshots and video are
-the suite's own.
+One thing follows from zero retries specifically: `trace: 'on-first-retry'` captures nothing when
+nothing is retried, so the Windows legs set `BI_E2E_TRACE: retain-on-first-failure`; the trace is the
+only one of the three diagnostics that depends on a retry, since the screenshots and video are the
+suite's own.
+
+`run-e2e-group`'s re-run step (replaying any failing `test.describe.serial()` block — see
+`extract-failed-serial-groups.js`) is a second whole invocation that is *not* run automatically on
+either platform, independent of the retry count: a failing block already spent 3 tries on Linux
+(`playwright.config.js` `retries: 2`) and 1 on Windows (`BI_E2E_RETRIES: 0`) inside the first attempt,
+so an automatic re-run would spend what's left of the 60-minute budget re-covering ground retries
+already covered, for up to ten failing blocks under `maxFailures: 10`. It only runs on a manual
+"Re-run failed jobs" (`check-results` success), the resume path it exists for and where there is no
+in-run retry history to lean on instead. The `Surface first-attempt failure` step just above it exists
+because that resume-only condition removes the one step that would otherwise fail the job on a genuine
+first-attempt failure; the two are a pair — drop them together if this design changes.
 
 **Handles GitHub's "Re-run failed jobs" across the whole pipeline.** A matrix group can be
 re-run independently, advancing only its own `github.run_attempt`; `run-e2e-group` restores the

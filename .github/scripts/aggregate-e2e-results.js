@@ -192,11 +192,14 @@ function aggregate(rootDir, expectedGroups) {
       if (isPassed) passed += 1;
       else if (isSkipped) skipped += 1;
       else failed += 1;
-      // Flakiness is derived from the merged attempt history rather than either report
-      // file's own test.status: a test re-run as part of its failing serial block spans
-      // two separate Playwright invocations, so no single file's status reflects the
-      // merged outcome.
-      if (isPassed && attempts > 1) flaky += 1;
+      // Flakiness means THIS test failed on an earlier attempt before finally passing —
+      // not just that it has more than one attempt. Since a whole test.describe.serial()
+      // block is replayed (not just the one failed test), a sibling test that already
+      // passed gets swept into the re-run's report too, giving it a second 'passed'
+      // result with no failure anywhere in its own history; attempts > 1 alone would
+      // wrongly count that sibling as flaky.
+      const hadEarlierFailure = test.results.slice(0, -1).some((r) => r.status !== 'passed');
+      if (isPassed && hadEarlierFailure) flaky += 1;
 
       const errorLines = test.results
         .map((r, i) => {

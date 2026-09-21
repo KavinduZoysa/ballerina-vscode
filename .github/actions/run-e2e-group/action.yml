@@ -84,25 +84,29 @@ runs:
         xvfb-run --server-num 98.0 -s "-ac -screen 0 1920x1080x24" bash -c 'ffmpeg -y -nostdin -f x11grab -r 30 -s 1920x1080 -i :98.0 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -hide_banner -loglevel error record.mp4 & pnpm exec playwright test -c e2e-test/playwright.config.js --grep "$TEST_GROUP"'
 
     # The first-attempt step is continue-on-error, and the re-run below — the only step
-    # that turns a test failure into a job failure — is skipped on Windows. Without this,
-    # no Windows step ever fails, the job-level continue-on-error never fires, and
-    # removing that expression to start gating would change nothing. Re-asserting the
-    # outcome here keeps the four reversions in the README order-independent. Remove this
-    # together with the re-run guard below.
-    - name: Surface Windows first-attempt failure
+    # that turns a test failure into a job failure — now only runs on the manual re-run
+    # resume path (check-results success), on both platforms: a failing block already ran
+    # 3 times inside the first attempt on Linux (playwright.config.js retries: 2) and once
+    # on Windows (BI_E2E_RETRIES: 0), so without this, no step ever fails on a genuine
+    # first-attempt failure and the job-level continue-on-error never fires. Re-asserting
+    # the outcome here keeps the reversions listed in the README's "Windows runs but does
+    # not gate" section order-independent. Remove this together with the re-run guard below.
+    - name: Surface first-attempt failure
       shell: bash
-      if: runner.os == 'Windows' && steps.run-tests-first.outcome == 'failure'
+      if: steps.run-tests-first.outcome == 'failure'
       run: exit 1
 
-    # Not run automatically on Windows: with maxFailures 10 and a 20-minute per-test
-    # timeout, a second pass rerunning failed serial blocks over platform failures can
-    # spend what is left of the 60-minute budget and get the leg killed before it uploads
-    # anything, which is the same cost BI_E2E_RETRIES: 0 removes from the first attempt.
-    # The re-run still happens on a manual "Re-run failed jobs" (check-results success),
-    # which is the resume path it exists for.
+    # Not run automatically on either platform: replaying a whole failed
+    # test.describe.serial() block (see extract-failed-serial-groups.js) on top of the
+    # retries the first attempt already spent on it — 3 total tries on Linux
+    # (playwright.config.js retries: 2), 1 on Windows (BI_E2E_RETRIES: 0) — would spend
+    # what's left of the 60-minute job budget on failures retries already covered, and a
+    # leg killed by that timeout uploads no artifact at all. The re-run still happens on a
+    # manual "Re-run failed jobs" (check-results success), which is the resume path it
+    # exists for and where there is no in-run retry history to lean on instead.
     - name: Run Failed Ballerina e2e Test (Re-run)
       shell: bash
-      if: (steps.run-tests-first.outcome == 'failure' && runner.os != 'Windows') || steps.check-results.outcome == 'success'
+      if: steps.check-results.outcome == 'success'
       env:
         # run_attempt-suffixed so a second re-run doesn't overwrite the first's report.
         PLAYWRIGHT_JSON_OUTPUT_FILE: e2e-reports/e2e-results-rerun-${{ github.run_attempt }}.json
@@ -113,15 +117,11 @@ runs:
         # earlier steps in its test.describe.serial() block that built the tree/webview/
         # project state it depends on. Instead, find which serial block(s) had a failure
         # in the latest report and grep for (this matrix group) AND (one of those block
-        # titles), so each failing block reruns in full, from its own beforeAll.
-        FAILED_GROUPS=$(node .github/scripts/extract-failed-serial-groups.js packages/ballerina-extension/e2e-reports)
-        if [ -n "$FAILED_GROUPS" ]; then
-          export RERUN_GREP="(?=.*$TEST_GROUP)(?=.*($FAILED_GROUPS))"
-        else
-          # Couldn't identify which block(s) failed (e.g. an unreadable report) — fall
-          # back to the whole matrix group rather than silently rerunning nothing.
-          export RERUN_GREP="$TEST_GROUP"
-        fi
+        # titles), so each failing block reruns in full, from its own beforeAll. The
+        # script always prints a valid --grep value (falling back to just the escaped
+        # group when it can't identify a failing block) and never throws, so this can't
+        # abort the step under bash's default -e.
+        export RERUN_GREP=$(node .github/scripts/extract-failed-serial-groups.js packages/ballerina-extension/e2e-reports "$TEST_GROUP")
         rm -rf packages/ballerina-extension/e2e-test/data/new-project
         if [ "$RUNNER_OS" = "Windows" ]; then
           cd packages/ballerina-extension
