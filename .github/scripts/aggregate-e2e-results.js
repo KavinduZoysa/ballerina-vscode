@@ -9,7 +9,7 @@
 // unreadable files would otherwise produce nonsensical totals like "Total: 0 · Failed: 2".
 //
 // A group can produce more than one report file: run-e2e-group runs a first attempt,
-// then re-runs just the failed subset (`--last-failed`) into a second file (see
+// then re-runs any failing test.describe.serial() block into a second file (see
 // PLAYWRIGHT_JSON_OUTPUT_FILE in .github/actions/run-e2e-group/action.yml). Both are
 // full Playwright JSON reports, so per-test results across the group's files are merged
 // here rather than letting the later file silently replace the earlier one.
@@ -193,8 +193,9 @@ function aggregate(rootDir, expectedGroups) {
       else if (isSkipped) skipped += 1;
       else failed += 1;
       // Flakiness is derived from the merged attempt history rather than either report
-      // file's own test.status: a test re-run via --last-failed spans two separate
-      // Playwright invocations, so no single file's status reflects the merged outcome.
+      // file's own test.status: a test re-run as part of its failing serial block spans
+      // two separate Playwright invocations, so no single file's status reflects the
+      // merged outcome.
       if (isPassed && attempts > 1) flaky += 1;
 
       const errorLines = test.results

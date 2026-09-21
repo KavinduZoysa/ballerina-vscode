@@ -1,7 +1,8 @@
 name: 'Run E2E test group'
 description: >-
   Runs one matrix group of the Ballerina e2e Playwright suite (first attempt, then a
-  --last-failed re-run if needed) and uploads its results/recordings/project-data
+  re-run of any failed test.describe.serial() block if needed) and uploads its
+  results/recordings/project-data
   artifacts. Runs on both Linux and Windows runners; every artifact name carries the
   platform so the two legs never collide. Shared by reusable-build.yml's BalE2ETest job
   and e2e-scheduled.yml's E2E job — see "Scheduled E2E testing" in
@@ -94,11 +95,11 @@ runs:
       run: exit 1
 
     # Not run automatically on Windows: with maxFailures 10 and a 20-minute per-test
-    # timeout, a second --last-failed pass over platform failures can spend what is left
-    # of the 60-minute budget and get the leg killed before it uploads anything, which is
-    # the same cost BI_E2E_RETRIES: 0 removes from the first attempt. The re-run still
-    # happens on a manual "Re-run failed jobs" (check-results success), which is the
-    # resume path it exists for.
+    # timeout, a second pass rerunning failed serial blocks over platform failures can
+    # spend what is left of the 60-minute budget and get the leg killed before it uploads
+    # anything, which is the same cost BI_E2E_RETRIES: 0 removes from the first attempt.
+    # The re-run still happens on a manual "Re-run failed jobs" (check-results success),
+    # which is the resume path it exists for.
     - name: Run Failed Ballerina e2e Test (Re-run)
       shell: bash
       if: (steps.run-tests-first.outcome == 'failure' && runner.os != 'Windows') || steps.check-results.outcome == 'success'
@@ -108,16 +109,29 @@ runs:
         # See the first-attempt step for why this is an env var and not an interpolation.
         TEST_GROUP: ${{ inputs.group }}
       run: |
+        # `--last-failed` would replay only the individually-failed test, skipping the
+        # earlier steps in its test.describe.serial() block that built the tree/webview/
+        # project state it depends on. Instead, find which serial block(s) had a failure
+        # in the latest report and grep for (this matrix group) AND (one of those block
+        # titles), so each failing block reruns in full, from its own beforeAll.
+        FAILED_GROUPS=$(node .github/scripts/extract-failed-serial-groups.js packages/ballerina-extension/e2e-reports)
+        if [ -n "$FAILED_GROUPS" ]; then
+          export RERUN_GREP="(?=.*$TEST_GROUP)(?=.*($FAILED_GROUPS))"
+        else
+          # Couldn't identify which block(s) failed (e.g. an unreadable report) — fall
+          # back to the whole matrix group rather than silently rerunning nothing.
+          export RERUN_GREP="$TEST_GROUP"
+        fi
         rm -rf packages/ballerina-extension/e2e-test/data/new-project
         if [ "$RUNNER_OS" = "Windows" ]; then
           cd packages/ballerina-extension
-          pnpm exec playwright test -c e2e-test/playwright.config.js --grep "$TEST_GROUP" --last-failed
+          pnpm exec playwright test -c e2e-test/playwright.config.js --grep "$RERUN_GREP"
           exit
         fi
         export $(dbus-launch)
         export DISPLAY=:98.0
         cd packages/ballerina-extension
-        xvfb-run --server-num 98.0 -s "-ac -screen 0 1920x1080x24" bash -c 'ffmpeg -y -nostdin -f x11grab -r 30 -s 1920x1080 -i :98.0 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -hide_banner -loglevel error record.mp4 & pnpm exec playwright test -c e2e-test/playwright.config.js --grep "$TEST_GROUP" --last-failed'
+        xvfb-run --server-num 98.0 -s "-ac -screen 0 1920x1080x24" bash -c 'ffmpeg -y -nostdin -f x11grab -r 30 -s 1920x1080 -i :98.0 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -hide_banner -loglevel error record.mp4 & pnpm exec playwright test -c e2e-test/playwright.config.js --grep "$RERUN_GREP"'
 
     - name: Upload Ballerina e2e Test results
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

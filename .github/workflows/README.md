@@ -258,7 +258,7 @@ Windows file locks behind. Those are tracked separately.
 There are four places that let Windows through, and making it a gate means reverting all four: the
 `continue-on-error` expression on the `E2E` job, the `windows` branch in `Report`'s download loop,
 the `windows` branch in `Report`'s aggregation loop, and the `runner.os != 'Windows'` guard on
-`run-e2e-group`'s re-run step — a gating platform wants the `--last-failed` pass back. That guard
+`run-e2e-group`'s re-run step — a gating platform wants the failed-serial-block pass back. That guard
 pairs with the `Surface Windows first-attempt failure` step just above it, which exists only because
 the guard removes the one step that would otherwise fail the job; drop both together.
 
@@ -272,7 +272,7 @@ failure until retries are turned back on. `maxFailures: 10` is deliberately left
 a badly-failing group early, which is what keeps a leg inside the job timeout and producing an
 artifact at all.
 
-Two things follow from zero retries. `run-e2e-group`'s `--last-failed` re-run is a second whole
+Two things follow from zero retries. `run-e2e-group`'s failed-serial-block re-run is a second whole
 invocation whose condition is independent of the retry count, so on Windows it is skipped on a first
 attempt — it would re-execute up to ten platform failures against what is left of the 60-minute
 budget, which is the cost zero retries removes from the first pass. It still runs on a manual
@@ -283,7 +283,8 @@ the suite's own.
 
 **Handles GitHub's "Re-run failed jobs" across the whole pipeline.** A matrix group can be
 re-run independently, advancing only its own `github.run_attempt`; `run-e2e-group` restores the
-previous attempt's `.last-run.json` to resume `--last-failed` targeting, and deliberately keeps
+previous attempt's `e2e-results*.json` report so `extract-failed-serial-groups.js` can resume
+targeting the same failing serial block(s), and deliberately keeps
 (does not discard) the restored `e2e-reports/` report — a re-run is a continuation of the same
 logical test run, so a test's full attempt history across it (failures before the re-run, plus
 the re-run's own attempts) is what should be recorded, not just the re-run's small subset. Each
@@ -448,7 +449,7 @@ configured.
 | `ls-test` | `reusable-build.yml`, `schedule.yml` — runs the LS gradle suite, then aggregates and uploads coverage (see [Language server test coverage](#language-server-test-coverage)) |
 | `updateVersion` | `build`, `schedule.yml` — resolves and writes the version in the extension manifest |
 | `resolve-source-branch` | `schedule.yml` — the latest-`staging/*`-else-`main` resolution described under [The nightly branch](#the-nightly-branch) |
-| `run-e2e-group` | `reusable-build.yml`, `e2e-scheduled.yml` — runs one matrix group of the E2E suite (first attempt + `--last-failed` re-run) on a Linux or Windows runner and uploads its artifacts under a platform-tagged name; see [Scheduled E2E testing](#scheduled-e2e-testing) |
+| `run-e2e-group` | `reusable-build.yml`, `e2e-scheduled.yml` — runs one matrix group of the E2E suite (first attempt + re-run of any failed `test.describe.serial()` block) on a Linux or Windows runner and uploads its artifacts under a platform-tagged name; see [Scheduled E2E testing](#scheduled-e2e-testing) |
 | `release` | `release-pre-release.yml` — owns everything that materialises a release: the version commit, `release/<version>`, the tag, the GitHub release and its assets |
 | `pr` | `release-pre-release.yml` — opens the follow-up pull requests (release PR into `X.Y.x`, next-snapshot PR into `main`) + Google Chat notification |
 | `dailyBuildNotification` | `schedule.yml` — success chat notification |
