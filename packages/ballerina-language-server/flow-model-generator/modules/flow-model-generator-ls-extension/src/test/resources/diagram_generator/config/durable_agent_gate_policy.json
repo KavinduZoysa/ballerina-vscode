@@ -76,7 +76,7 @@
                 },
                 "values": {
                   "activity": "chargeCard",
-                  "description": "Charges the card",
+                  "description": "\"Charges the card\"",
                   "approvalPolicy": "HumanApproval",
                   "approvalUserRoles": "[\"manager\"]",
                   "approvalUsers": "\"alice\"",

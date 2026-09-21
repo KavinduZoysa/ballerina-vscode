@@ -99,9 +99,9 @@
                   }
                 },
                 "values": {
-                  "taskName": "approveItinerary",
-                  "userRoles": "travel-lead",
-                  "title": "Approve the itinerary"
+                  "taskName": "\"approveItinerary\"",
+                  "userRoles": "\"travel-lead\"",
+                  "title": "\"Approve the itinerary\""
                 }
               }
             ],
@@ -122,7 +122,7 @@
                   }
                 },
                 "values": {
-                  "name": "hotelResults",
+                  "name": "\"hotelResults\"",
                   "requestType": "json",
                   "responseType": "string"
                 }
@@ -145,7 +145,7 @@
                 },
                 "values": {
                   "agent": "hotelAgent",
-                  "description": "Hotel research"
+                  "description": "\"Hotel research\""
                 }
               }
             ],

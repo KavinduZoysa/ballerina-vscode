@@ -143,6 +143,7 @@ import io.ballerina.flowmodelgenerator.core.model.Property;
 import io.ballerina.flowmodelgenerator.core.model.node.ActivityCallBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.AgentBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.AgentCallBuilder;
+import io.ballerina.flowmodelgenerator.core.model.node.AgentRunBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.ApprovalPolicyForm;
 import io.ballerina.flowmodelgenerator.core.model.node.AssignBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.BinaryBuilder;
@@ -181,6 +182,7 @@ import io.ballerina.flowmodelgenerator.core.model.node.VariableBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.VectorStoreBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.WaitBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.WaitDataBuilder;
+import io.ballerina.flowmodelgenerator.core.model.node.WorkflowContextFunctionBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.WorkflowRunBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.XmlPayloadBuilder;
 import io.ballerina.flowmodelgenerator.core.model.node.builtin.BuiltinActivityStrategy;
@@ -606,9 +608,13 @@ public class CodeAnalyzer extends NodeVisitor {
             if (initAssignment.isPresent()) {
                 Optional<ImplicitNewExpressionNode> newExprOpt = getNewExpr(initAssignment.get().expression());
                 if (newExprOpt.isPresent()) {
+                    ImplicitNewExpressionNode implicitNewExpr = newExprOpt.get();
                     agentData.put(Property.SCOPE_KEY,
                             new AiUtils.AgentPropertyValue(Property.SERVICE_INIT_SCOPE, Property.ValueType.EXPRESSION));
-                    genAgentData(newExprOpt.get(), classSymbol, agentData, true);
+                    SeparatedNodeList<FunctionArgumentNode> argumentNodes = implicitNewExpr.parenthesizedArgList()
+                            .map(ParenthesizedArgList::arguments)
+                            .orElse(null);
+                    genAgentData(implicitNewExpr, argumentNodes, classSymbol, agentData, true);
                 }
             }
         } else {
@@ -647,9 +653,13 @@ public class CodeAnalyzer extends NodeVisitor {
                     scopeNode = scopeNode.parent();
                 }
                 Optional<ImplicitNewExpressionNode> newExpressionNodeOpt = getNewExpr(initializerExpr);
-                newExpressionNodeOpt.ifPresent(
-                        implicitNewExpressionNode -> genAgentData(implicitNewExpressionNode, classSymbol, agentData,
-                                true));
+                newExpressionNodeOpt.ifPresent(implicitNewExpressionNode -> {
+                    SeparatedNodeList<FunctionArgumentNode> argumentNodes = implicitNewExpressionNode
+                            .parenthesizedArgList()
+                            .map(ParenthesizedArgList::arguments)
+                            .orElse(null);
+                    genAgentData(implicitNewExpressionNode, argumentNodes, classSymbol, agentData, true);
+                });
             }
         }
     }
@@ -738,10 +748,10 @@ public class CodeAnalyzer extends NodeVisitor {
         return Optional.empty();
     }
 
-    private void genAgentData(ImplicitNewExpressionNode newExpressionNode, ClassSymbol classSymbol,
+    private void genAgentData(NewExpressionNode newExpressionNode,
+                              SeparatedNodeList<FunctionArgumentNode> argumentNodes, ClassSymbol classSymbol,
                               Map<String, AiUtils.AgentPropertyValue> agentData, boolean includeCallProperties) {
-        Optional<ParenthesizedArgList> argList = newExpressionNode.parenthesizedArgList();
-        if (argList.isEmpty()) {
+        if (argumentNodes == null) {
             return;
         }
         ExpressionNode toolsArg = null;
@@ -750,7 +760,7 @@ public class CodeAnalyzer extends NodeVisitor {
         ExpressionNode memory = null;
         Map<String, Object> agentInfo = new HashMap<>();
 
-        for (FunctionArgumentNode arg : argList.get().arguments()) {
+        for (FunctionArgumentNode arg : argumentNodes) {
             if (arg instanceof NamedArgumentNode namedArgumentNode) {
                 String argumentName = namedArgumentNode.argumentName().name().text();
                 switch (argumentName) {
@@ -1031,6 +1041,68 @@ public class CodeAnalyzer extends NodeVisitor {
         boolean hasCheck = parentKind == SyntaxKind.CHECK_ACTION
                 || parentKind == SyntaxKind.CHECK_EXPRESSION;
         nodeBuilder.properties().checkError(hasCheck);
+    }
+
+    /**
+     * Populates node properties for a context utility function call such as
+     * {@code ctx.currentTime()}, so it reads back as the node the palette writes. The variable
+     * name is set here, which keeps the generic type/variable handling away from a form that has
+     * only a name.
+     */
+    private void populateContextFunctionProperties(MethodCallExpressionNode callNode,
+                                                   WorkflowContextFunctionBuilder.FunctionSpec spec) {
+        nodeBuilder
+                .metadata()
+                    .label(spec.label())
+                    .description(spec.description())
+                    .stepOut()
+                .codedata()
+                    .node(spec.kind())
+                    .org(WORKFLOW_ORG)
+                    .module(WORKFLOW_MODULE)
+                    .object(CONTEXT_CLASS_NAME)
+                    .symbol(spec.methodName());
+
+        AssignmentStatementNode assignment = this.typedBindingPatternNode == null
+                ? enclosingAssignment(callNode) : null;
+        WorkflowContextFunctionBuilder.addVariableProperty(nodeBuilder, assignment == null
+                ? this.typedBindingPatternNode.bindingPattern().toSourceCode().strip()
+                : CommonUtils.getVariableName(assignment.varRef()));
+        if (assignment != null) {
+            WorkflowContextFunctionBuilder.addAssignmentProperty(nodeBuilder);
+        }
+
+        if (spec.takesTaskName()) {
+            ExpressionNode taskName = callNode.arguments().isEmpty() ? null
+                    : argumentExpression(callNode.arguments().get(0));
+            boolean literal = taskName != null && taskName.kind() == SyntaxKind.STRING_LITERAL;
+            String value = taskName == null ? ""
+                    : (literal ? WorkflowUtil.stringLiteralText(taskName.toSourceCode().trim())
+                            : taskName.toSourceCode().trim());
+            WorkflowContextFunctionBuilder.addTaskNameProperty(nodeBuilder, value, taskName != null && !literal);
+        }
+    }
+
+    // The assignment a call is the right-hand side of, or null when it is not in one. The walk
+    // stops at the enclosing statement so a call nested in something else is not claimed.
+    private static AssignmentStatementNode enclosingAssignment(MethodCallExpressionNode callNode) {
+        for (Node parent = callNode.parent(); parent != null; parent = parent.parent()) {
+            if (parent instanceof AssignmentStatementNode assignment) {
+                return assignment;
+            }
+            if (parent instanceof StatementNode) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    // The expression a call argument carries, whichever way it was written.
+    private static ExpressionNode argumentExpression(FunctionArgumentNode argument) {
+        if (argument instanceof PositionalArgumentNode positional) {
+            return positional.expression();
+        }
+        return argument instanceof NamedArgumentNode named ? named.expression() : null;
     }
 
     // Object-model durable agent: builds the node for `<agentVar>.run(...)` and renders the
@@ -1646,18 +1718,11 @@ public class CodeAnalyzer extends NodeVisitor {
                     String propertyKey = fieldToPropertyKey.get(fieldName);
                     if (propertyKey != null) {
                         // The cardinality enum may be module-qualified in source (workflow:SINGLE_EVENT);
-                        // the form's select options carry the bare enum names. String-literal values
-                        // of text-mode fields (name/title/description/roles) hydrate unquoted so the
-                        // form shows the text, not its source syntax.
-                        String value;
-                        if ("cardinality".equals(fieldName)) {
-                            value = WorkflowUtil.stripModulePrefix(rawValue);
-                        } else if (TEXT_MODE_CAPABILITY_FIELDS.contains(fieldName)) {
-                            value = stripQuotes(rawValue);
-                        } else {
-                            value = rawValue;
-                        }
-                        values.put(propertyKey, value);
+                        // the form's select options carry the bare enum names. Every other field
+                        // hydrates as source, so the form can tell a reference from the text that
+                        // spells it the same and pick the field's mode accordingly.
+                        values.put(propertyKey, "cardinality".equals(fieldName)
+                                ? WorkflowUtil.stripModulePrefix(rawValue) : rawValue);
                     }
                     if ("name".equals(fieldName)) {
                         declaredName = WorkflowUtil.capabilityName(rawValue);
@@ -1684,7 +1749,10 @@ public class CodeAnalyzer extends NodeVisitor {
                                           List<AgentCapabilityData> out) {
         for (WorkflowUtil.CapabilityEntry entry : WorkflowUtil.capabilityEntries(mapping)) {
             Map<String, String> values = new LinkedHashMap<>();
-            values.put(fieldToPropertyKey.getOrDefault("name", "name"), entry.name());
+            // The key is the name, already unquoted. Every value here is source, so it goes back
+            // as the literal it was, or the form would read it as a reference.
+            values.put(fieldToPropertyKey.getOrDefault("name", "name"),
+                    WorkflowUtil.stringLiteral(entry.name()));
             if (entry.config() != null) {
                 collectCapabilityFields(entry.config(), capabilityType, refField, fieldToPropertyKey, values);
             }
@@ -1719,20 +1787,17 @@ public class CodeAnalyzer extends NodeVisitor {
                 values.put(propertyKey, WorkflowUtil.stripModulePrefix(rawValue));
             } else if (ROLE_FIELDS.contains(fieldName)) {
                 // `userRoles: ()` says "only the named users decide"; the roles box stays empty for it.
-                values.put(propertyKey, nilAsBlank(stripQuotes(rawValue)));
-            } else if (TEXT_MODE_CAPABILITY_FIELDS.contains(fieldName)) {
-                values.put(propertyKey, stripQuotes(rawValue));
+                values.put(propertyKey, nilAsBlank(rawValue));
             } else {
+                // Source, one convention for every field: the form decides the mode from it, and a
+                // value decoded here would reach a dual-mode field with no way to tell a reference
+                // from the text that spells it the same.
                 values.put(propertyKey, rawValue);
             }
         }
     }
 
     private static final Set<String> ROLE_FIELDS = Set.of("roles", "userRoles");
-    // Capability declaration fields whose values render in text-mode form fields.
-    private static final Set<String> TEXT_MODE_CAPABILITY_FIELDS =
-            Set.of("name", "title", "description", "roles", "userRoles", "users", "excludedUsers", "excludedRoles",
-                    "administratorRoles", "administratorUsers");
 
     // The policy decomposes into the approval dropdown's selection plus its review fields, the way
     // retryPolicy does; a policy the form cannot read is carried as the selection itself.
@@ -2565,8 +2630,8 @@ public class CodeAnalyzer extends NodeVisitor {
 
         Property messageSubProp = new Property.Builder<Void>(null)
                 .metadata()
-                    .label("Message")
-                    .description("Request body payload (for POST, PUT, PATCH)")
+                    .label(RestActivityStrategy.MESSAGE_LABEL)
+                    .description(RestActivityStrategy.MESSAGE_DESCRIPTION)
                     .stepOut()
                 .type().fieldType(Property.ValueType.EXPRESSION)
                     .ballerinaType("http:RequestMessage").selected(true).stepOut()
@@ -2578,7 +2643,7 @@ public class CodeAnalyzer extends NodeVisitor {
         methodDynamicFields.put("GET", Map.of());
         methodDynamicFields.put("POST", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
         methodDynamicFields.put("PUT", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
-        methodDynamicFields.put("DELETE", Map.of());
+        methodDynamicFields.put("DELETE", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
         methodDynamicFields.put("PATCH", Map.of(RestActivityStrategy.MESSAGE_KEY, messageSubProp));
 
         nodeBuilder.properties().custom()
@@ -2599,8 +2664,8 @@ public class CodeAnalyzer extends NodeVisitor {
         // Hidden top-level message property — value store for method-driven dynamic sub-field.
         String message = src.getOrDefault(RestActivityStrategy.MESSAGE_KEY, "");
         nodeBuilder.properties().custom()
-                .metadata().label("Message")
-                    .description("Request body payload (for POST, PUT, PATCH)").stepOut()
+                .metadata().label(RestActivityStrategy.MESSAGE_LABEL)
+                    .description(RestActivityStrategy.MESSAGE_DESCRIPTION).stepOut()
                 .type().fieldType(Property.ValueType.EXPRESSION)
                     .ballerinaType("http:RequestMessage").selected(true).stepOut()
                 .value(message).editable(true).optional(true).hidden(true)
@@ -3867,6 +3932,10 @@ public class CodeAnalyzer extends NodeVisitor {
             return;
         }
         startNode(kind, newExpressionNode);
+        if (kind == NodeKind.AGENT) {
+            nodeBuilder.properties().reserveProperty(AgentCallBuilder.ROLE)
+                    .reserveProperty(AgentCallBuilder.INSTRUCTIONS);
+        }
         Optional<MethodSymbol> optMethodSymbol = classSymbol.initMethod();
         FunctionDataBuilder functionDataBuilder = new FunctionDataBuilder()
                 .parentSymbol(classSymbol)
@@ -3942,8 +4011,12 @@ public class CodeAnalyzer extends NodeVisitor {
 
         if (kind == NodeKind.AGENT) {
             AgentBuilder.hideAgentConfigProperties(nodeBuilder);
-            if (newExpressionNode instanceof ImplicitNewExpressionNode implicitAgentExpr) {
-                genAgentData(implicitAgentExpr, classSymbol, new HashMap<>(), false);
+            if (argumentNodes == null) {
+                // Drop the reserved slots so the placeholders don't leak into the output.
+                nodeBuilder.properties().removeProperty(AgentCallBuilder.ROLE)
+                        .removeProperty(AgentCallBuilder.INSTRUCTIONS);
+            } else {
+                genAgentData(newExpressionNode, argumentNodes, classSymbol, new HashMap<>(), false);
             }
         }
 
@@ -4429,6 +4502,23 @@ public class CodeAnalyzer extends NodeVisitor {
             return;
         }
 
+        // ctx.currentTime(), ctx.isReplaying(), ctx.lastReviewDecision(...) and the rest of the
+        // context utility functions. Without mapping them back, reading a workflow renders them
+        // as plain method calls instead of the nodes the palette wrote.
+        if (CONTEXT_CLASS_NAME.equals(classSymbol.getName().orElse(""))
+                && isWorkflowModule(classSymbol.getModule())) {
+            WorkflowContextFunctionBuilder.FunctionSpec contextSpec =
+                    WorkflowContextFunctionBuilder.specForMethod(functionName);
+            // Only a call whose result is bound: the form's one field is the name it binds to, and
+            // a bare call statement has none, so saving it would introduce a variable of its own.
+            if (contextSpec != null && (this.typedBindingPatternNode != null
+                    || enclosingAssignment(methodCallExpressionNode) != null)) {
+                startNode(contextSpec.kind(), expressionNode.parent());
+                populateContextFunctionProperties(methodCallExpressionNode, contextSpec);
+                return;
+            }
+        }
+
         // Object-model durable agent: `<agentVar>.run(...)` renders the agent's declaration as
         // the agent box (role/instructions/model/capabilities from the config literal) inside
         // the caller's flow diagram.
@@ -4779,6 +4869,8 @@ public class CodeAnalyzer extends NodeVisitor {
                     callNode);
             AgentCallBuilder.postProcessTdProperty(nodeBuilder, key);
         });
+        AgentCallBuilder.fixQueryPromptType(nodeBuilder, false);
+        AgentRunBuilder.fixQueryPromptType(nodeBuilder, false);
     }
 
     private static String deriveInferredType(String variableType, String returnType, String key) {

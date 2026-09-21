@@ -37,8 +37,6 @@ import {
     Description,
     IconWrapper,
     MenuButton,
-    TopPortWidget,
-    BottomPortWidget,
     ViewAllButton,
     ViewAllButtonWrapper,
     FunctionBoxWrapper,
@@ -289,7 +287,12 @@ export function GeneralServiceWidget({ model, engine }: BaseNodeWidgetProps) {
 
     return (
         <Node>
-            {model.type !== "workflow" && <TopPortWidget port={model.getPort("in")!} engine={engine} />}
+            {/* PortWidget itself renders a bare, zero-height div, so its reported link-anchor
+                position is exactly wherever the flex row centers it - no margin nudge here, or
+                "in"/"out" would sit off that center by different amounts (see getPortAnchorY,
+                which assumes dead center for both) and every link's straight leg would render
+                with a small, otherwise-unexplained slope. */}
+            {model.type !== "workflow" && <PortWidget port={model.getPort("in")!} engine={engine} />}
             <Box hovered={!readonly && isHovered}>
                 {model.type === "workflow" && (
                     // Explicit "run workflow" target: workflow:run edges point at this play button
@@ -374,7 +377,8 @@ export function GeneralServiceWidget({ model, engine }: BaseNodeWidgetProps) {
                     ))}
                 </Menu>
             </Popover>
-            <BottomPortWidget port={model.getPort("out")!} engine={engine} />
+            {/* Same bare-div reasoning as the "in" port above. */}
+            <PortWidget port={model.getPort("out")!} engine={engine} />
         </Node>
     );
 }
