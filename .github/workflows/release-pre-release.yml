@@ -88,6 +88,12 @@ jobs:
 
       - name: Set up Ballerina for language-server publication
         uses: ./.github/actions/setup-ballerina
+        # TEMPORARY: 2201.14.0 has no installer on dist.ballerina.io yet (HTTP 403), so
+        # install the latest ballerina-distribution CI artifact instead. The build still
+        # compiles against the ballerinaLangVersion artifacts from GitHub Packages.
+        # Revert once 2201.14.0 is published to the CDN.
+        with:
+          distributionVersion: nightly
 
       - name: Get version
         id: vsix
