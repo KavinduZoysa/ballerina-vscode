@@ -708,8 +708,7 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         List<String> commands = new ArrayList<>();
         commands.add(context.javaCmd());
         commands.add(HEAP_DUMP_FLAG);
-        Path workingDirectory = Files.isRegularFile(projectRoot) ? projectRoot.getParent() : projectRoot;
-        commands.add(HEAP_DUMP_PATH_FLAG + workingDirectory.toRealPath());
+        commands.add(getHeapDumpPathArgument(projectRoot));
         if (context.debugPort() > 0) {
             commands.add(DEBUG_ARGS + context.debugPort());
         }
@@ -726,6 +725,11 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         commands.add(initClassName);
         commands.addAll(context.programArgs());
         return commands;
+    }
+
+    static String getHeapDumpPathArgument(Path projectRoot) throws IOException {
+        Path workingDirectory = Files.isRegularFile(projectRoot) ? projectRoot.getParent() : projectRoot;
+        return HEAP_DUMP_PATH_FLAG + workingDirectory.toRealPath();
     }
 
     private static JBallerinaBackend execBackend(ProjectContext projectContext,

@@ -579,14 +579,12 @@ public class TestWorkspaceManager {
                     workspaceManager.sourceRootToProject.get(sourceRoot);
             Assert.assertNotNull(projectContext);
 
-            Process process = projectContext.process().orElseThrow();
-            String[] arguments = process.info().arguments().orElseThrow();
             String expectedHeapDumpPath = "-XX:HeapDumpPath=" + projectContext.project()
                     .sourceRoot().toRealPath();
-
-            Assert.assertTrue(Arrays.asList(arguments).contains(expectedHeapDumpPath),
-                    "Fast-run process must identify the canonical project root. Expected JVM argument: "
-                            + expectedHeapDumpPath + ", actual arguments: " + Arrays.toString(arguments));
+            String actualHeapDumpPath = BallerinaWorkspaceManager.getHeapDumpPathArgument(
+                    projectContext.project().sourceRoot());
+            Assert.assertEquals(actualHeapDumpPath, expectedHeapDumpPath,
+                    "Fast-run process must identify the canonical project root");
         } finally {
             executeStopCommand(projectPath);
         }
