@@ -117,11 +117,20 @@ runs:
         # earlier steps in its test.describe.serial() block that built the tree/webview/
         # project state it depends on. Instead, find which serial block(s) had a failure
         # in the latest report and grep for (this matrix group) AND (one of those block
-        # titles), so each failing block reruns in full, from its own beforeAll. The
-        # script always prints a valid --grep value (falling back to just the escaped
-        # group when it can't identify a failing block) and never throws, so this can't
-        # abort the step under bash's default -e.
-        export RERUN_GREP=$(node .github/scripts/extract-failed-serial-groups.js packages/ballerina-extension/e2e-reports "$TEST_GROUP")
+        # titles), so each failing block reruns in full, from its own beforeAll.
+        #
+        # Assigned in two steps rather than `export RERUN_GREP=$(...)`: `export` is a
+        # shell builtin, so under `set -e` its own (always-successful) exit status is
+        # what bash checks, not the command substitution's — a non-zero `node` exit
+        # would be silently swallowed and this step would carry on with an empty
+        # $RERUN_GREP. Splitting the assignment out restores `set -e`'s ability to abort
+        # the step outright on that (a clean, loud failure beats silently continuing).
+        # The script is written to always print a valid --grep value and never throw,
+        # but that's not airtight against every way `node` could still exit 0 with
+        # nothing written to stdout — so the `:-` fallback to $TEST_GROUP guards that
+        # narrower case too: without it, `--grep ""` matches every test in every group.
+        RERUN_GREP=$(node .github/scripts/extract-failed-serial-groups.js packages/ballerina-extension/e2e-reports "$TEST_GROUP")
+        export RERUN_GREP="${RERUN_GREP:-$TEST_GROUP}"
         rm -rf packages/ballerina-extension/e2e-test/data/new-project
         if [ "$RUNNER_OS" = "Windows" ]; then
           cd packages/ballerina-extension
