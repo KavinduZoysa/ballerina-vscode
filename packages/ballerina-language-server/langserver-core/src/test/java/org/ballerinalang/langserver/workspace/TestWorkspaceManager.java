@@ -566,13 +566,30 @@ public class TestWorkspaceManager {
 
     @Test
     public void testWSRunStopProject()
-            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException, IOException {
         Path projectPath = RESOURCE_DIRECTORY.resolve("long_running");
         Path filePath = projectPath.resolve("main.bal");
-        RunResult runResult = executeRunCommand(filePath);
-        Assert.assertTrue(runResult.success());
-        Assert.assertEquals(runResult.programOutput[0].trim(), "Hello, World!");
-        executeStopCommand(projectPath);
+        try {
+            RunResult runResult = executeRunCommand(filePath);
+            Assert.assertTrue(runResult.success());
+            Assert.assertEquals(runResult.programOutput[0].trim(), "Hello, World!");
+
+            Path sourceRoot = workspaceManager.projectRoot(filePath);
+            BallerinaWorkspaceManager.ProjectContext projectContext =
+                    workspaceManager.sourceRootToProject.get(sourceRoot);
+            Assert.assertNotNull(projectContext);
+
+            Process process = projectContext.process().orElseThrow();
+            String[] arguments = process.info().arguments().orElseThrow();
+            String expectedHeapDumpPath = "-XX:HeapDumpPath=" + projectContext.project()
+                    .sourceRoot().toRealPath();
+
+            Assert.assertTrue(Arrays.asList(arguments).contains(expectedHeapDumpPath),
+                    "Fast-run process must identify the canonical project root. Expected JVM argument: "
+                            + expectedHeapDumpPath + ", actual arguments: " + Arrays.toString(arguments));
+        } finally {
+            executeStopCommand(projectPath);
+        }
     }
 
     @Test
