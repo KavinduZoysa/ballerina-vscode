@@ -975,7 +975,7 @@ export class BallerinaExtension {
             let supportedJreVersion;
             try {
                 if (this.updateToolServerUrl.includes('staging')) {
-                    supportedJreVersion = "jdk-21.0.5+11-jre";
+                    supportedJreVersion = "jdk-25.0.3+9-jre"; // staging has no /distributions to query
                     debug(`[SETUP] Supported JRE version: ${supportedJreVersion}`);
                 } else {
                     // Get supported jre version
