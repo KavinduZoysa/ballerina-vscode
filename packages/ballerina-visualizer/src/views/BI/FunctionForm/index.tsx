@@ -369,6 +369,8 @@ export function FunctionForm(props: FunctionFormProps) {
             // unresolvable-version path. Surface it instead of leaving the loader up forever.
             console.error(`>>> Error fetching the ${kind} node template`, error);
             if (isCurrentLoad(seq)) {
+                // Drop the previously loaded node so a stale form cannot render under the error card.
+                setFunctionNode(undefined);
                 setLoadError(true);
             }
         } finally {
@@ -437,6 +439,8 @@ export function FunctionForm(props: FunctionFormProps) {
         } catch (error) {
             console.error(">>> Error fetching the existing function node", error);
             if (isCurrentLoad(seq)) {
+                // Drop the previously loaded node so a stale form cannot render under the error card.
+                setFunctionNode(undefined);
                 setLoadError(true);
             }
         } finally {
