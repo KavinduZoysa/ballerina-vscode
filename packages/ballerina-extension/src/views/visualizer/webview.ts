@@ -81,6 +81,17 @@ export class VisualizerWebview {
         // giga-bridge transport in the standalone visualizer.
         this._disposables.push(DefaultServer.getInstance().registerVisualizerPanel(this._panel));
 
+        // The blocked-startup panel posts these; the React app is never loaded in that state,
+        // so its own messaging is not available. Registered here rather than in createWebview()
+        // so the subscription is disposed with the panel.
+        this._disposables.push(this._panel.webview.onDidReceiveMessage(async (message) => {
+            if (message?.command === 'jdkIncompatibility.updateBallerina') {
+                await vscode.commands.executeCommand('ballerina.update-ballerina-visually');
+            } else if (message?.command === 'jdkIncompatibility.installPreviousVersion') {
+                await vscode.commands.executeCommand('extension.open', EXTENSION_ID);
+            }
+        }));
+
         // Handle the text change and diagram update with rpc notification
         const sendUpdateNotificationToWebview = debounce(async (refreshTreeView?: boolean) => {
             if (this._panel) {
@@ -221,16 +232,6 @@ export class VisualizerWebview {
                 retainContextWhenHidden: true,
             }
         );
-        // The blocked-startup panel posts these; the React app is never loaded in that state,
-        // so its own messaging is not available.
-        panel.webview.onDidReceiveMessage(async (message) => {
-            if (message?.command === 'jdkIncompatibility.updateBallerina') {
-                await vscode.commands.executeCommand('ballerina.update-ballerina-visually');
-            } else if (message?.command === 'jdkIncompatibility.installPreviousVersion') {
-                await vscode.commands.executeCommand('extension.open', EXTENSION_ID);
-            }
-        });
-
         const biExtension = isInWI() || vscode.extensions.getExtension('wso2.ballerina-integrator');
         panel.iconPath = {
             light: vscode.Uri.file(path.join(extension.context.extensionPath, 'resources', 'icons', biExtension ? 'wso2-dark.svg' : 'ballerina.svg')),
@@ -290,11 +291,14 @@ export class VisualizerWebview {
                     <div class="welcome-content">
                         <h1 class="welcome-title">${escapeHtml(productTitle)} cannot start</h1>
                         <p class="welcome-subtitle">
-                            This version of the extension requires Ballerina
-                            ${escapeHtml(incompatibility.requiredBallerinaVersion)} or later.
-                            Your distribution (${escapeHtml(incompatibility.ballerinaVersion)})
-                            runs on Java ${incompatibility.jdkMajorVersion}, and the language
-                            server requires Java ${incompatibility.requiredJdkMajorVersion}.
+                            Needs Ballerina ${escapeHtml(incompatibility.requiredBallerinaVersion)}
+                            or later. Your distribution (${escapeHtml(incompatibility.ballerinaVersion)})
+                            runs on Java ${incompatibility.jdkMajorVersion}; the language server
+                            needs Java ${incompatibility.requiredJdkMajorVersion}.
+                            <br><br>
+                            Update Ballerina, or keep your distribution and install an older
+                            extension: expand the dropdown next to Uninstall and pick
+                            &quot;Install Specific Version...&quot;.
                         </p>
                         <div class="action-row">
                             <button class="action-button" id="update-ballerina">Update Ballerina</button>

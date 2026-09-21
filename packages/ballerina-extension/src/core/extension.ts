@@ -1752,12 +1752,10 @@ export class BallerinaExtension {
             message,
             {
                 modal: true,
-                detail: `Your Ballerina distribution (${this.ballerinaVersion}) runs on Java `
-                    + `${jdkMajorVersion}, and the language server requires Java `
-                    + `${REQUIRED_JDK_MAJOR_VERSION}.\n\n`
-                    + `Update Ballerina to continue using this version of the extension, or to `
-                    + `stay on your current distribution, open the extension page and choose `
-                    + `"Install Another Version..." from the gear menu.`
+                detail: `Your distribution (${this.ballerinaVersion}) runs on Java ${jdkMajorVersion}; `
+                    + `the language server needs Java ${REQUIRED_JDK_MAJOR_VERSION}.\n\n`
+                    + `Update Ballerina, or keep your distribution and install an older extension: `
+                    + `expand the dropdown next to Uninstall and pick "Install Specific Version...".`
             },
             UPDATE_BALLERINA,
             INSTALL_PREVIOUS
@@ -1769,8 +1767,8 @@ export class BallerinaExtension {
             // VS Code has no command that opens the version picker for a given extension:
             // 'install.specificVersion' takes no arguments and starts from a list of every
             // installed extension, and 'install.anotherVersion' acts on whatever the Extensions
-            // view has selected. Opening the extension page puts the user one gear-menu click
-            // away from "Install Another Version...".
+            // view has selected. Opening the extension page puts "Install Specific Version..."
+            // one click away, in the dropdown beside Uninstall.
             await commands.executeCommand('extension.open', EXTENSION_ID);
         }
         return false;
