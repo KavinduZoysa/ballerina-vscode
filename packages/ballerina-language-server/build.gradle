@@ -411,6 +411,57 @@ task pack(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
     }
 }
 
+// Task to verify the packed jar shape
+task verifyPack {
+    description 'Asserts the packed jar has the structure the extension launches'
+    group 'verification'
+    dependsOn pack
+
+    def launcherClass = 'org/ballerinalang/langserver/launchers/stdio/Main.class'
+    def extensionService = 'META-INF/services/org.ballerinalang.langserver.commons.service.spi.ExtendedLanguageServerService'
+    // A floor, not the exact count: extensions come and go, and the regression this guards
+    // against collapsed the file to a single entry. Anything near the real total catches it.
+    def minExtensionServices = 20
+
+    doLast {
+        def jar = pack.archiveFile.get().asFile
+        def zip = new java.util.zip.ZipFile(jar)
+        try {
+            def names = zip.entries().collect { it.name }
+
+            if (!names.contains(launcherClass)) {
+                throw new GradleException("$jar.name does not contain $launcherClass at the jar root. " +
+                        "The extension puts this jar on a plain -cp, so a nested or missing launcher " +
+                        "class means the language server cannot start.")
+            }
+
+            def nested = names.findAll { it.endsWith('.jar') }
+            if (!nested.isEmpty()) {
+                throw new GradleException("$jar.name embeds nested jars, which a plain -cp cannot see: " +
+                        "${nested.take(5).join(', ')}. Dependency jars must be expanded into the fat jar.")
+            }
+
+            def serviceEntry = zip.getEntry(extensionService)
+            if (serviceEntry == null) {
+                throw new GradleException("$jar.name is missing $extensionService; no BI extension would load.")
+            }
+            def providers = zip.getInputStream(serviceEntry).text.readLines()
+                    .collect { it.trim() }.findAll { it && !it.startsWith('#') }.unique()
+            if (providers.size() < minExtensionServices) {
+                throw new GradleException("$jar.name declares only ${providers.size()} " +
+                        "ExtendedLanguageServerService providers (expected at least " +
+                        "$minExtensionServices). Service files were dropped instead of merged, " +
+                        "so the BI UI would not initialise.")
+            }
+
+            logger.lifecycle("verifyPack: ${jar.name} OK -- launcher at root, no nested jars, " +
+                    "${providers.size()} extension services")
+        } finally {
+            zip.close()
+        }
+    }
+}
+
 test {
     dependsOn resolveBallerinaDependencies
 }
