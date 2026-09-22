@@ -838,16 +838,16 @@ function DevantDashboard({ projectStructure, handleDeploy, goToDevant }: { proje
         rpcClient.getCommonRpcClient().executeCommand({ commands: [BI_COMMANDS.DEVANT_PUSH_TO_CLOUD] });
     }
 
-    // Check if integration has automation or service.
-    const hasAutomationOrService = projectStructure?.directoryMap && (
+    // Anything that can be deployed: an automation, a service, or a workflow (a durable agent included).
+    const hasDeployableArtifact = (projectStructure?.directoryMap && (
         (projectStructure.directoryMap.AUTOMATION && projectStructure.directoryMap.AUTOMATION.length > 0) ||
         (projectStructure.directoryMap.SERVICE && projectStructure.directoryMap.SERVICE.length > 0)
-    );
+    )) || hasWorkflowArtifacts(projectStructure);
 
     return (
         <React.Fragment>
             {platformExtState?.selectedComponent ? <Title variant="h3">Deployed in WSO2 Cloud</Title> : <Title variant="h3">Deploy to WSO2 Cloud</Title>}
-            {!hasAutomationOrService ? (
+            {!hasDeployableArtifact ? (
                 <Typography sx={{ color: "var(--vscode-descriptionForeground)" }}>
                     Before you can deploy your integration to WSO2 Cloud, please add an artifact (such as a Service or Automation) to your integration.
                 </Typography>
