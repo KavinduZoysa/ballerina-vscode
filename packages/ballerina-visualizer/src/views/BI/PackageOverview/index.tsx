@@ -26,6 +26,7 @@ import {
     BuildMode,
     BI_COMMANDS,
     DIRECTORY_MAP,
+    hasWorkflowArtifacts,
     isSamePath,
 } from "@wso2/ballerina-core";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
@@ -1434,7 +1435,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                                             </div>
                                         </>
                                     )}
-                                    {(projectStructure?.directoryMap?.[DIRECTORY_MAP.WORKFLOW]?.length ?? 0) > 0 && (
+                                    {hasWorkflowArtifacts(projectStructure) && (
                                         <>
                                             <Divider sx={{ margin: "16px 0" }} />
                                             <WorkflowManagement
