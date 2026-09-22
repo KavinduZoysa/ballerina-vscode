@@ -286,7 +286,7 @@ export class VisualizerWebview {
             : "Your project is being prepared. This may take a few moments.";
         const incompatibility = VisualizerWebview.jdkIncompatibility;
         const body = incompatibility
-            ? `<div class="container" id="webview-container">
+            ? `<div class="container" id="jdk-incompatibility-container">
                 <div class="loader-wrapper">
                     <div class="welcome-content">
                         <h1 class="welcome-title">${escapeHtml(productTitle)} cannot start</h1>
@@ -440,6 +440,11 @@ export class VisualizerWebview {
             window.startupTitle = ${toInlineJson(productTitle)};
 
             function loadedScript() {
+                // Startup is blocked: the language server never starts, so mounting the React app
+                // would replace the explanation above with a loading screen that spins forever.
+                if (${incompatibility ? 'true' : 'false'}) {
+                    return;
+                }
                 function renderDiagrams() {
                     visualizerWebview.renderWebview("visualizer", document.getElementById("webview-container"));
                 }
