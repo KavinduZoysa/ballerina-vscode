@@ -696,7 +696,7 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
             }
 
             Process ps = pb.start();
-            projectContext.setProcess(ps);
+            projectContext.setProcess(ps, commands);
             return Optional.of(ps);
         } finally {
             lock.unlock();
@@ -727,7 +727,7 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         return commands;
     }
 
-    static String getHeapDumpPathArgument(Path projectRoot) throws IOException {
+    private static String getHeapDumpPathArgument(Path projectRoot) throws IOException {
         Path workingDirectory = Files.isRegularFile(projectRoot) ? projectRoot.getParent() : projectRoot;
         return HEAP_DUMP_PATH_FLAG + workingDirectory.toRealPath();
     }
@@ -1706,6 +1706,7 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         private boolean compilationCrashed;
 
         private Process process;
+        private List<String> launchCommand = Collections.emptyList();
 
         private boolean projectCrashed;
 
@@ -1803,10 +1804,21 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         /**
          * Set the process associated with the project. Project lock should be acquired before calling.
          *
-         * @param process Process to be associated with the project.
+         * @param process       Process to be associated with the project.
+         * @param launchCommand Command line the process was launched with.
          */
-        public void setProcess(Process process) {
+        public void setProcess(Process process, List<String> launchCommand) {
             this.process = process;
+            this.launchCommand = List.copyOf(launchCommand);
+        }
+
+        /**
+         * Returns the command line the currently associated process was launched with.
+         *
+         * @return Launch command, or an empty list if no process has been started.
+         */
+        public List<String> launchCommand() {
+            return this.launchCommand;
         }
 
         /**
@@ -1814,6 +1826,7 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
          */
         public void removeProcess() {
             this.process = null;
+            this.launchCommand = Collections.emptyList();
         }
     }
 
