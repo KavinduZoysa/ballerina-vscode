@@ -22,8 +22,11 @@ import * as path from 'path';
 const TABLE = 'ballerina.workflow.management.rest';
 const KEY = 'enableManagementApi';
 
-const TABLE_HEADER = new RegExp(`^[ \\t]*\\[${TABLE.replace(/\./g, '\\.')}\\][ \\t]*$`, 'm');
+const TABLE_HEADER = new RegExp(`^[ \\t]*\\[${TABLE.replace(/\./g, '\\.')}\\][ \\t]*(?:#[^\\n]*)?$`, 'm');
 const KEY_LINE = new RegExp(`^[ \\t]*${KEY}[ \\t]*=[^\\n]*$`, 'm');
+const ALREADY_TRUE = /=[ \t]*true[ \t]*(?:#[^\n]*)?$/;
+// Captures up to the `=` so a flip rewrites the value alone, leaving any trailing comment.
+const VALUE = /^([ \t]*[\w.]+[ \t]*=)[ \t]*[^\s#]*/;
 
 /**
  * Turns the workflow management REST API on in Config.toml. Edits the file as text so that
@@ -63,9 +66,9 @@ function withManagementApi(content: string, enabled: boolean): string {
     const start = table.bodyStart + key.index;
     const end = start + key[0].length;
     if (enabled) {
-        return /=[ \t]*true[ \t]*$/.test(key[0])
+        return ALREADY_TRUE.test(key[0])
             ? content
-            : content.slice(0, start) + key[0].replace(/=.*$/, '= true') + content.slice(end);
+            : content.slice(0, start) + key[0].replace(VALUE, '$1 true') + content.slice(end);
     }
     return dropTableIfEmpty(content.slice(0, start) + content.slice(Math.min(end + 1, content.length)));
 }

@@ -46,12 +46,29 @@ function read(): string {
     return fs.readFileSync(configPath, "utf-8");
 }
 
+interface ManagementRestTable {
+    enableManagementApi?: boolean;
+    port?: number;
+    enableBasicAuth?: boolean;
+}
+
+interface WorkflowConfig {
+    ballerina?: { workflow?: { mode?: string; management?: { rest?: ManagementRestTable } } };
+}
+
+function parsed(): WorkflowConfig {
+    return parse(read()) as unknown as WorkflowConfig;
+}
+
+function restTable(): ManagementRestTable | undefined {
+    return parsed().ballerina?.workflow?.management?.rest;
+}
+
 describe("enableWorkflowManagementConfig", () => {
     it("writes the block under workflow.management.rest, the module that owns the listener", () => {
         enableWorkflowManagementConfig(projectPath);
 
-        const config = parse(read()) as any;
-        expect(config.ballerina.workflow.management.rest).toEqual({ enableManagementApi: true });
+        expect(restTable()).toEqual({ enableManagementApi: true });
     });
 
     it("writes no setting that already has a module default", () => {
@@ -81,9 +98,7 @@ describe("enableWorkflowManagementConfig", () => {
 
         enableWorkflowManagementConfig(projectPath);
 
-        const config = parse(read()) as any;
-        expect(config.ballerina.workflow.management.rest)
-            .toEqual({ enableManagementApi: true, port: 9999, enableBasicAuth: true });
+        expect(restTable()).toEqual({ enableManagementApi: true, port: 9999, enableBasicAuth: true });
     });
 
     it("flips an existing false rather than adding a second key", () => {
@@ -105,14 +120,39 @@ describe("enableWorkflowManagementConfig", () => {
         expect(fs.statSync(configPath).mtimeMs).toBe(before);
     });
 
+    it("finds a table header that carries a trailing comment, rather than duplicating it", () => {
+        write("[ballerina.workflow.management.rest] # management API\nport = 9999\n");
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read().match(/\[ballerina\.workflow\.management\.rest\]/g)).toHaveLength(1);
+        expect(restTable()).toEqual({ enableManagementApi: true, port: 9999 });
+    });
+
+    it("keeps a comment sitting beside the key it flips", () => {
+        write("[ballerina.workflow.management.rest]\nenableManagementApi = false # off for now\n");
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe("[ballerina.workflow.management.rest]\nenableManagementApi = true # off for now\n");
+    });
+
+    it("does not rewrite an enabled key just because it carries a comment", () => {
+        const original = "[ballerina.workflow.management.rest]\nenableManagementApi = true # on\n";
+        write(original);
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe(original);
+    });
+
     it("appends the table without swallowing a file that has no trailing newline", () => {
         write('[ballerina.workflow]\nmode = "IN_MEMORY"');
 
         enableWorkflowManagementConfig(projectPath);
 
-        const config = parse(read()) as any;
-        expect(config.ballerina.workflow.mode).toBe("IN_MEMORY");
-        expect(config.ballerina.workflow.management.rest.enableManagementApi).toBe(true);
+        expect(parsed().ballerina?.workflow?.mode).toBe("IN_MEMORY");
+        expect(restTable()?.enableManagementApi).toBe(true);
     });
 });
 
@@ -123,7 +163,7 @@ describe("disableWorkflowManagementConfig", () => {
         disableWorkflowManagementConfig(projectPath);
 
         expect(read()).not.toContain("management.rest");
-        expect(parse(read()) as any).toEqual({ ballerina: { workflow: { mode: "LOCAL" } } });
+        expect(parsed()).toEqual({ ballerina: { workflow: { mode: "LOCAL" } } });
     });
 
     it("keeps the table when the author has other settings in it", () => {
