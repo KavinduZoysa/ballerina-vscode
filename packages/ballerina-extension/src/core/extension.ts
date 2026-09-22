@@ -1747,6 +1747,8 @@ export class BallerinaExtension {
         );
 
         if (selection === UPDATE_BALLERINA) {
+            // The setup view opens its own panel, which would otherwise inherit this state.
+            VisualizerWebview.clearJdkIncompatibility();
             await commands.executeCommand('ballerina.update-ballerina-visually');
         } else if (selection === INSTALL_PREVIOUS) {
             // No VS Code command opens the version picker for a given extension; the page is closest.

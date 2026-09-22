@@ -81,6 +81,7 @@ export class VisualizerWebview {
         // Posted by the blocked-startup panel, which never loads the React app's own messaging.
         this._disposables.push(this._panel.webview.onDidReceiveMessage(async (message) => {
             if (message?.command === 'jdkIncompatibility.updateBallerina') {
+                VisualizerWebview.clearJdkIncompatibility();
                 await vscode.commands.executeCommand('ballerina.update-ballerina-visually');
             } else if (message?.command === 'jdkIncompatibility.installPreviousVersion') {
                 await vscode.commands.executeCommand('extension.open', EXTENSION_ID);
@@ -240,6 +241,11 @@ export class VisualizerWebview {
     }
 
     /** Records the failure and re-renders an open panel; the HTML is built once at creation. */
+    /** Cleared before any action that opens a panel of its own, which would otherwise inherit this. */
+    public static clearJdkIncompatibility(): void {
+        VisualizerWebview.jdkIncompatibility = undefined;
+    }
+
     public static showJdkIncompatibility(info: {
         ballerinaVersion: string;
         jdkMajorVersion: number;
