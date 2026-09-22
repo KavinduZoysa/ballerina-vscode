@@ -146,6 +146,65 @@ describe("enableWorkflowManagementConfig", () => {
         expect(read()).toBe(original);
     });
 
+    it("replaces a whole value, even a string with a space in it", () => {
+        write("[ballerina.workflow.management.rest]\nenableManagementApi = \"no thanks\" # hm\n");
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe("[ballerina.workflow.management.rest]\nenableManagementApi = true # hm\n");
+    });
+
+    it("keeps the author's line endings", () => {
+        write("[ballerina.workflow]\r\nmode = \"LOCAL\"\r\n");
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe(
+            "[ballerina.workflow]\r\nmode = \"LOCAL\"\r\n\r\n[ballerina.workflow.management.rest]\r\nenableManagementApi = true\r\n"
+        );
+        expect(read()).not.toMatch(/[^\r]\n/);
+    });
+
+    it("does not define the table twice when the author spelled it as dotted keys", () => {
+        const original = "[ballerina.workflow.management]\nrest.enableManagementApi = false\n";
+        write(original);
+        const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe(original);
+        expect(() => parse(read())).not.toThrow();
+        expect(error).toHaveBeenCalledWith(expect.stringContaining("by hand"));
+        error.mockRestore();
+    });
+
+    it("leaves a file it cannot parse alone", () => {
+        const original = "[ballerina.workflow\nmode = \"LOCAL\"\n";
+        write(original);
+        const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe(original);
+        error.mockRestore();
+    });
+
+    it("clears the block an earlier toggle wrote under the wrong table", () => {
+        write("[ballerina.workflow.management]\nenableManagementApi = true\nport = 8_234\nenableBasicAuth = false\n");
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe("[ballerina.workflow.management.rest]\nenableManagementApi = true\n");
+    });
+
+    it("keeps the author's own settings in that table while clearing the stale ones", () => {
+        write("[ballerina.workflow.management]\nmaxPageSize = 50\nport = 8_234\n\n[ballerina.workflow.management.rest]\nenableManagementApi = true\n");
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe("[ballerina.workflow.management]\nmaxPageSize = 50\n\n[ballerina.workflow.management.rest]\nenableManagementApi = true\n");
+    });
+
     it("appends the table without swallowing a file that has no trailing newline", () => {
         write('[ballerina.workflow]\nmode = "IN_MEMORY"');
 
@@ -172,6 +231,14 @@ describe("disableWorkflowManagementConfig", () => {
         disableWorkflowManagementConfig(projectPath);
 
         expect(read()).toBe("[ballerina.workflow.management.rest]\nport = 9999\n");
+    });
+
+    it("clears the stale block an earlier toggle wrote, along with its own", () => {
+        write("[ballerina.workflow.management]\nenableManagementApi = true\nport = 8_234\nenableBasicAuth = false\n\n[ballerina.workflow.management.rest]\nenableManagementApi = true\n");
+
+        disableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe("");
     });
 
     it("does nothing when there is no Config.toml", () => {

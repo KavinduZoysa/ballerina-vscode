@@ -17,16 +17,21 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import { parse } from '@iarna/toml';
 
 // The configurables live in `workflow.management.rest`, the module that owns the HTTP listener.
 const TABLE = 'ballerina.workflow.management.rest';
 const KEY = 'enableManagementApi';
+// An earlier toggle wrote these under `ballerina.workflow.management`, where none of them is a
+// configurable, so they are cleared from there whenever the toggle runs.
+const STALE_TABLE = 'ballerina.workflow.management';
+const STALE_KEYS = [KEY, 'port', 'enableBasicAuth'];
 
-const TABLE_HEADER = new RegExp(`^[ \\t]*\\[${TABLE.replace(/\./g, '\\.')}\\][ \\t]*(?:#[^\\n]*)?$`, 'm');
-const KEY_LINE = new RegExp(`^[ \\t]*${KEY}[ \\t]*=[^\\n]*$`, 'm');
-const ALREADY_TRUE = /=[ \t]*true[ \t]*(?:#[^\n]*)?$/;
-// Captures up to the `=` so a flip rewrites the value alone, leaving any trailing comment.
-const VALUE = /^([ \t]*[\w.]+[ \t]*=)[ \t]*[^\s#]*/;
+const ALREADY_TRUE = /=[ \t]*true[ \t]*(?:#[^\r\n]*)?\r?$/;
+// Captures around the value so a flip rewrites it alone, leaving any trailing comment.
+const VALUE = /^([ \t]*[\w.]+[ \t]*=[ \t]*)("(?:[^"\\\r\n]|\\.)*"|'[^'\r\n]*'|[^#\r\n]*?)([ \t]*(?:#[^\r\n]*)?\r?)$/;
+
+const LOG = '[WorkflowManagement]';
 
 /**
  * Turns the workflow management REST API on in Config.toml. Edits the file as text so that
@@ -55,12 +60,13 @@ export function disableWorkflowManagementConfig(projectPath: string): void {
     }
 }
 
-function withManagementApi(content: string, enabled: boolean): string {
-    const table = findTable(content);
-    const key = table && KEY_LINE.exec(table.body);
+function withManagementApi(original: string, enabled: boolean): string {
+    const content = dropStaleKeys(original);
+    const table = findTable(content, TABLE);
+    const key = table && keyLine(KEY).exec(table.body);
 
     if (!key) {
-        return enabled ? appendKey(content, table) : content;
+        return enabled ? appendKey(original, content, table) : content;
     }
 
     const start = table.bodyStart + key.index;
@@ -68,9 +74,9 @@ function withManagementApi(content: string, enabled: boolean): string {
     if (enabled) {
         return ALREADY_TRUE.test(key[0])
             ? content
-            : content.slice(0, start) + key[0].replace(VALUE, '$1 true') + content.slice(end);
+            : content.slice(0, start) + key[0].replace(VALUE, '$1true$3') + content.slice(end);
     }
-    return dropTableIfEmpty(content.slice(0, start) + content.slice(Math.min(end + 1, content.length)));
+    return dropTableIfEmpty(content.slice(0, start) + content.slice(Math.min(end + 1, content.length)), TABLE);
 }
 
 interface Table {
@@ -79,8 +85,13 @@ interface Table {
     body: string;
 }
 
-function findTable(content: string): Table | undefined {
-    const header = TABLE_HEADER.exec(content);
+function keyLine(key: string): RegExp {
+    return new RegExp(`^[ \\t]*${key}[ \\t]*=[^\\n]*$`, 'm');
+}
+
+function findTable(content: string, name: string): Table | undefined {
+    const header = new RegExp(`^[ \\t]*\\[${name.replace(/\./g, '\\.')}\\][ \\t]*(?:#[^\\r\\n]*)?$`, 'm')
+        .exec(content);
     if (!header) {
         return undefined;
     }
@@ -91,20 +102,59 @@ function findTable(content: string): Table | undefined {
     return { headerStart: header.index, bodyStart, body: next ? rest.slice(0, next.index) : rest };
 }
 
-function appendKey(content: string, table: Table | undefined): string {
+function appendKey(original: string, content: string, table: Table | undefined): string {
+    const eol = content.includes('\r\n') ? '\r\n' : '\n';
     if (table) {
         const head = content.slice(0, table.bodyStart);
-        const separator = head === '' || head.endsWith('\n') ? '' : '\n';
-        return head + separator + `${KEY} = true\n` + content.slice(table.bodyStart);
+        const separator = head === '' || head.endsWith('\n') ? '' : eol;
+        return head + separator + `${KEY} = true${eol}` + content.slice(table.bodyStart);
+    }
+    // The header regex only knows the plain spelling. A table the author wrote another way — as
+    // dotted keys, say — must not be defined a second time, which TOML rejects, so the file is
+    // parsed once to be sure it is not there, and left alone when that cannot be established.
+    const declared = declaresRestTable(content);
+    if (declared === undefined) {
+        console.error(`${LOG} Config.toml could not be parsed; leaving it unchanged`);
+        return original;
+    }
+    if (declared) {
+        console.error(`${LOG} Config.toml already declares ${TABLE} in a form this editor does not rewrite; `
+            + `set ${KEY} = true there by hand`);
+        return original;
     }
     let out = content;
-    if (out.length > 0 && !out.endsWith('\n')) { out += '\n'; }
-    if (out.length > 0 && !out.endsWith('\n\n')) { out += '\n'; }
-    return out + `[${TABLE}]\n${KEY} = true\n`;
+    if (out.length > 0 && !out.endsWith('\n')) { out += eol; }
+    if (out.length > 0 && !out.endsWith('\n\n') && !out.endsWith('\r\n\r\n')) { out += eol; }
+    return out + `[${TABLE}]${eol}${KEY} = true${eol}`;
 }
 
-function dropTableIfEmpty(content: string): string {
-    const table = findTable(content);
+function declaresRestTable(content: string): boolean | undefined {
+    try {
+        const parsed = parse(content) as Record<string, any>;
+        return parsed?.ballerina?.workflow?.management?.rest !== undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function dropStaleKeys(content: string): string {
+    const table = findTable(content, STALE_TABLE);
+    if (!table) {
+        return content;
+    }
+    let body = table.body;
+    for (const key of STALE_KEYS) {
+        body = body.replace(new RegExp(`^[ \\t]*${key}[ \\t]*=[^\\n]*\\n?`, 'm'), '');
+    }
+    if (body === table.body) {
+        return content;
+    }
+    const updated = content.slice(0, table.bodyStart) + body + content.slice(table.bodyStart + table.body.length);
+    return dropTableIfEmpty(updated, STALE_TABLE);
+}
+
+function dropTableIfEmpty(content: string, name: string): string {
+    const table = findTable(content, name);
     if (!table || table.body.trim() !== '') {
         return content;
     }
