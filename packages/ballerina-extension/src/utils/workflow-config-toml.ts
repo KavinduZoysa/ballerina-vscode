@@ -18,6 +18,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { parse } from '@iarna/toml';
+import { window } from 'vscode';
 
 // The configurables live in `workflow.management.rest`, the module that owns the HTTP listener.
 const TABLE = 'ballerina.workflow.management.rest';
@@ -32,6 +33,16 @@ const ALREADY_TRUE = /=[ \t]*true[ \t]*(?:#[^\r\n]*)?\r?$/;
 const VALUE = /^([ \t]*[\w.]+[ \t]*=[ \t]*)("(?:[^"\\\r\n]|\\.)*"|'[^'\r\n]*'|[^#\r\n]*?)([ \t]*(?:#[^\r\n]*)?\r?)$/;
 
 const LOG = '[WorkflowManagement]';
+
+// The language server has already written the import into main.bal by the time this runs, so a
+// Config.toml this editor leaves alone is a half-applied change: say so rather than letting the
+// checkbox flip back with the reason in a console nobody is looking at.
+function reportUnchanged(reason: string, enabled: boolean): void {
+    const message = `Workflow management: ${reason}. Set ${KEY} = ${enabled} under [${TABLE}] `
+        + 'in Config.toml by hand.';
+    console.error(`${LOG} ${message}`);
+    window.showWarningMessage(message);
+}
 
 /**
  * Turns the workflow management REST API on in Config.toml. Edits the file as text so that
@@ -71,7 +82,7 @@ type Toml = Record<string, any>;
 function withManagementApi(original: string, enabled: boolean): string {
     const before = parseToml(original);
     if (before === undefined) {
-        console.error(`${LOG} Config.toml could not be parsed; leaving it unchanged`);
+        reportUnchanged('Config.toml could not be parsed, so it was left unchanged', enabled);
         return original;
     }
 
@@ -97,9 +108,17 @@ function withManagementApi(original: string, enabled: boolean): string {
         return original;
     }
     const after = parseToml(updated);
-    if (after === undefined || !isExpectedChange(before, after, enabled)) {
-        console.error(`${LOG} Config.toml declares ${TABLE} in a form this editor does not rewrite; `
-            + `set ${KEY} = ${enabled} there by hand`);
+    let expected: boolean;
+    try {
+        expected = after !== undefined && isExpectedChange(before, after, enabled);
+    } catch (error) {
+        // The verifier is a safety net; a value it cannot compare must leave the file alone rather
+        // than take the whole toggle down with it.
+        console.error(`${LOG} Could not verify the edit:`, error);
+        expected = false;
+    }
+    if (!expected) {
+        reportUnchanged(`Config.toml declares ${TABLE} in a form this editor does not rewrite`, enabled);
         return original;
     }
     return updated;
@@ -116,7 +135,9 @@ function parseToml(content: string): Toml | undefined {
 // True when `after` is `before` with the stale keys gone and `enableManagementApi` set (or
 // removed) under the REST table, and nothing else different.
 function isExpectedChange(before: Toml, after: Toml, enabled: boolean): boolean {
-    const expected = JSON.parse(JSON.stringify(before)) as Toml;
+    // structuredClone, not a JSON round trip: TOML carries dates, and integers outside the safe
+    // range arrive as BigInt — JSON turns the first into a string and throws on the second.
+    const expected = structuredClone(before);
     const management = expected.ballerina?.workflow?.management;
     if (management) {
         for (const stale of STALE_KEYS) {
@@ -141,22 +162,35 @@ function isExpectedChange(before: Toml, after: Toml, enabled: boolean): boolean 
     return sameValue(pruneEmpty(expected), pruneEmpty(after));
 }
 
+// `instanceof` is not safe here: structuredClone returns host-realm objects, which the test
+// sandbox's Date does not recognise. The tag is realm-independent.
+function isDate(value: unknown): value is Date {
+    return Object.prototype.toString.call(value) === '[object Date]';
+}
+
 // Tables left with no keys are equivalent whether or not a header line remains for them.
 function pruneEmpty(value: any): any {
     if (Array.isArray(value)) {
         return value.map(pruneEmpty);
     }
-    if (value && typeof value === 'object' && !(value instanceof Date)) {
+    if (value && typeof value === 'object' && !isDate(value)) {
         const out: Toml = {};
         for (const [k, v] of Object.entries(value)) {
             const pruned = pruneEmpty(v);
-            if (!(pruned && typeof pruned === 'object' && !Array.isArray(pruned) && Object.keys(pruned).length === 0)) {
+            if (!isEmptyTable(pruned)) {
                 out[k] = pruned;
             }
         }
         return out;
     }
     return value;
+}
+
+// A table with nothing in it. Deliberately not "any object with no enumerable keys": a date has
+// none either, and dropping those made two identical files compare as different.
+function isEmptyTable(value: unknown): boolean {
+    return !!value && typeof value === 'object' && !Array.isArray(value) && !isDate(value)
+        && Object.keys(value).length === 0;
 }
 
 function sameValue(a: any, b: any): boolean {
@@ -166,8 +200,8 @@ function sameValue(a: any, b: any): boolean {
     if (Array.isArray(a) || Array.isArray(b)) {
         return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameValue(v, b[i]));
     }
-    if (a instanceof Date || b instanceof Date) {
-        return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+    if (isDate(a) || isDate(b)) {
+        return isDate(a) && isDate(b) && a.getTime() === b.getTime();
     }
     if (a && b && typeof a === 'object' && typeof b === 'object') {
         const keys = Object.keys(a);

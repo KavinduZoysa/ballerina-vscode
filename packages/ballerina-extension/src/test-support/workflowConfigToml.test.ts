@@ -20,6 +20,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { parse } from "@iarna/toml";
+import { window } from "vscode";
 
 import {
     disableWorkflowManagementConfig,
@@ -226,6 +227,32 @@ describe("enableWorkflowManagementConfig", () => {
         expect(read()).toBe(original);
         expect(error).toHaveBeenCalledWith(expect.stringContaining("by hand"));
         error.mockRestore();
+    });
+
+    it("enables in a file that carries a datetime", () => {
+        write("[ballerina.workflow]\nstartedAt = 1979-05-27T07:32:00Z\nday = 1979-05-27\n");
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(restTable()?.enableManagementApi).toBe(true);
+    });
+
+    it("enables in a file that carries an integer too large for a JS number", () => {
+        write("[ballerina.workflow]\nbig = 9223372036854775807\n");
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(restTable()?.enableManagementApi).toBe(true);
+    });
+
+    it("tells the user when it leaves the file alone, since main.bal has already been edited", () => {
+        const warn = jest.spyOn(window, "showWarningMessage").mockResolvedValue(undefined);
+        write("[ballerina.workflow.management]\nrest.enableManagementApi = false\n");
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("by hand"));
+        warn.mockRestore();
     });
 
     it("appends the table without swallowing a file that has no trailing newline", () => {
