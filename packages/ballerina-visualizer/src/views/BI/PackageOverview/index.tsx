@@ -697,10 +697,7 @@ function WorkflowManagement({ enabled, handleWorkflowManagement }: WorkflowManag
         <div>
             <Title variant="h3">Workflow</Title>
             <p>
-                {"Expose the workflow management REST API from this integration — to list, inspect and act on "
-                    + "workflow instances, human tasks and reviews. Enabling it imports "
-                    + "ballerina/workflow.management.rest in main.bal; the API's port, TLS and CORS settings "
-                    + "are configured in the configuration editor."}
+                {"Enable the workflow management REST API to manage workflow instances, human tasks and reviews in this integration."}
             </p>
             <div style={{ paddingLeft: 10 }}>
                 <CheckBox
