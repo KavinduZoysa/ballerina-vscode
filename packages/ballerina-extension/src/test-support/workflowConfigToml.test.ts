@@ -205,6 +205,29 @@ describe("enableWorkflowManagementConfig", () => {
         expect(read()).toBe("[ballerina.workflow.management]\nmaxPageSize = 50\n\n[ballerina.workflow.management.rest]\nenableManagementApi = true\n");
     });
 
+    it("leaves a file alone when the table is valid but something after it is not", () => {
+        const original = "[ballerina.workflow.management.rest]\nenableManagementApi = false\n\n[broken\nmode = 1\n";
+        write(original);
+        const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe(original);
+        error.mockRestore();
+    });
+
+    it("does not rewrite a key line that sits inside a multiline string", () => {
+        const original = "[ballerina.workflow.management.rest]\nnote = \"\"\"\nenableManagementApi = false\n\"\"\"\n";
+        write(original);
+        const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+        enableWorkflowManagementConfig(projectPath);
+
+        expect(read()).toBe(original);
+        expect(error).toHaveBeenCalledWith(expect.stringContaining("by hand"));
+        error.mockRestore();
+    });
+
     it("appends the table without swallowing a file that has no trailing newline", () => {
         write('[ballerina.workflow]\nmode = "IN_MEMORY"');
 

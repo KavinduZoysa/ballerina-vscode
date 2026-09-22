@@ -60,23 +60,120 @@ export function disableWorkflowManagementConfig(projectPath: string): void {
     }
 }
 
+type Toml = Record<string, any>;
+
+/**
+ * The text edit is line-based and knows one spelling of the table, so the parser is its safety
+ * net: a file that does not parse is never touched, and an edit whose parsed result is not the
+ * original with exactly this change applied — a key line that sat inside a multiline string, a
+ * table written as dotted keys — is thrown away, and the file is left for the author.
+ */
 function withManagementApi(original: string, enabled: boolean): string {
+    const before = parseToml(original);
+    if (before === undefined) {
+        console.error(`${LOG} Config.toml could not be parsed; leaving it unchanged`);
+        return original;
+    }
+
     const content = dropStaleKeys(original);
     const table = findTable(content, TABLE);
     const key = table && keyLine(KEY).exec(table.body);
-
+    let updated: string;
     if (!key) {
-        return enabled ? appendKey(original, content, table) : content;
+        updated = enabled ? appendKey(content, table) : content;
+    } else {
+        const start = table.bodyStart + key.index;
+        const end = start + key[0].length;
+        if (enabled) {
+            updated = ALREADY_TRUE.test(key[0])
+                ? content
+                : content.slice(0, start) + key[0].replace(VALUE, '$1true$3') + content.slice(end);
+        } else {
+            updated = dropTableIfEmpty(content.slice(0, start) + content.slice(Math.min(end + 1, content.length)), TABLE);
+        }
     }
 
-    const start = table.bodyStart + key.index;
-    const end = start + key[0].length;
-    if (enabled) {
-        return ALREADY_TRUE.test(key[0])
-            ? content
-            : content.slice(0, start) + key[0].replace(VALUE, '$1true$3') + content.slice(end);
+    if (updated === original) {
+        return original;
     }
-    return dropTableIfEmpty(content.slice(0, start) + content.slice(Math.min(end + 1, content.length)), TABLE);
+    const after = parseToml(updated);
+    if (after === undefined || !isExpectedChange(before, after, enabled)) {
+        console.error(`${LOG} Config.toml declares ${TABLE} in a form this editor does not rewrite; `
+            + `set ${KEY} = ${enabled} there by hand`);
+        return original;
+    }
+    return updated;
+}
+
+function parseToml(content: string): Toml | undefined {
+    try {
+        return parse(content) as Toml;
+    } catch {
+        return undefined;
+    }
+}
+
+// True when `after` is `before` with the stale keys gone and `enableManagementApi` set (or
+// removed) under the REST table, and nothing else different.
+function isExpectedChange(before: Toml, after: Toml, enabled: boolean): boolean {
+    const expected = JSON.parse(JSON.stringify(before)) as Toml;
+    const management = expected.ballerina?.workflow?.management;
+    if (management) {
+        for (const stale of STALE_KEYS) {
+            delete management[stale];
+        }
+        if (enabled) {
+            management.rest = { ...(management.rest ?? {}), [KEY]: true };
+        } else if (management.rest) {
+            delete management.rest[KEY];
+            if (Object.keys(management.rest).length === 0) {
+                delete management.rest;
+            }
+        }
+        if (Object.keys(management).length === 0) {
+            delete expected.ballerina.workflow.management;
+        }
+    } else if (enabled) {
+        expected.ballerina = expected.ballerina ?? {};
+        expected.ballerina.workflow = expected.ballerina.workflow ?? {};
+        expected.ballerina.workflow.management = { rest: { [KEY]: true } };
+    }
+    return sameValue(pruneEmpty(expected), pruneEmpty(after));
+}
+
+// Tables left with no keys are equivalent whether or not a header line remains for them.
+function pruneEmpty(value: any): any {
+    if (Array.isArray(value)) {
+        return value.map(pruneEmpty);
+    }
+    if (value && typeof value === 'object' && !(value instanceof Date)) {
+        const out: Toml = {};
+        for (const [k, v] of Object.entries(value)) {
+            const pruned = pruneEmpty(v);
+            if (!(pruned && typeof pruned === 'object' && !Array.isArray(pruned) && Object.keys(pruned).length === 0)) {
+                out[k] = pruned;
+            }
+        }
+        return out;
+    }
+    return value;
+}
+
+function sameValue(a: any, b: any): boolean {
+    if (a === b) {
+        return true;
+    }
+    if (Array.isArray(a) || Array.isArray(b)) {
+        return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameValue(v, b[i]));
+    }
+    if (a instanceof Date || b instanceof Date) {
+        return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+    }
+    if (a && b && typeof a === 'object' && typeof b === 'object') {
+        const keys = Object.keys(a);
+        return keys.length === Object.keys(b).length && keys.every(k => k in b && sameValue(a[k], b[k]));
+    }
+    return false;
 }
 
 interface Table {
@@ -102,39 +199,17 @@ function findTable(content: string, name: string): Table | undefined {
     return { headerStart: header.index, bodyStart, body: next ? rest.slice(0, next.index) : rest };
 }
 
-function appendKey(original: string, content: string, table: Table | undefined): string {
+function appendKey(content: string, table: Table | undefined): string {
     const eol = content.includes('\r\n') ? '\r\n' : '\n';
     if (table) {
         const head = content.slice(0, table.bodyStart);
         const separator = head === '' || head.endsWith('\n') ? '' : eol;
         return head + separator + `${KEY} = true${eol}` + content.slice(table.bodyStart);
     }
-    // The header regex only knows the plain spelling. A table the author wrote another way — as
-    // dotted keys, say — must not be defined a second time, which TOML rejects, so the file is
-    // parsed once to be sure it is not there, and left alone when that cannot be established.
-    const declared = declaresRestTable(content);
-    if (declared === undefined) {
-        console.error(`${LOG} Config.toml could not be parsed; leaving it unchanged`);
-        return original;
-    }
-    if (declared) {
-        console.error(`${LOG} Config.toml already declares ${TABLE} in a form this editor does not rewrite; `
-            + `set ${KEY} = true there by hand`);
-        return original;
-    }
     let out = content;
     if (out.length > 0 && !out.endsWith('\n')) { out += eol; }
     if (out.length > 0 && !out.endsWith('\n\n') && !out.endsWith('\r\n\r\n')) { out += eol; }
     return out + `[${TABLE}]${eol}${KEY} = true${eol}`;
-}
-
-function declaresRestTable(content: string): boolean | undefined {
-    try {
-        const parsed = parse(content) as Record<string, any>;
-        return parsed?.ballerina?.workflow?.management?.rest !== undefined;
-    } catch {
-        return undefined;
-    }
 }
 
 function dropStaleKeys(content: string): string {
