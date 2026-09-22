@@ -412,6 +412,11 @@ task pack(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
 }
 
 // Task to verify the packed jar shape
+// Finalizes pack, so every shipping path is covered: the scheduled `pack -x check` and the
+// extension build's `build pack -x test -x check` both skip the check task, and neither
+// would otherwise run this.
+pack.finalizedBy('verifyPack')
+
 task verifyPack {
     description 'Asserts the packed jar has the structure the extension launches'
     group 'verification'
@@ -425,6 +430,10 @@ task verifyPack {
 
     doLast {
         def jar = pack.archiveFile.get().asFile
+        if (!jar.exists()) {
+            // Reached as pack's finalizer after pack itself failed; that failure is the real one.
+            return
+        }
         def zip = new java.util.zip.ZipFile(jar)
         try {
             def names = zip.entries().collect { it.name }
