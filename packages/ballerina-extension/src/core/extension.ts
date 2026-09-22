@@ -89,8 +89,7 @@ import { VisualizerWebview } from "../views/visualizer/webview";
 const SWAN_LAKE_REGEX = /(s|S)wan( |-)(l|L)ake/g;
 
 export const EXTENSION_ID = 'wso2.ballerina';
-// First distribution built on Java 25; earlier ones ship a JRE that cannot load the
-// bundled language server. Shown to the user, not used for comparison.
+// Shown to the user, not compared against.
 const REQUIRED_BALLERINA_VERSION = '2201.14.0';
 const PREV_EXTENSION_ID = 'ballerina.ballerina';
 export enum LANGUAGE {
@@ -558,10 +557,7 @@ export class BallerinaExtension {
                     throw error;
                 }
 
-                // The bundled language server is compiled against the Ballerina compiler
-                // libraries, which are Java 25 artifacts from 2201.14.0 onwards. On an older
-                // distribution the JRE cannot load it, so stop before spawning a JVM that
-                // would only die with UnsupportedClassVersionError.
+                // Stop before spawning a JVM that could only die with UnsupportedClassVersionError.
                 try {
                     if (!await this.checkLanguageServerJdkCompatibility()) {
                         debug("[INIT] Returning early: distribution JRE cannot run the bundled language server");
@@ -1695,22 +1691,13 @@ export class BallerinaExtension {
         }
     }
 
-    /**
-     * Verifies that the JRE the language server would be launched with is new enough to load
-     * it. Returns true when the server may start, false when the user has been told why it
-     * cannot and startup should be abandoned.
-     *
-     * Only applies to the bundled server: when the distribution's own server is used, our jar
-     * is never loaded and the JRE version is irrelevant.
-     */
+    /** False when the user has been told the JRE cannot load the bundled server. */
     private async checkLanguageServerJdkCompatibility(): Promise<boolean> {
         if (!usesBundledLanguageServer(this)) {
             return true;
         }
 
-        // The requirement belongs to the bundled jar. getServerOptionsUsingJava launches a
-        // configured jar instead when one is set, and that jar's Java version is the user's
-        // own concern -- blocking it here would reject a server that runs perfectly well.
+        // A configured jar's Java version is the user's own concern.
         if (this.getConfiguredLangServerPath()?.trim()) {
             debug('[INIT] Custom language server path configured; skipping the JDK check');
             return true;
@@ -1718,7 +1705,7 @@ export class BallerinaExtension {
 
         const jdkDir = resolveLanguageServerJdkDir(this);
         if (!jdkDir) {
-            // No JDK resolved. getServerOptions raises a clearer error for this case.
+            // getServerOptions raises a clearer error for this.
             return true;
         }
 
@@ -1737,8 +1724,7 @@ export class BallerinaExtension {
         const message = `This version of the extension requires Ballerina ${REQUIRED_BALLERINA_VERSION} or later.`;
         sendTelemetryEvent(this, TM_EVENT_EXTENSION_INI_FAILED, CMP_EXTENSION_CORE, getMessageObject(message));
 
-        // The modal is transient; once dismissed the visualizer would otherwise sit on its
-        // loading frame forever. Give the panel the same explanation and the same actions.
+        // The modal is transient, so the panel carries the same explanation.
         VisualizerWebview.showJdkIncompatibility({
             ballerinaVersion: this.ballerinaVersion,
             jdkMajorVersion,
@@ -1764,11 +1750,7 @@ export class BallerinaExtension {
         if (selection === UPDATE_BALLERINA) {
             await commands.executeCommand('ballerina.update-ballerina-visually');
         } else if (selection === INSTALL_PREVIOUS) {
-            // VS Code has no command that opens the version picker for a given extension:
-            // 'install.specificVersion' takes no arguments and starts from a list of every
-            // installed extension, and 'install.anotherVersion' acts on whatever the Extensions
-            // view has selected. Opening the extension page puts "Install Specific Version..."
-            // one click away, in the dropdown beside Uninstall.
+            // No VS Code command opens the version picker for a given extension; the page is closest.
             await commands.executeCommand('extension.open', EXTENSION_ID);
         }
         return false;

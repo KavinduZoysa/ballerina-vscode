@@ -16,15 +16,9 @@
  * under the License.
  */
 
-// The bundled language server is Java 25 bytecode and cannot load on an older distribution's
-// JRE. Everything the pre-flight gate decides comes from these three functions, and nothing
-// else covered them -- which is how the blocked-startup panel shipped broken. Real directories
-// rather than an fs mock, so the release-file parsing and the version ordering are exercised
-// as they run.
+// The three functions the pre-flight JDK gate decides on. Real directories, not an fs mock.
 
-// server.ts reaches src/utils/index -> ballerina-core, which pulls an ESM-only transitive
-// dependency jest cannot parse. None of it is needed here: the functions under test touch only
-// fs and path, so the heavy edges are stubbed to keep this an L1 test.
+// server.ts reaches an ESM-only transitive dep through src/utils; stub the edges it does not need.
 jest.mock('../utils', () => ({ isWindows: () => false }));
 jest.mock('../utils/config', () => ({
     isSupportedSLVersion: () => true,
@@ -74,8 +68,6 @@ describe('getJdkMajorVersion', () => {
     });
 
     it('prefers the release file over the directory name', () => {
-        // A JAVA_HOME fallback need not follow the distribution's naming, and the release file
-        // is the authority: a directory called jdk-21 holding a Java 25 build reports 25.
         expect(getJdkMajorVersion(makeJdk('jdk-21.0.5+11-jre', 'JAVA_VERSION="25.0.3"'))).toBe(25);
     });
 
@@ -97,9 +89,6 @@ describe('getJdkMajorVersion', () => {
 });
 
 describe('the version boundary the gate enforces', () => {
-    // checkLanguageServerJdkCompatibility proceeds on `major >= REQUIRED_JDK_MAJOR_VERSION`.
-    // Pinning the constant and both sides of the boundary catches an accidental bump or an
-    // off-by-one that would either block every user or block none.
     it('requires Java 25', () => {
         expect(REQUIRED_JDK_MAJOR_VERSION).toBe(25);
     });

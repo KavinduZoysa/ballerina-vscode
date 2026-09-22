@@ -61,10 +61,7 @@ export class VisualizerWebview {
     public static readonly viewType = "ballerina.visualizer";
     public static readonly ballerinaTitle = "Ballerina Visualizer";
     public static readonly biTitle = "WSO2 Integrator";
-    /**
-     * Set when the language server cannot be started because the distribution's JRE is too
-     * old. The panel then explains why instead of showing a loader that would spin forever.
-     */
+    /** Set when the JRE is too old to start the server; the panel then explains why. */
     public static jdkIncompatibility: { ballerinaVersion: string; jdkMajorVersion: number; requiredJdkMajorVersion: number; requiredBallerinaVersion: string; } | undefined;
     private _panel: vscode.WebviewPanel | undefined;
     private _disposables: vscode.Disposable[] = [];
@@ -81,9 +78,7 @@ export class VisualizerWebview {
         // giga-bridge transport in the standalone visualizer.
         this._disposables.push(DefaultServer.getInstance().registerVisualizerPanel(this._panel));
 
-        // The blocked-startup panel posts these; the React app is never loaded in that state,
-        // so its own messaging is not available. Registered here rather than in createWebview()
-        // so the subscription is disposed with the panel.
+        // Posted by the blocked-startup panel, which never loads the React app's own messaging.
         this._disposables.push(this._panel.webview.onDidReceiveMessage(async (message) => {
             if (message?.command === 'jdkIncompatibility.updateBallerina') {
                 await vscode.commands.executeCommand('ballerina.update-ballerina-visually');
@@ -244,12 +239,7 @@ export class VisualizerWebview {
         return this._panel;
     }
 
-    /**
-     * Records that the language server cannot start on this distribution's JRE, and re-renders
-     * the panel if it is already open. The panel's HTML is produced once when it is created,
-     * so a panel opened before this point would otherwise keep showing the loading frame.
-     * Storing the state also covers the reverse order, where the panel opens later.
-     */
+    /** Records the failure and re-renders an open panel; the HTML is built once at creation. */
     public static showJdkIncompatibility(info: {
         ballerinaVersion: string;
         jdkMajorVersion: number;
@@ -440,8 +430,7 @@ export class VisualizerWebview {
             window.startupTitle = ${toInlineJson(productTitle)};
 
             function loadedScript() {
-                // Startup is blocked: the language server never starts, so mounting the React app
-                // would replace the explanation above with a loading screen that spins forever.
+                // Mounting the app here would replace the explanation with an endless loader.
                 if (${incompatibility ? 'true' : 'false'}) {
                     return;
                 }

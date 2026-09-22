@@ -75,10 +75,7 @@ allprojects {
 
 subprojects {
     apply plugin: "java"
-    // Ballerina 2201.14.0 and its libraries are published as Java 25 artifacts, so the
-    // LS cannot target anything lower -- a Java 21 target fails during dependency
-    // resolution, before compilation. The LS runs on the JRE the distribution ships,
-    // which is Java 25 from 2201.14.0 onwards.
+    // 2201.14.0's libraries are Java 25 artifacts; a lower target fails dependency resolution.
     tasks.withType(JavaCompile).configureEach {
         options.release = 25
     }
@@ -125,9 +122,7 @@ subprojects {
         ballerinaStdLibs "io.ballerina.stdlib:mcp-ballerina:${stdlibMcpVersion}"
         ballerinaStdLibs "io.ballerina.lib:messaging-ballerina:${stdlibMessagingVersion}"
         ballerinaStdLibs "io.ballerina.stdlib:websub-ballerina:${stdlibWebsubVersion}"
-        // Locked packages the 2201.14.0 distribution bundles at the exact locked version. `bal build`
-        // never fetches those into the build-owned test home, so injecting them here is their only
-        // source. Pinned to Dependencies.toml, not to what the distribution ships.
+        // Bundled by the distribution at the locked version, so bal build never fetches them.
         ballerinaStdLibs "io.ballerina.stdlib:mime-ballerina:${stdlibMimeVersion}"
         ballerinaStdLibs "io.ballerina.stdlib:mqtt-ballerina:${stdlibMqttVersion}"
         ballerinaStdLibs "io.ballerina.stdlib:task-ballerina:${stdlibTaskVersion}"
@@ -369,16 +364,12 @@ task pack(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
 
     configurations = [project.configurations.externalJarDeps]
 
-    // Include the compiled classes and resources from all submodules. These must be
-    // unpacked into the fat jar, not embedded as nested jars: the extension puts this
-    // jar on a plain -cp, where a nested jar is invisible. Shadow 9 stopped expanding
-    // jars passed to from(), so zipTree them explicitly.
+    // zipTree, not from(<jar>): the extension uses a plain -cp, where a nested jar is invisible.
     subprojects.each { subproject ->
         def subprojectJar = subproject.tasks.findByName('jar')
         if (subprojectJar) {
             dependsOn subprojectJar
-            // Resolved lazily: ':checkstyle' disables its jar task in its own build file,
-            // which has not been evaluated yet while the root project is configuring.
+            // Lazy: ':checkstyle' disables its jar task in a file not yet evaluated.
             from { subprojectJar.enabled ? zipTree(subprojectJar.archiveFile) : [] }
         }
     }
@@ -411,10 +402,7 @@ task pack(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
     }
 }
 
-// Task to verify the packed jar shape
-// Finalizes pack, so every shipping path is covered: the scheduled `pack -x check` and the
-// extension build's `build pack -x test -x check` both skip the check task, and neither
-// would otherwise run this.
+// Both shipping paths skip the check task, so hook the verification onto pack itself.
 pack.finalizedBy('verifyPack')
 
 task verifyPack {
@@ -424,15 +412,12 @@ task verifyPack {
 
     def launcherClass = 'org/ballerinalang/langserver/launchers/stdio/Main.class'
     def extensionService = 'META-INF/services/org.ballerinalang.langserver.commons.service.spi.ExtendedLanguageServerService'
-    // A floor, not the exact count: extensions come and go, and the regression this guards
-    // against collapsed the file to a single entry. Anything near the real total catches it.
-    def minExtensionServices = 20
+    def minExtensionServices = 20 // a floor: the regression this guards against left 1 of 34
 
     doLast {
         def jar = pack.archiveFile.get().asFile
         if (!jar.exists()) {
-            // Reached as pack's finalizer after pack itself failed; that failure is the real one.
-            return
+            return // pack failed; its own error is the real one
         }
         def zip = new java.util.zip.ZipFile(jar)
         try {

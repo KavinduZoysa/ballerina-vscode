@@ -222,18 +222,10 @@ export function findHighestVersionJdk(directory: string): string | null {
     }
 }
 
-/**
- * The minimum Java major version the bundled language server can run on. The LS is compiled
- * against the Ballerina compiler libraries, which are published as Java 25 artifacts from
- * 2201.14.0 onwards, so its class files cannot be loaded by an older JRE.
- */
+/** Minimum Java major version the bundled language server's class files can load on. */
 export const REQUIRED_JDK_MAJOR_VERSION = 25;
 
-/**
- * Resolves the JDK directory the language server would be launched with. Mirrors the lookup
- * getServerOptionsUsingJava performs: the distribution keeps its JREs in a 'dependencies'
- * folder beside 'distributions', shared across every installed distribution.
- */
+/** The JDK the server would launch with: 'dependencies' sits beside 'distributions'. */
 export function resolveLanguageServerJdkDir(extension: BallerinaExtension): string | null {
     const home = extension?.getBallerinaHome();
     if (!home) {
@@ -248,11 +240,7 @@ export function resolveLanguageServerJdkDir(extension: BallerinaExtension): stri
         ?? findHighestVersionJdk(join(path.dirname(baseHome), 'dependencies'));
 }
 
-/**
- * Major Java version of the given JDK directory. Reads the 'release' file rather than parsing
- * the directory name, so it also works for a JAVA_HOME fallback that does not follow the
- * distribution's 'jdk-<version>-jre' naming.
- */
+/** Reads the 'release' file, so a JAVA_HOME fallback with non-standard naming also works. */
 export function getJdkMajorVersion(jdkDir: string): number | null {
     try {
         const releaseFile = path.join(jdkDir, 'release');
@@ -271,11 +259,7 @@ export function getJdkMajorVersion(jdkDir: string): number | null {
     }
 }
 
-/**
- * Whether the bundled language server jar will be launched, as opposed to the one shipped
- * inside the Ballerina distribution. Only the bundled jar imposes a JRE requirement, since
- * the distribution's own server runs on whatever the distribution supports.
- */
+/** Only the bundled jar imposes a JRE requirement; the distribution's own server does not. */
 export function usesBundledLanguageServer(extension: BallerinaExtension): boolean {
     const BI_SUPPORTED_MINIMUM_VERSION = createVersionNumber(2201, 12, 3); // Version 2201.12.3
     return !extension?.useDistributionLanguageServer()
@@ -441,8 +425,7 @@ function getServerOptionsUsingJava(extension: BallerinaExtension): ServerOptions
 
     const classpath = customPaths.join(delimiter);
 
-    // Shared with the pre-flight compatibility check in BallerinaExtension.init, so the JDK
-    // reported to the user is the one actually used here.
+    // Shared with the pre-flight check, so the JDK reported is the one actually used.
     const jdkDir = resolveLanguageServerJdkDir(extension);
     debug(`JDK Directory: ${jdkDir}`);
 

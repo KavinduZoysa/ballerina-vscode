@@ -274,21 +274,6 @@
         <Method name="getSampleProject" />
         <Bug pattern="MS_EXPOSE_REP"/>
     </Match>
-    <!-- Detectors enabled by the analyzer the Gradle 9 spotbugs plugin ships. The older
-         analyzer cannot read Java 25 class files (ASM: "Unsupported class file major
-         version 69"), so it cannot be pinned back. These flag long-standing, deliberate
-         patterns across the whole codebase (unchecked exceptions on LS entry points,
-         plain mutable model POJOs), not new defects. -->
-    <!-- Detectors enabled by the analyzer the Gradle 9 spotbugs plugin ships. The older
-         analyzer cannot read Java 25 class files (ASM: "Unsupported class file major
-         version 69"), so it cannot be pinned back.
-
-         The THROWS family stays global: 123 violations across ~64 classes, all the
-         long-standing convention of letting LS entry points surface RuntimeException.
-         Listing them would be a churny inventory of the whole codebase.
-
-         The rest are baselined to the classes that actually trip them, so these
-         detectors keep guarding every other class, including anything added later. -->
     <Match>
         <Bug pattern="THROWS_METHOD_THROWS_RUNTIMEEXCEPTION"/>
     </Match>

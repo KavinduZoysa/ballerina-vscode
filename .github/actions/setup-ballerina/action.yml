@@ -3,11 +3,8 @@ description: Install the Ballerina distribution required by the language-server 
 inputs:
   distributionVersion:
     description: >-
-      Overrides the version handed to the installer, leaving ballerinaLangVersion to mean
-      only the Maven coordinate the build compiles against. Needed because the two are
-      published separately: a build can exist in GitHub Packages (compilable) while having
-      no installer on dist.ballerina.io. Set to 'nightly' to install the latest
-      ballerina-distribution CI artifact instead of downloading from the CDN.
+      Version handed to the installer, when it differs from ballerinaLangVersion (the Maven
+      coordinate). 'nightly' installs the latest CI artifact instead of the CDN.
     required: false
     default: ''
   gradlePropertiesRef:
