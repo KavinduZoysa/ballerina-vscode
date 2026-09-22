@@ -38,7 +38,13 @@ jest.mock("@wso2/ballerina-core", () => {
     };
     return {
         SCOPE,
-        DIRECTORY_MAP: { SERVICE: "SERVICE", AUTOMATION: "AUTOMATION", WORKFLOW: "WORKFLOW" },
+        DIRECTORY_MAP: {
+            SERVICE: "SERVICE", AUTOMATION: "AUTOMATION", WORKFLOW: "WORKFLOW",
+            AGENT: "AGENT", DURABLE_AGENT: "DURABLE_AGENT",
+        },
+        // The real one: what counts as a workflow artifact is the behaviour under test here.
+        hasWorkflowArtifacts: jest.requireActual(
+            "../../../../../ballerina-core/src/utils/identifier-utils").hasWorkflowArtifacts,
         findScope: (triggerKind?: string, moduleName?: string) =>
             (triggerKind && byKind[triggerKind]) ?? (moduleName && byModule[moduleName]),
         findScopeByModule: (moduleName: string) => byModule[moduleName],

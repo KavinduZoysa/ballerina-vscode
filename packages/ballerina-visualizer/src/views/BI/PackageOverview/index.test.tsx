@@ -54,7 +54,10 @@ jest.mock("@wso2/ballerina-core", () => ({
         LOCAL_CONNECTORS: "LOCAL_CONNECTORS",
         WORKFLOW: "WORKFLOW",
         ACTIVITY: "ACTIVITY",
+        DURABLE_AGENT: "DURABLE_AGENT",
     },
+    hasWorkflowArtifacts: jest.requireActual(
+        "../../../../../ballerina-core/src/utils/identifier-utils").hasWorkflowArtifacts,
     isSamePath: (a: string, b: string) => a === b,
     // Reached through `getIntegrationTypes`, which the view derives its deployment options
     // from. Irrelevant to which add-artifact button renders; undefined means "no scope",
