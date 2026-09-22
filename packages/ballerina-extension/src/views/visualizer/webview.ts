@@ -281,13 +281,13 @@ export class VisualizerWebview {
                     <div class="welcome-content">
                         <h1 class="welcome-title">${escapeHtml(productTitle)} cannot start</h1>
                         <p class="welcome-subtitle">
-                            Needs Ballerina ${escapeHtml(incompatibility.requiredBallerinaVersion)}
-                            or later. Your distribution (${escapeHtml(incompatibility.ballerinaVersion)})
-                            runs on Java ${incompatibility.jdkMajorVersion}; the language server
-                            needs Java ${incompatibility.requiredJdkMajorVersion}.
+                            Your Ballerina ${escapeHtml(incompatibility.ballerinaVersion)} is
+                            incompatible with the current extension.
                             <br><br>
-                            Update Ballerina, or keep your distribution and install an older
-                            extension: expand the dropdown next to Uninstall and pick
+                            Update Ballerina to
+                            ${escapeHtml(incompatibility.requiredBallerinaVersion)} or later, or keep
+                            your current Ballerina version and install an older extension: expand the
+                            dropdown next to Uninstall and pick
                             &quot;Install Specific Version...&quot;.
                         </p>
                         <div class="action-row">

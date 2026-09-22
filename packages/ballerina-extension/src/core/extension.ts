@@ -1721,7 +1721,7 @@ export class BallerinaExtension {
             return true;
         }
 
-        const message = `This version of the extension requires Ballerina ${REQUIRED_BALLERINA_VERSION} or later.`;
+        const message = `Your Ballerina ${this.ballerinaVersion} is incompatible with the current extension.`;
         sendTelemetryEvent(this, TM_EVENT_EXTENSION_INI_FAILED, CMP_EXTENSION_CORE, getMessageObject(message));
 
         // The modal is transient, so the panel carries the same explanation.
@@ -1738,10 +1738,9 @@ export class BallerinaExtension {
             message,
             {
                 modal: true,
-                detail: `Your distribution (${this.ballerinaVersion}) runs on Java ${jdkMajorVersion}; `
-                    + `the language server needs Java ${REQUIRED_JDK_MAJOR_VERSION}.\n\n`
-                    + `Update Ballerina, or keep your distribution and install an older extension: `
-                    + `expand the dropdown next to Uninstall and pick "Install Specific Version...".`
+                detail: `Update Ballerina to ${REQUIRED_BALLERINA_VERSION} or later, or keep your `
+                    + `current Ballerina version and install an older extension: expand the dropdown `
+                    + `next to Uninstall and pick "Install Specific Version...".`
             },
             UPDATE_BALLERINA,
             INSTALL_PREVIOUS
