@@ -90,6 +90,7 @@ import static org.awaitility.Awaitility.await;
 public class TestWorkspaceManager {
 
     private static final Path RESOURCE_DIRECTORY = Path.of("src/test/resources/project");
+    private static final String HEAP_DUMP_PATH_FLAG = "-XX:HeapDumpPath=";
     private final String dummyContent = "function foo() {" + CommonUtil.LINE_SEPARATOR + "}";
     private final String dummyDidChangeContent = "function foo1() {" + CommonUtil.LINE_SEPARATOR + "}";
     private BallerinaWorkspaceManager workspaceManager;
@@ -566,13 +567,43 @@ public class TestWorkspaceManager {
 
     @Test
     public void testWSRunStopProject()
-            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException, IOException {
         Path projectPath = RESOURCE_DIRECTORY.resolve("long_running");
         Path filePath = projectPath.resolve("main.bal");
-        RunResult runResult = executeRunCommand(filePath);
-        Assert.assertTrue(runResult.success());
-        Assert.assertEquals(runResult.programOutput[0].trim(), "Hello, World!");
-        executeStopCommand(projectPath);
+        try {
+            RunResult runResult = executeRunCommand(filePath);
+            Assert.assertTrue(runResult.success());
+            Assert.assertEquals(runResult.programOutput[0].trim(), "Hello, World!");
+
+            assertHeapDumpPath(filePath, projectPath);
+        } finally {
+            executeStopCommand(projectPath);
+        }
+    }
+
+    /**
+     * Asserts that the process actually launched for {@code filePath} was given a heap dump path inside the project,
+     * and not the language server's own working directory. Try It discovers the running service by matching this
+     * argument against the project, so it breaks whenever the launch command points elsewhere.
+     *
+     * @param filePath            file the run command was executed on
+     * @param expectedWorkingDir  directory the heap dump path must resolve to
+     */
+    private void assertHeapDumpPath(Path filePath, Path expectedWorkingDir) throws IOException {
+        BallerinaWorkspaceManager.ProjectContext projectContext =
+                workspaceManager.sourceRootToProject.get(workspaceManager.projectRoot(filePath));
+        Assert.assertNotNull(projectContext, "Project should be loaded after the run command");
+
+        List<String> launchCommand = projectContext.launchCommand();
+        Assert.assertFalse(launchCommand.isEmpty(), "Launch command should be captured for the running process");
+
+        List<String> heapDumpPathArgs = launchCommand.stream()
+                .filter(arg -> arg.startsWith(HEAP_DUMP_PATH_FLAG))
+                .toList();
+        Assert.assertEquals(heapDumpPathArgs.size(), 1,
+                "Launch command should carry exactly one heap dump path argument: " + launchCommand);
+        Assert.assertEquals(heapDumpPathArgs.get(0), HEAP_DUMP_PATH_FLAG + expectedWorkingDir.toRealPath(),
+                "Fast-run process must be launched with the canonical project root as its heap dump path");
     }
 
     @Test
