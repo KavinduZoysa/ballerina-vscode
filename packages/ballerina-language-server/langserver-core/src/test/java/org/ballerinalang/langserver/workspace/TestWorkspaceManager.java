@@ -571,7 +571,7 @@ public class TestWorkspaceManager {
         Path projectPath = RESOURCE_DIRECTORY.resolve("long_running");
         Path filePath = projectPath.resolve("main.bal");
         try {
-            RunResult runResult = executeRunCommand(filePath);
+            RunResult runResult = executeRunCommand(filePath, 1, 0);
             Assert.assertTrue(runResult.success());
             Assert.assertEquals(runResult.programOutput[0].trim(), "Hello, World!");
 
@@ -611,12 +611,15 @@ public class TestWorkspaceManager {
             throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
         Path projectPath = RESOURCE_DIRECTORY.resolve("pkg_with_compilation_errors");
         Path filePath = projectPath.resolve("main.bal");
-        RunResult runResult = executeRunCommand(filePath);
-        Assert.assertFalse(runResult.success());
-        Assert.assertTrue(runResult.errorOutput().length > 0);
-        Assert.assertEquals(runResult.errorOutput()[0], "ERROR [main.bal:(5:1,5:1)] missing semicolon token");
-        Assert.assertEquals(runResult.errorOutput()[1], "error: compilation contains errors");
-        executeStopCommand(projectPath);
+        try {
+            RunResult runResult = executeRunCommand(filePath, 0, 2);
+            Assert.assertFalse(runResult.success());
+            Assert.assertTrue(runResult.errorOutput().length > 0);
+            Assert.assertEquals(runResult.errorOutput()[0], "ERROR [main.bal:(5:1,5:1)] missing semicolon token");
+            Assert.assertEquals(runResult.errorOutput()[1], "error: compilation contains errors");
+        } finally {
+            executeStopCommand(projectPath);
+        }
     }
 
     @Test
@@ -624,22 +627,26 @@ public class TestWorkspaceManager {
             throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
         Path projectPath = RESOURCE_DIRECTORY.resolve("hello_service");
         Path filePath = projectPath.resolve("main.bal");
-        RunResult runResult = executeRunCommand(filePath);
-        Assert.assertTrue(runResult.success());
+        try {
+            RunResult runResult = executeRunCommand(filePath, 0, 0);
+            Assert.assertTrue(runResult.success());
 
-        // Test syntax tree api
-        JsonElement syntaxTreeJSON = DiagramUtil.getSyntaxTreeJSON(workspaceManager.document(filePath).orElseThrow(),
-                workspaceManager.semanticModel(filePath).orElseThrow());
-        // 0 = func def 1 = func def 2 = class def, 3 = listener decl, 4 = service decl
-        JsonObject service = syntaxTreeJSON.getAsJsonObject().get("members").getAsJsonArray().get(4).getAsJsonObject();
-        Assert.assertEquals(service.get("kind").getAsString(), "ServiceDeclaration");
+            // Test syntax tree api
+            JsonElement syntaxTreeJSON = DiagramUtil.getSyntaxTreeJSON(
+                    workspaceManager.document(filePath).orElseThrow(),
+                    workspaceManager.semanticModel(filePath).orElseThrow());
+            // 0 = func def 1 = func def 2 = class def, 3 = listener decl, 4 = service decl
+            JsonObject service = syntaxTreeJSON.getAsJsonObject().get("members").getAsJsonArray().get(4)
+                    .getAsJsonObject();
+            Assert.assertEquals(service.get("kind").getAsString(), "ServiceDeclaration");
 
-        // test executor positions api
-        JsonArray execPositions = ExecutorPositionsUtil.getExecutorPositions(workspaceManager, filePath);
-        Assert.assertEquals(execPositions.getAsJsonArray().get(0).getAsJsonObject().get("name").getAsString(),
-                "hello");
-
-        executeStopCommand(projectPath);
+            // test executor positions api
+            JsonArray execPositions = ExecutorPositionsUtil.getExecutorPositions(workspaceManager, filePath);
+            Assert.assertEquals(execPositions.getAsJsonArray().get(0).getAsJsonObject().get("name").getAsString(),
+                    "hello");
+        } finally {
+            executeStopCommand(projectPath);
+        }
     }
 
     @Test
@@ -660,21 +667,23 @@ public class TestWorkspaceManager {
                 workspaceManager.document(filePath).orElseThrow(),
                 semanticModelPreExec);
 
-        RunResult runResult = executeRunCommand(filePath);
-        Assert.assertTrue(runResult.success());
+        try {
+            RunResult runResult = executeRunCommand(filePath, 0, 0);
+            Assert.assertTrue(runResult.success());
 
-        SemanticModel semanticModelPostExec = workspaceManager.semanticModel(filePath).orElseThrow();
-        JsonElement syntaxTreeJSONPostExec = DiagramUtil.getSyntaxTreeJSON(
-                workspaceManager.document(filePath).orElseThrow(),
-                semanticModelPostExec);
+            SemanticModel semanticModelPostExec = workspaceManager.semanticModel(filePath).orElseThrow();
+            JsonElement syntaxTreeJSONPostExec = DiagramUtil.getSyntaxTreeJSON(
+                    workspaceManager.document(filePath).orElseThrow(),
+                    semanticModelPostExec);
 
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        Assert.assertEquals(gson.toJson(syntaxTreeJSONPreExec), gson.toJson(syntaxTreeJSONPostExec));
-
-        executeStopCommand(projectPath);
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            Assert.assertEquals(gson.toJson(syntaxTreeJSONPreExec), gson.toJson(syntaxTreeJSONPostExec));
+        } finally {
+            executeStopCommand(projectPath);
+        }
     }
 
-    private RunResult executeRunCommand(Path filePath)
+    private RunResult executeRunCommand(Path filePath, int expectedOutLines, int expectedErrLines)
             throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
         workspaceManager.loadProject(filePath);
         RunExecutor runExecutor = new RunExecutor();
@@ -687,7 +696,8 @@ public class TestWorkspaceManager {
         Mockito.when(execContext.getLanguageClient()).thenReturn(languageClient);
         Boolean didRan = runExecutor.execute(execContext);
 
-        return new RunResult(didRan, extractLogs(logCaptor, "out"), extractLogs(logCaptor, "err"));
+        return new RunResult(didRan, extractLogs(logCaptor, "out", expectedOutLines),
+                extractLogs(logCaptor, "err", expectedErrLines));
     }
 
     private void executeStopCommand(Path projectPath) {
@@ -712,17 +722,28 @@ public class TestWorkspaceManager {
         return execContext;
     }
 
-    private static String[] extractLogs(ArgumentCaptor<LogTraceParams> logCaptor, String channel) {
-        List<LogTraceParams> params = waitGetAllValues(logCaptor);
-        return params.stream()
+    /**
+     * Collects the messages logged on {@code channel}, waiting until at least {@code minLines} of them have arrived.
+     * The process writes its output asynchronously, so a test reading N lines has to wait for N lines; waiting only
+     * for the first line lets a later one be missed.
+     *
+     * @param logCaptor captor the language client logs through
+     * @param channel   "out" or "err"
+     * @param minLines  number of lines the caller reads; 0 waits for nothing
+     * @return messages logged on the channel so far
+     */
+    private static String[] extractLogs(ArgumentCaptor<LogTraceParams> logCaptor, String channel, int minLines) {
+        if (minLines > 0) {
+            await().atMost(5, TimeUnit.SECONDS).until(() -> logsOf(logCaptor, channel).length >= minLines);
+        }
+        return logsOf(logCaptor, channel);
+    }
+
+    private static String[] logsOf(ArgumentCaptor<LogTraceParams> logCaptor, String channel) {
+        return List.copyOf(logCaptor.getAllValues()).stream()
                 .filter(param -> param.getVerbose().equals(channel))
                 .map(LogTraceParams::getMessage)
                 .toArray(String[]::new);
-    }
-
-    private static List<LogTraceParams> waitGetAllValues(ArgumentCaptor<LogTraceParams> logCaptor) {
-        await().atMost(5, TimeUnit.SECONDS).until(() -> !logCaptor.getAllValues().isEmpty());
-        return logCaptor.getAllValues();
     }
 
     @Test
