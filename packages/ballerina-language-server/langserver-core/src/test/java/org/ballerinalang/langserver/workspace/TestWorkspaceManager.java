@@ -590,11 +590,7 @@ public class TestWorkspaceManager {
      * @param expectedWorkingDir  directory the heap dump path must resolve to
      */
     private void assertHeapDumpPath(Path filePath, Path expectedWorkingDir) throws IOException {
-        BallerinaWorkspaceManager.ProjectContext projectContext =
-                workspaceManager.sourceRootToProject.get(workspaceManager.projectRoot(filePath));
-        Assert.assertNotNull(projectContext, "Project should be loaded after the run command");
-
-        List<String> launchCommand = projectContext.launchCommand();
+        List<String> launchCommand = projectContextOf(filePath).launchCommand();
         Assert.assertFalse(launchCommand.isEmpty(), "Launch command should be captured for the running process");
 
         List<String> heapDumpPathArgs = launchCommand.stream()
@@ -604,6 +600,66 @@ public class TestWorkspaceManager {
                 "Launch command should carry exactly one heap dump path argument: " + launchCommand);
         Assert.assertEquals(heapDumpPathArgs.get(0), HEAP_DUMP_PATH_FLAG + expectedWorkingDir.toRealPath(),
                 "Fast-run process must be launched with the canonical project root as its heap dump path");
+    }
+
+    @Test
+    public void testWSRunProjectTwiceWithoutStop()
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+        Path projectPath = RESOURCE_DIRECTORY.resolve("long_running");
+        Path filePath = projectPath.resolve("main.bal");
+        try {
+            RunResult firstRun = executeRunCommand(filePath, 1, 0);
+            Assert.assertTrue(firstRun.success());
+            Process firstProcess = runningProcess(filePath);
+
+            // run() stops the previous run before starting a new one, so running again restarts the project
+            RunResult secondRun = executeRunCommand(filePath, 1, 0);
+            Assert.assertTrue(secondRun.success());
+            Assert.assertEquals(secondRun.programOutput()[0].trim(), "Hello, World!");
+
+            Process secondProcess = runningProcess(filePath);
+            Assert.assertNotSame(secondProcess, firstProcess, "The second run must launch a new process");
+            Assert.assertFalse(firstProcess.isAlive(), "The second run must stop the process the first one left");
+            Assert.assertTrue(secondProcess.isAlive(), "The second run must leave its own process running");
+        } finally {
+            executeStopCommand(projectPath);
+        }
+    }
+
+    @Test
+    public void testWSRunStopRunProject()
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+        Path projectPath = RESOURCE_DIRECTORY.resolve("long_running");
+        Path filePath = projectPath.resolve("main.bal");
+        try {
+            RunResult firstRun = executeRunCommand(filePath, 1, 0);
+            Assert.assertTrue(firstRun.success());
+            Assert.assertEquals(firstRun.programOutput()[0].trim(), "Hello, World!");
+            Process firstProcess = runningProcess(filePath);
+
+            executeStopCommand(projectPath);
+            Assert.assertFalse(firstProcess.isAlive(), "Stop must terminate the running process");
+            Assert.assertTrue(projectContextOf(filePath).process().isEmpty(),
+                    "Stop must clear the process from the project context");
+
+            RunResult secondRun = executeRunCommand(filePath, 1, 0);
+            Assert.assertTrue(secondRun.success(), "A stopped project must be runnable again");
+            Assert.assertEquals(secondRun.programOutput()[0].trim(), "Hello, World!");
+        } finally {
+            executeStopCommand(projectPath);
+        }
+    }
+
+    private BallerinaWorkspaceManager.ProjectContext projectContextOf(Path filePath) {
+        BallerinaWorkspaceManager.ProjectContext projectContext =
+                workspaceManager.sourceRootToProject.get(workspaceManager.projectRoot(filePath));
+        Assert.assertNotNull(projectContext, "Project should be loaded after the run command");
+        return projectContext;
+    }
+
+    private Process runningProcess(Path filePath) {
+        return projectContextOf(filePath).process()
+                .orElseThrow(() -> new AssertionError("Run command should have left a running process"));
     }
 
     @Test
