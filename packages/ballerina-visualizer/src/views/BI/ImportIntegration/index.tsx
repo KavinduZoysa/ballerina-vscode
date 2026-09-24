@@ -106,11 +106,10 @@ export function ImportIntegration() {
             : selectedIntegration?.commandName === 'migrate-tibco' ? 'tibco'
                 : undefined;
 
-    const pullIntegrationTool = (commandName: string, version: string) => {
+    const pullIntegrationTool = (commandName: string) => {
         setPullingTool(true);
         wsClient.pullMigrationTool({
             toolName: commandName,
-            version: version,
         });
     };
 

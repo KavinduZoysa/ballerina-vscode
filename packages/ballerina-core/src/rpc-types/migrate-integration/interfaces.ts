@@ -42,7 +42,6 @@ export interface GetMigrationToolsResponse {
 
 export interface MigrationToolPullRequest {
     toolName: string;
-    version: string;
 }
 
 export interface ImportIntegrationRPCRequest {

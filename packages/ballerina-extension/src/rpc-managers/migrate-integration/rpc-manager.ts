@@ -24,6 +24,7 @@ import {
     ImportIntegrationRPCRequest,
     MigrateIntegrationAPI,
     MigrateRequest,
+    MigrationToolPullRequest,
     OpenMigrationReportRequest,
     OpenSubProjectReportRequest,
     SaveMigrationReportRequest,
@@ -69,11 +70,11 @@ export class MigrateIntegrationRpcManager implements MigrateIntegrationAPI {
         return MigrateIntegrationRpcManager.instance;
     }
 
-    async pullMigrationTool(args: { toolName: string; version: string }): Promise<void> {
+    async pullMigrationTool(args: MigrationToolPullRequest): Promise<void> {
         try {
-            await pullMigrationTool(args.toolName, args.version);
+            await pullMigrationTool(args.toolName);
         } catch (error) {
-            console.error(`Failed to pull migration tool '${args.toolName}' version '${args.version}':`, error);
+            console.error(`Failed to pull migration tool '${args.toolName}':`, error);
             throw error;
         }
     }
