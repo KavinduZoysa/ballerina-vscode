@@ -136,7 +136,7 @@ export function ImportIntegrationForm({
         };
 
         setImportParams(finalParams);
-        pullIntegrationTool(selectedIntegration!.commandName);
+        pullIntegrationTool(selectedIntegration!.commandName, selectedIntegration!.requiredVersion);
         onNext();
     };
 

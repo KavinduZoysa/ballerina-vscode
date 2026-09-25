@@ -71,10 +71,17 @@ export class MigrateIntegrationRpcManager implements MigrateIntegrationAPI {
     }
 
     async pullMigrationTool(args: MigrationToolPullRequest): Promise<void> {
+        // The language server owns the minimum-version rule (`needToPull`: active tool older than
+        // `requiredVersion`, or missing), so ask it again once the pull has finished.
+        const isActiveToolCompatible = async (): Promise<boolean | undefined> => {
+            const { tools } = await this.getMigrationTools();
+            const tool = tools?.find((t) => t.commandName === args.toolName);
+            return tool ? !tool.needToPull : undefined;
+        };
         try {
-            await pullMigrationTool(args.toolName);
+            await pullMigrationTool(args.toolName, args.version, isActiveToolCompatible);
         } catch (error) {
-            console.error(`Failed to pull migration tool '${args.toolName}':`, error);
+            console.error(`Failed to pull migration tool '${args.toolName}' (minimum version '${args.version}'):`, error);
             throw error;
         }
     }
