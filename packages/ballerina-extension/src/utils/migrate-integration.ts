@@ -24,6 +24,8 @@ import { quoteShellPath } from "./config";
 import { decideMigrationToolPullOutcome } from "./migration-tool-pull-outcome";
 
 const PROGRESS_COMPLETE = 100;
+// A busy or unresponsive language server must not leave the wizard on "Finalizing...".
+const LS_CHECK_TIMEOUT_MS = 10000;
 
 /**
  * Executes `bal tool pull <tool>` without a version, so the newest version compatible with the
@@ -36,7 +38,8 @@ const PROGRESS_COMPLETE = 100;
  * @param migrationToolName The alias for the Ballerina tool to pull (e.g., "migrate-tibco", "migrate-mule").
  * @param requiredVersion The minimum tool version the language server accepts (e.g., "1.2.13").
  * @param isActiveToolCompatible Asks the language server whether the active tool meets `requiredVersion`;
- *        resolves to undefined when that cannot be determined.
+ *        resolves to undefined when that cannot be determined. Treated as undefined if it takes longer
+ *        than `LS_CHECK_TIMEOUT_MS`.
  * @returns A promise that resolves when the operation is complete or rejects on failure.
  */
 export async function pullMigrationTool(
@@ -212,12 +215,20 @@ export async function pullMigrationTool(
             const pullSucceeded = code === 0 || (code === 1 && isAlreadyInstalled);
             const pullError = signal === "SIGTERM" ? "Download timed out after 5 minutes." : lastStderrLine;
 
-            let activeToolCompatible: boolean | undefined;
-            try {
-                activeToolCompatible = await isActiveToolCompatible();
-            } catch (error) {
-                debug(`Could not check the installed '${migrationToolName}' version: ${error}`);
-            }
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const activeToolCompatible = await Promise.race([
+                isActiveToolCompatible().catch((error) => {
+                    debug(`Could not check the installed '${migrationToolName}' version: ${error}`);
+                    return undefined;
+                }),
+                new Promise<undefined>((resolveTimeout) => {
+                    timer = setTimeout(() => {
+                        debug(`Checking the installed '${migrationToolName}' version timed out after ${LS_CHECK_TIMEOUT_MS} ms`);
+                        resolveTimeout(undefined);
+                    }, LS_CHECK_TIMEOUT_MS);
+                }),
+            ]);
+            clearTimeout(timer);
 
             const outcome = decideMigrationToolPullOutcome({
                 toolName: migrationToolName,
