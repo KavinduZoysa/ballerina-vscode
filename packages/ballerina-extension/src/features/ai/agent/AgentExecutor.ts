@@ -19,7 +19,7 @@
 import { AICommandExecutor, AICommandConfig, AIExecutionResult } from '../executors/base/AICommandExecutor';
 import { Command, GenerateAgentCodeRequest, ProjectSource, ExecutionContext, SemanticDiff, ReviewModeData, PROJECT_KIND, LoginMethod } from '@wso2/ballerina-core';
 import { StateMachine } from '../../../stateMachine';
-import { FinishReason, LanguageModelUsage, ModelMessage, stepCountIs, SystemModelMessage, streamText, TextStreamPart } from 'ai';
+import { asSchema, FinishReason, LanguageModelUsage, ModelMessage, stepCountIs, SystemModelMessage, streamText, TextStreamPart } from 'ai';
 import { getAnthropicClient, getProviderCacheControl, getProviderModelOptions, addCacheControlToMessages, ANTHROPIC_SONNET } from '../utils/ai-client';
 import { populateHistoryForAgent, getErrorMessage, getErrorCode, buildChatError } from '../utils/ai-utils';
 import { seedAiBaselines } from '../utils/project/ls-schema-notifications';
@@ -52,7 +52,7 @@ import {
     isResumableTruncation,
 } from './truncation-recovery';
 import { updateAndSaveChat, calculateTotalCost, ToolModelUsage } from '../utils/events';
-import { describeToolError, StageStatus, summarizeToolOutput } from '../migration/debug-logger';
+import { attachSideCallSink, SideCallSink, StageStatus, StreamTracer } from '../migration/debug-logger';
 import { chatStateStorage } from '../../../views/ai-panel/chatStateStorage';
 import * as path from 'path';
 import { approvalViewManager } from '../state/ApprovalViewManager';
@@ -123,6 +123,12 @@ export const COMPACT_TRIGGER_TOKENS = 500_000;
 
 /** The model every agent run uses, for callers that report it without importing the provider client. */
 export const AGENT_MODEL = ANTHROPIC_SONNET;
+
+/** The effort every agent run requests; the migration trace records it per stage. */
+export const AGENT_EFFORT = 'xhigh' as const;
+
+/** Every `streamText` attempt stops after this many steps; the migration trace records it per stage. */
+export const AGENT_STEP_CAP = 50;
 
 /**
  * Builds providerOptions.anthropic.contextManagement: compaction only, no `clear_tool_uses`
@@ -298,8 +304,11 @@ async function determineAffectedPackages(
  * - Plan approval workflow (via ApprovalManager in TaskWrite tool)
  */
 export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
-    /** Tracks in-flight tool-call start times keyed by toolCallId for duration logging. */
-    private readonly _pendingToolCalls = new Map<string, number>();
+    /** Migration runs only: turns this run's stream parts into trace events. */
+    private streamTracer?: StreamTracer;
+
+    /** Migration runs only: reports side model calls against the stage this run belongs to. */
+    private sideCallSink?: SideCallSink;
 
     /** A turn can reach both the finish and abort paths; suggestions must be scheduled once. */
     private _followupsScheduled = false;
@@ -374,13 +383,15 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
         const allModifiedFiles: Set<string> = new Set();
         const generationStartTime = Date.now();
         const projectId = await getHashedProjectId(this.config.executionContext.workspacePath || this.config.executionContext.projectPath);
+        // Taken now, while the orchestrator's stage is current: follow-ups can finish after it ends.
+        this.sideCallSink = this.config.debugLogger?.sideCallSink();
 
         try {
             // 1. Get project sources from temp directory
-            const projects: ProjectSource[] = await getProjectSource(
+            const projects: ProjectSource[] = await this.tracedPhase("project_source", "setup", () => getProjectSource(
                 params.operationType,
                 this.config.executionContext
-            );
+            ));
 
             // 2. Seed the ai:// baseline, unless the caller explicitly asked to skip it
             // (migration reusing the same directory across sequential stages). Awaited so
@@ -388,7 +399,7 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
             // the LS-side ensureAiBaseline request applies the pre-edit contents before
             // responding, unlike the old fire-and-forget didOpen seed.
             if (!this.config.lifecycle?.skipFreshProjectSetup) {
-                await seedAiBaselines(tempProjectPath, projects);
+                await this.tracedPhase("seed_baselines", "setup", () => seedAiBaselines(tempProjectPath, projects));
             } else {
                 console.log(`[AgentExecutor] Skipping ai:// baseline seed (skipFreshProjectSetup)`);
             }
@@ -419,7 +430,7 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
             const model = await getAnthropicClient(ANTHROPIC_SONNET);
 
             const projectRootPath = this.config.executionContext.workspacePath || this.config.executionContext.projectPath || '';
-            const agentsMd = await prepareAgentsMdForTurn(workspaceId || '', threadId);
+            const agentsMd = await this.tracedPhase("agents_md", "setup", () => prepareAgentsMdForTurn(workspaceId || '', threadId));
             if (agentsMd.hashToPersist !== undefined) {
                 const generation = chatStateStorage.getGeneration(this.chatStoreKey, threadId, this.config.generationId);
                 if (generation) {
@@ -457,13 +468,13 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
             if (supportsCompaction(loginMethod) && compactionOptions === undefined) {
                 warnCompactionDisabledOnce(projectRootPath, this.config.eventHandler);
             }
-            const modelOptions = await getProviderModelOptions('xhigh');
+            const modelOptions = await getProviderModelOptions(AGENT_EFFORT);
             const providerOptions = compactionOptions
                 ? { anthropic: { ...(modelOptions as { anthropic?: object }).anthropic, ...compactionOptions.anthropic } }
                 : modelOptions;
 
             // Ensure the pre-edit snapshot exists before any tool can run.
-            await chatStateStorage.waitForCheckpointCapture(this.config.generationId);
+            await this.tracedPhase("checkpoint_wait", "setup", () => chatStateStorage.waitForCheckpointCapture(this.config.generationId));
 
             // 4. Get chat history from storage (if enabled) — AFTER pre-turn compaction
             const chatHistory = this.getChatHistory();
@@ -489,12 +500,16 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
             // Accumulator for token usage from tool-internal LLM calls (e.g. Haiku filtering)
             // These are separate API calls NOT included in the main agent loop's totalUsage
             const toolModelUsage: Record<string, { inputTokens: number; outputTokens: number }> = {};
+            if (this.sideCallSink) {
+                // Subagents and web tools report their model calls through the accumulator they already hold.
+                attachSideCallSink(toolModelUsage, this.sideCallSink);
+            }
 
             // Refresh before building the tool registry so it picks up mid-session mcp.json edits.
-            await refreshMcpClientManager();
+            await this.tracedPhase("mcp_refresh", "setup", () => refreshMcpClientManager());
 
             // Create tools
-            const tools = createToolRegistry({
+            const tools = await this.tracedPhase("tool_registry", "setup", () => createToolRegistry({
                 eventHandler: this.config.eventHandler,
                 toolModelUsage,
                 tempProjectPath,
@@ -512,7 +527,7 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
                 specContext: this.buildSpecContext(threadId),
                 // TODO(auto-memory): temporarily disabled for this release.
                 // autoMemoryEnabled: isMemoryEnabled(),
-            });
+            }));
 
             // Accumulate tool call/result character counts across steps for breakdown estimation
             let accToolCallChars = 0;
@@ -573,6 +588,7 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
             // calls or text), with a stream-end fallback for a block left open at stream end.
             const flushCompactionBlock = () => {
                 isCompactionBlock = false;
+                this.streamTracer?.compactionEnded();
                 const summary = extractCompactionSummary(compactionContent);
                 cleanedCompactionSummary = summary || compactionContent;
                 streamContext.wasCompactionTurn = true;
@@ -588,11 +604,23 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
                 emitCompactionNotice();
             };
 
+            if (this.config.debugLogger) {
+                this.streamTracer = new StreamTracer(
+                    this.config.debugLogger,
+                    providerMetadata => detectAppliedCompaction(providerMetadata as Parameters<typeof detectAppliedCompaction>[0])?.clearedToolUses,
+                );
+                await this.traceStageContext({
+                    systemPromptText, tools, userMessageContent, historyMessages, floorTokens,
+                    compactionEnabled: compactionOptions !== undefined,
+                });
+            }
+
             // Process stream events - NATIVE V6 PATTERN
             try {
                 // One pass per streamText call. It loops only to resume a turn the model cut
                 // short at its output limit; every other outcome finalises and breaks.
                 for (; ;) {
+                    this.streamTracer?.beginAttempt(truncationRetries);
                     // Stream LLM response with server-side context management
                     const { fullStream, response, usage, totalUsage } = streamText({
                         model,
@@ -619,19 +647,6 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
 
                         // Emit per-step token usage for context usage widget + observability
                         onStepFinish: (step) => {
-                            // Migration runs only: the logger tags the step with the current stage.
-                            if (this.config.debugLogger) {
-                                this.config.debugLogger.logStep({
-                                    attempt: truncationRetries,
-                                    inputTokens: step.usage?.inputTokens || 0,
-                                    outputTokens: step.usage?.outputTokens || 0,
-                                    cacheReadTokens: step.usage?.inputTokenDetails?.cacheReadTokens || 0,
-                                    cacheWriteTokens: step.usage?.inputTokenDetails?.cacheWriteTokens || 0,
-                                    finishReason: step.finishReason,
-                                    toolNames: (step.toolCalls ?? []).map(call => call.toolName),
-                                });
-                            }
-
                             // Accumulate tool call/result chars for per-category breakdown estimation
                             accToolCallChars += JSON.stringify(step.toolCalls ?? []).length;
                             accToolResultChars += JSON.stringify(step.toolResults ?? []).length;
@@ -693,7 +708,7 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
                             }
                         },
 
-                        stopWhen: [stepCountIs(50)],
+                        stopWhen: [stepCountIs(AGENT_STEP_CAP)],
                     });
 
                     streamContext.response = response;
@@ -703,10 +718,14 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
                     let attemptRawFinishReason: string | undefined;
 
                     for await (const part of fullStream) {
+                        // Migration runs only: step timing, tool links and sizes. Never throws.
+                        this.streamTracer?.observe(part);
+
                         // Handle compaction block detection inline (text-start/text-delta)
                         if (part.type === 'text-start') {
                             const isCompaction = (part as any).providerMetadata?.anthropic?.type === 'compaction';
                             if (isCompaction) {
+                                this.streamTracer?.compactionStarted();
                                 isCompactionBlock = true;
                                 compactionContent = '';
                                 this.config.eventHandler({ type: 'compaction_start' });
@@ -935,24 +954,6 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
                 await this.handleStreamError(error, context);
                 throw error;
 
-            case "tool-call":
-                if (this.config.debugLogger) {
-                    this._pendingToolCalls.set((part as any).toolCallId, Date.now());
-                }
-                break;
-
-            case "tool-result":
-                if (this.config.debugLogger) {
-                    const startMs = this._pendingToolCalls.get((part as any).toolCallId);
-                    if (startMs !== undefined) {
-                        const durationMs = Date.now() - startMs;
-                        const { ok, summary } = summarizeToolOutput((part as any).output);
-                        this.config.debugLogger.logToolCall((part as any).toolName, durationMs, summary, ok);
-                        this._pendingToolCalls.delete((part as any).toolCallId);
-                    }
-                }
-                break;
-
             case "tool-error": {
                 // A tool whose execute() throws never reaches its own
                 // emitFileToolResult/eventHandler call, because tools emit their
@@ -966,14 +967,6 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
                 // tool failure back to the model and the run continues.
                 const failedToolName = (part as any).toolName;
                 const failedToolCallId = (part as any).toolCallId;
-                if (this.config.debugLogger) {
-                    const startMs = this._pendingToolCalls.get(failedToolCallId);
-                    if (startMs !== undefined) {
-                        const threw = describeToolError((part as any).error);
-                        this.config.debugLogger.logToolCall(failedToolName, Date.now() - startMs, `failed (threw ${threw})`, false);
-                    }
-                }
-                this._pendingToolCalls.delete(failedToolCallId);
 
                 // TaskWrite is deliberately excluded. Its tool_result drives the
                 // task rail through applyTaskWriteResult, where an empty task
@@ -1017,6 +1010,7 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
         if (!logger) {
             return;
         }
+        this.streamTracer?.finish();
         try {
             const totals = logger.stageTotals();
             logger.logStageUsage({
@@ -1025,6 +1019,49 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
                 estimatedCostUsd: calculateTotalCost(ANTHROPIC_SONNET, totals, toolModelUsage),
                 finishReason,
                 truncationRetries,
+            });
+        } catch {
+            // Tracing must never affect the run.
+        }
+    }
+
+    /**
+     * Writes the fixed context this run sends with every step, once, before its first model call.
+     * Sizes only: tool definitions are measured as name, description and input schema.
+     */
+    private async traceStageContext(context: {
+        systemPromptText: string;
+        tools: Record<string, { description?: string; inputSchema?: unknown }>;
+        userMessageContent: Array<{ type: string; text?: string }>;
+        historyMessages: ModelMessage[];
+        floorTokens: number;
+        compactionEnabled: boolean;
+    }): Promise<void> {
+        const logger = this.config.debugLogger;
+        if (!logger) {
+            return;
+        }
+        try {
+            const definitions = await Promise.all(Object.entries(context.tools).map(async ([name, tool]) => ({
+                name,
+                description: tool.description,
+                inputSchema: await asSchema(tool.inputSchema as Parameters<typeof asSchema>[0]).jsonSchema,
+            })));
+            logger.logStageContext({
+                systemPromptChars: context.systemPromptText.length,
+                toolCount: definitions.length,
+                toolDefinitionsChars: JSON.stringify(definitions).length,
+                userMessageChars: context.userMessageContent.reduce((chars, part) => chars + (part.text?.length ?? 0), 0),
+                codebaseMapChars: this.config.toolOptions?.codebaseMapText?.length ?? 0,
+                historyMessageCount: context.historyMessages.length,
+                historyChars: JSON.stringify(context.historyMessages).length,
+                floorTokens: context.floorTokens,
+                compactionEnabled: context.compactionEnabled,
+                compactTriggerTokens: COMPACT_TRIGGER_TOKENS,
+                effort: AGENT_EFFORT,
+                maxOutputTokens: RESERVED_OUTPUT_TOKENS,
+                stepCap: AGENT_STEP_CAP,
+                agentLimits: this.config.agentLimits,
             });
         } catch {
             // Tracing must never affect the run.
@@ -1147,7 +1184,7 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
         const tempProjectPath = context.ctx.tempProjectPath!;
 
         // Run final diagnostics
-        const finalDiagnostics = await checkCompilationErrors(tempProjectPath);
+        const finalDiagnostics = await this.tracedPhase("final_diagnostics", "teardown", () => checkCompilationErrors(tempProjectPath));
         context.eventHandler({
             type: "diagnostics",
             diagnostics: finalDiagnostics.diagnostics
@@ -1156,7 +1193,7 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
         // Send telemetry for generation completion
         const generationEndTime = Date.now();
         const isPlanModeEnabled = workspace.getConfiguration('ballerina.ai').get<boolean>('planMode', false);
-        const finalProjectMetrics = await getProjectMetrics(tempProjectPath);
+        const finalProjectMetrics = await this.tracedPhase("project_metrics", "teardown", () => getProjectMetrics(tempProjectPath));
 
         // Get total token usage across all agent steps (includes cache stats)
         const totalTokenUsage = turnUsage;
@@ -1218,7 +1255,7 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
         );
 
         // Update chat state storage
-        await this.updateChatState(context, assistantMessages, tempProjectPath);
+        await this.tracedPhase("update_chat_state", "teardown", () => this.updateChatState(context, assistantMessages, tempProjectPath));
 
         // Every edit already landed live in the real workspace via persistLiveEdit (see
         // text-editor.ts) — no re-integration needed here. In workspace mode, still resolve the
@@ -1235,7 +1272,8 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
         }
 
         // Emit UI events
-        await this.emitReviewActions(context);
+        // Mostly the semantic diff of the modified packages, then the review events.
+        await this.tracedPhase("semantic_diff", "teardown", () => this.emitReviewActions(context));
 
         // Follow-up suggestions — best-effort, non-blocking.
         this.maybeScheduleFollowups(context, assistantMessages, 'completed');
@@ -1274,6 +1312,7 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
             abortSignal: this.config.abortController.signal,
             errorMessage,
             eventHandler: this.config.eventHandler,
+            traceSideCall: this.sideCallSink,
         });
     }
 
@@ -1297,6 +1336,7 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
             modifiedFiles: Array.from(new Set([...context.allModifiedFiles, ...context.modifiedFiles])),
             errorCount,
             abortSignal: this.config.abortController.signal,
+            traceSideCall: this.sideCallSink,
         });
     }
 

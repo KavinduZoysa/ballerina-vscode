@@ -26,7 +26,7 @@ import { buildChatError } from '../../utils/ai-utils';
 import { finalizeRevertibleGeneration } from '../../utils/generation-response';
 import { runEventStore } from '../../utils/run-event-store';
 import { agentStatusManager } from '../../state/AgentStatusManager';
-import { MigrationDebugLogger } from '../../migration/debug-logger';
+import { MigrationDebugLogger, PhaseCategory } from '../../migration/debug-logger';
 import { clearAiTouchedFiles } from '../../../../rpc-managers/diagram-validity';
 
 /**
@@ -211,13 +211,13 @@ export abstract class AICommandExecutor<TParams = any> {
             }
 
             // Stage 3: Temp project initialization
-            await this.initializeTempProject();
+            await this.tracedPhase("temp_project", "setup", () => this.initializeTempProject());
 
             // Stage 4: Command execution
             const result = await this.execute();
 
             // Stage 5: Cleanup
-            await this.performCleanup(result);
+            await this.tracedPhase("cleanup", "teardown", () => this.performCleanup(result));
 
             console.log(`[AICommandExecutor] Completed ${this.getCommandType()} execution: ${this.config.generationId}`);
             return result;
@@ -248,6 +248,23 @@ export abstract class AICommandExecutor<TParams = any> {
      */
     protected async prepareForExecution(): Promise<void> {
         return;
+    }
+
+    /**
+     * Runs one step of the execution, timing it as a migration trace phase when a debug logger
+     * is set. Errors pass through unchanged; without a logger this is a plain call.
+     */
+    protected async tracedPhase<T>(name: string, category: PhaseCategory, work: () => T | Promise<T>): Promise<T> {
+        const logger = this.config.debugLogger;
+        if (!logger) {
+            return work();
+        }
+        const startMs = Date.now();
+        try {
+            return await work();
+        } finally {
+            logger.logPhase(name, Date.now() - startMs, category);
+        }
     }
 
     /**

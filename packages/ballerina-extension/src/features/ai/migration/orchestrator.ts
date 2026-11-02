@@ -710,7 +710,11 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
         }
 
         // Checked before startStage so a failed guard leaves a resumable transcript intact.
+        const codebaseMapStartMs = Date.now();
         const codebaseMapText = await buildMigrationCodebaseMap(packagePath);
+        if (debugLogger) {
+            debugLogger.logPhase("codebase_map", Date.now() - codebaseMapStartMs, "setup");
+        }
         const estimatedPromptTokens = Math.ceil((stages[i].prompt.length + codebaseMapText.length) / 4);
         if (estimatedPromptTokens > MIGRATION_STAGE_PROMPT_BUDGET_TOKENS) {
             const reason = `${stage.name} prompt is estimated at ~${estimatedPromptTokens.toLocaleString()} tokens, over the ${MIGRATION_STAGE_PROMPT_BUDGET_TOKENS.toLocaleString()}-token budget — split this project into smaller packages and retry.`;

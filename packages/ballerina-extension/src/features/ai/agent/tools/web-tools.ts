@@ -22,6 +22,7 @@ import { CopilotEventHandler } from '../../utils/events';
 import { approvalManager } from '../../state/ApprovalManager';
 import { getAnthropicClient, getProviderModelOptions, ANTHROPIC_SONNET } from '../../utils/ai-client';
 import { sendWebToolToggleNotification } from '../../utils/ai-utils';
+import { reportSideCall, sideCallUsage } from '../../migration/debug-logger';
 
 const WEB_TOOL_NOTIFICATION_TYPE = "webtool";
 
@@ -97,13 +98,14 @@ Rules:
 - Include all relevant details, facts, and code examples. Cite sources where applicable.
 - If you made a significant decision while researching (e.g. chose one version/approach over another), briefly state why — this helps the main agent reason correctly.`;
 
-export function createWebSearchTool(eventHandler: CopilotEventHandler, webSearchEnabled: boolean) {
+/** `toolModelUsage` is the run's accumulator; migration tracing reports the search call's usage through it. */
+export function createWebSearchTool(eventHandler: CopilotEventHandler, webSearchEnabled: boolean, toolModelUsage?: object) {
     return tool({
         description: 'Search the web for information on a query. Acts as a research sub-agent: performs the search and returns a synthesized, detailed answer with relevant facts and sources — not raw results. Provide the search query and the context of what you are trying to accomplish so the results can be focused. Supports optional domain allow/block filters.',
         inputSchema: WebSearchInputSchema,
         execute: async (input, context?: { toolCallId?: string }) => {
             const toolCallId = context?.toolCallId || `fallback-${Date.now()}`;
-            return executeWebSearch(input, webSearchEnabled, eventHandler, toolCallId);
+            return executeWebSearch(input, webSearchEnabled, eventHandler, toolCallId, toolModelUsage);
         },
     });
 }
@@ -112,7 +114,8 @@ async function executeWebSearch(
     input: WebSearchInput,
     webSearchEnabled: boolean,
     eventHandler: CopilotEventHandler,
-    toolCallId: string
+    toolCallId: string,
+    toolModelUsage?: object
 ): Promise<string> {
     const displayContent = `Search the web for: "${input.query}"`;
 
@@ -138,6 +141,7 @@ async function executeWebSearch(
         const blockedDomains = sanitizeDomainList(input.blocked_domains);
 
         console.log(`[WebTools] search | query: ${input.query} | context: ${input.context}`);
+        const started = Date.now();
         const result = await generateText({
             model: await getAnthropicClient(ANTHROPIC_SONNET),
             providerOptions: await getProviderModelOptions(),
@@ -152,6 +156,7 @@ async function executeWebSearch(
             },
         });
 
+        reportSideCall(toolModelUsage, { source: 'web_search', model: ANTHROPIC_SONNET, ...sideCallUsage(result.totalUsage), durationMs: Date.now() - started });
         const content = result.text || 'Web search completed but returned no content.';
         console.log(`[WebTools] search | done | length: ${content.length}`);
 
@@ -180,13 +185,14 @@ const WebFetchInputSchema = z.object({
 });
 export type WebFetchInput = z.infer<typeof WebFetchInputSchema>;
 
-export function createWebFetchTool(eventHandler: CopilotEventHandler, webSearchEnabled: boolean) {
+/** `toolModelUsage` is the run's accumulator; migration tracing reports the fetch call's usage through it. */
+export function createWebFetchTool(eventHandler: CopilotEventHandler, webSearchEnabled: boolean, toolModelUsage?: object) {
     return tool({
         description: 'Fetch and return the raw content of a specific URL. Use this when you have an exact URL (documentation page, API spec, JSON endpoint, etc.) and need its content. Returns the raw page content as-is. Supports optional domain allow/block filters.',
         inputSchema: WebFetchInputSchema,
         execute: async (input, context?: { toolCallId?: string }) => {
             const toolCallId = context?.toolCallId || `fallback-${Date.now()}`;
-            return executeWebFetch(input, webSearchEnabled, eventHandler, toolCallId);
+            return executeWebFetch(input, webSearchEnabled, eventHandler, toolCallId, toolModelUsage);
         },
     });
 }
@@ -195,7 +201,8 @@ async function executeWebFetch(
     input: WebFetchInput,
     webSearchEnabled: boolean,
     eventHandler: CopilotEventHandler,
-    toolCallId: string
+    toolCallId: string,
+    toolModelUsage?: object
 ): Promise<string> {
     const displayContent = `Fetch content from: ${input.url}`;
 
@@ -221,6 +228,7 @@ async function executeWebFetch(
         const blockedDomains = sanitizeDomainList(input.blocked_domains);
 
         console.log(`[WebTools] fetch | url: ${input.url}`);
+        const started = Date.now();
         const result = await generateText({
             model: await getAnthropicClient(ANTHROPIC_SONNET),
             providerOptions: await getProviderModelOptions(),
@@ -237,6 +245,7 @@ async function executeWebFetch(
             stopWhen: hasToolCall('web_fetch'),
         });
 
+        reportSideCall(toolModelUsage, { source: 'web_fetch', model: ANTHROPIC_SONNET, ...sideCallUsage(result.totalUsage), durationMs: Date.now() - started });
         const content = extractToolOutput(result);
         console.log(`[WebTools] fetch | done | length: ${content?.length ?? 0}`);
 

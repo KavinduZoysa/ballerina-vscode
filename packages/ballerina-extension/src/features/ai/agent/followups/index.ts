@@ -25,6 +25,7 @@ import { ANTHROPIC_HAIKU, getAnthropicClient } from "../../utils/ai-client";
 import { buildFollowupPrompt, FollowupPromptInput, FollowupSituation, RecentExchange } from "./prompt";
 import { followupSuggestionsSchema, GeneratedFollowupSuggestion } from "./schema";
 import { extractAssistantText } from "../message-text";
+import { SideCallSink, sideCallUsage } from "../../migration/debug-logger";
 
 export { FollowupSituation } from "./prompt";
 
@@ -64,6 +65,8 @@ export interface FollowupTurn {
     /** What went wrong, when the turn failed. */
     errorMessage?: string;
     eventHandler: CopilotEventHandler;
+    /** Migration runs only: reports the suggestion call's usage to the trace. */
+    traceSideCall?: SideCallSink;
 }
 
 /**
@@ -75,7 +78,7 @@ export interface FollowupTurn {
  * @returns whether generation started, so the caller can avoid running twice for one turn.
  */
 export function startFollowupSuggestions(turn: FollowupTurn): boolean {
-    const { situation, messageId, projectRootPath, threadId, assistantMessages, userQuery, isPlanMode, abortSignal, errorMessage, eventHandler } = turn;
+    const { situation, messageId, projectRootPath, threadId, assistantMessages, userQuery, isPlanMode, abortSignal, errorMessage, eventHandler, traceSideCall } = turn;
 
     if (process.env.AI_TEST_ENV) {
         return false;
@@ -113,7 +116,7 @@ export function startFollowupSuggestions(turn: FollowupTurn): boolean {
                     mode: isPlanMode ? "Plan" : "Edit",
                     situation,
                     errorMessage,
-                }, abortSignal)
+                }, abortSignal, traceSideCall)
                 : [];
 
             const fixed = aborted || situation === "usage_limit" ? [CONTINUE_SUGGESTION]
@@ -153,14 +156,16 @@ export function startFollowupSuggestions(turn: FollowupTurn): boolean {
  */
 async function generateSuggestions(
     input: FollowupPromptInput,
-    turnSignal: AbortSignal
+    turnSignal: AbortSignal,
+    traceSideCall?: SideCallSink
 ): Promise<GeneratedFollowupSuggestion[]> {
     if (!input.assistantResponse?.trim()) {
         return [];
     }
     const interrupted = input.situation !== "completed";
     try {
-        const { object } = await generateObject({
+        const started = Date.now();
+        const { object, usage } = await generateObject({
             model: await getAnthropicClient(ANTHROPIC_HAIKU),
             maxOutputTokens: 1024,
             temperature: 0.3,
@@ -169,6 +174,7 @@ async function generateSuggestions(
             // The turn's signal is tripped on the interrupted paths, so fall back to a timeout.
             abortSignal: interrupted ? AbortSignal.timeout(TIMEOUT_MS) : turnSignal,
         });
+        traceSideCall?.({ source: "followups", model: ANTHROPIC_HAIKU, ...sideCallUsage(usage), durationMs: Date.now() - started });
         // Leave room for the fixed chip that an interrupted turn prepends.
         return sanitize(object.suggestions, interrupted ? 2 : 3, input.situation);
     } catch (error) {

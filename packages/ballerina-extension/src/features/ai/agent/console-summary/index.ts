@@ -29,6 +29,7 @@ import {
     sanitizeSummary,
 } from "./prompt";
 import { consoleSummarySchema } from "./schema";
+import { SideCallSink, sideCallUsage } from "../../migration/debug-logger";
 
 export { markConsoleOriginThread } from "./origin";
 
@@ -50,6 +51,8 @@ export interface ConsoleSummaryTurn {
     modifiedFiles: string[];
     errorCount: number;
     abortSignal: AbortSignal;
+    /** Migration runs only: reports the summary call's usage to the trace. */
+    traceSideCall?: SideCallSink;
 }
 
 /**
@@ -95,7 +98,7 @@ export function startConsoleSummary(turn: ConsoleSummaryTurn): boolean {
             };
             let summary: string;
             try {
-                summary = await generateSummary(input, turn.abortSignal);
+                summary = await generateSummary(input, turn.abortSignal, turn.traceSideCall);
             } catch (error) {
                 // A completed turn still gets an entry, built from what the turn recorded.
                 console.warn(`[ConsoleSummary] Summary generation failed for ${turn.messageId}, using the fallback:`, error);
@@ -167,7 +170,8 @@ async function isPublishingActive(): Promise<boolean> {
  */
 async function generateSummary(
     input: Parameters<typeof buildConsoleSummaryMessages>[0],
-    turnSignal: AbortSignal
+    turnSignal: AbortSignal,
+    traceSideCall?: SideCallSink
 ): Promise<string> {
     // Stopped by whichever comes first, the turn's signal or the timeout. Both
     // bound client acquisition too: it can wait on a login or token refresh.
@@ -181,7 +185,8 @@ async function generateSummary(
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
         const model = await untilAborted(getAnthropicClient(ANTHROPIC_HAIKU), controller.signal);
-        const { object } = await generateObject({
+        const started = Date.now();
+        const { object, usage } = await generateObject({
             model,
             maxOutputTokens: 512,
             temperature: 0.2,
@@ -189,6 +194,7 @@ async function generateSummary(
             schema: consoleSummarySchema,
             abortSignal: controller.signal,
         });
+        traceSideCall?.({ source: "console_summary", model: ANTHROPIC_HAIKU, ...sideCallUsage(usage), durationMs: Date.now() - started });
         const summary = sanitizeSummary(object.summary);
         if (!summary) {
             throw new Error("The model returned an empty summary");

@@ -22,6 +22,7 @@ import { generateText, ModelMessage, stepCountIs } from "ai";
 import { buildSubagentMessages, collectResponseMessages } from "./messages";
 import { addCacheControlToMessages, AnthropicEffort, ANTHROPIC_HAIKU, ANTHROPIC_SONNET, getAnthropicClient, getProviderCacheControl } from "../../utils/ai-client";
 import { accumulateModelUsage } from "../../utils/events";
+import { reportSideCall, sideCallUsage } from "../../migration/debug-logger";
 import { getSubagentDefinition } from "./definitions";
 import { describeSubagentStep, SubagentProgress } from "./progress";
 import { SubagentModel, SubagentResult, SubagentRunContext, SubagentType } from "./types";
@@ -109,6 +110,13 @@ export async function runSubagent(params: RunSubagentParams): Promise<SubagentRe
         inputTokens: usage?.inputTokens ?? 0,
         outputTokens: usage?.outputTokens ?? 0,
     }], params.ctx.toolModelUsage);
+    // A no-op unless a migration trace attached its sink to this run's accumulator.
+    reportSideCall(params.ctx.toolModelUsage, {
+        source: `subagent:${params.type}`,
+        model: modelId,
+        ...sideCallUsage(usage),
+        durationMs: Date.now() - started,
+    });
 
     console.log(`[Subagent:${params.type}] done in ${(Date.now() - started) / 1000}s, ${result.steps.length} step(s), ${result.text.length} chars`);
 

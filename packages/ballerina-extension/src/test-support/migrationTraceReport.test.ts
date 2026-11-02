@@ -17,11 +17,16 @@
  */
 
 /**
- * `scripts/migration-trace-report.js` turns a migration trace.jsonl into per-stage numbers. The
- * fake trace below has two runs; the latest is a two-package workspace whose stages cover the
- * cases the report must get right: parallel tool calls (tool time counts them once), a stage
+ * `scripts/migration-trace-report.js` turns a migration trace.jsonl into per-stage numbers.
+ *
+ * `buildTrace` is in the first trace format — no phases, stage context, per-step latency, tool
+ * sizes or side calls — so it also pins that older traces still parse and report. Its latest run
+ * is a two-package workspace covering parallel tool calls (tool time counts them once), a stage
  * without a usage summary (tokens come from its steps), a stage that hit the executor's 50-step
  * cap in one attempt, one that took more than 50 steps only across attempts, and a torn line.
+ *
+ * `buildNewTrace` is in the current format: two runs of one stage, the second at a lower effort,
+ * whose first run trips every flag — cache miss, long gap, repeated call, large output, truncation.
  */
 
 import * as fs from "fs";
@@ -188,8 +193,17 @@ describe("unionMs", () => {
     });
 });
 
-describe("output", () => {
-    it("groups a multi-package run by package and notes the cap, partial totals and slowest tools", () => {
+describe("older traces", () => {
+    it("still report, with the columns they lack left empty and the model time approximated", () => {
+        const [inventory] = latestRunRows();
+
+        expect(inventory).toMatchObject({
+            modelMeasured: false, setupMs: undefined, teardownMs: undefined, otherMs: undefined,
+            fixedContextTokens: undefined, fixedTimesSteps: undefined, sideCalls: [],
+        });
+    });
+
+    it("group a multi-package run by package and note the cap, partial totals and slowest tools", () => {
         const { runs } = report.parseTrace(buildTrace());
         const text: string = report.formatTable([report.summarizeRun(runs[1])]);
 
@@ -198,22 +212,202 @@ describe("output", () => {
         expect(text).toContain("slowest tools: file_read 2× 2.5s, getCompilationErrors 1× 2.0s, migration_source_read 1× 100ms");
         expect(text).toContain("! reached 50 steps in one attempt");
         expect(text).toContain("* no stage_usage event: tokens summed from step events");
-        expect(text).toMatch(/Total\s+28\.2s\s+3\.1s/);
+        expect(text).toContain("* no per-step model time in this trace");
+        expect(text).toMatch(/Total\s+28\.2s\s+—\s+≈25\.\ds\s+3\.1s/);
     });
 
-    it("writes one CSV row per stage", () => {
+    it("write one CSV row per stage, the new columns empty", () => {
         const { runs } = report.parseTrace(buildTrace());
         const lines: string[] = report.formatCsv([report.summarizeRun(runs[1])]).trim().split("\n");
 
         expect(lines[0]).toBe(
             "run_id,package,stage,status,wall_ms,tool_ms,model_ms,steps,input_tokens,output_tokens," +
-            "cache_read_tokens,cache_write_tokens,cache_hit_pct,estimated_cost_usd,partial,hit_step_cap,slowest_tools"
+            "cache_read_tokens,cache_write_tokens,cache_hit_pct,estimated_cost_usd,partial,hit_step_cap,slowest_tools," +
+            "setup_ms,teardown_ms,other_ms,model_ms_measured,fixed_context_tokens,fixed_x_steps," +
+            "side_calls,side_call_input_tokens,side_call_output_tokens,flags"
         );
         expect(lines).toHaveLength(5);
         expect(lines[1]).toBe(
             "run-new,orders,Stage 1 — Source Inventory & Gap Analysis,completed,10000,3150,6850,2,4000,200,3000,1000,75.0," +
-            "0.020000,false,false,file_read:2:2500;getCompilationErrors:1:2000;migration_source_read:1:100"
+            "0.020000,false,false,file_read:2:2500;getCompilationErrors:1:2000;migration_source_read:1:100,,,,false,,,0,0,0,"
         );
+        expect(lines[2]).toMatch(/,step_cap$/);
+    });
+});
+
+const NEW_STAGE = "Stage 1 — Source Inventory & Gap Analysis";
+/** Six minutes: longer than the prompt cache lives. */
+const GAP = 6 * 60_000;
+
+/** Two runs of the same single-package stage in the current trace format; run B ran at effort "high". */
+function buildNewTrace(): string {
+    const a = inStage("run-v2a", NEW_STAGE);
+    const b = inStage("run-v2b", NEW_STAGE);
+    const context = (effort: string) => ({
+        systemPromptChars: 40_000, toolCount: 22, toolDefinitionsChars: 36_000, userMessageChars: 4_000,
+        codebaseMapChars: 1_000, historyMessageCount: 0, historyChars: 0, floorTokens: 11_000,
+        compactionEnabled: true, compactTriggerTokens: 500_000, effort, maxOutputTokens: 64_000,
+        stepCap: 50, agentLimits: { maxSteps: 50, maxOutputTokens: 8_192 },
+    });
+    const step = (at: ReturnType<typeof inStage>, ms: number, fields: Record<string, unknown>) => at(ms, "step", {
+        attempt: 0, cacheReadTokens: 0, cacheWriteTokens: 0, finishReason: "tool-calls", toolNames: [], ...fields,
+    });
+    // The same file read three times: identical arguments, so the same argsHash.
+    const read = (at: ReturnType<typeof inStage>, ms: number, stepNumber: number, durationMs: number, outputChars: number) => at(ms, "tool", {
+        toolName: "file_read", durationMs, ok: true, toolCallId: `call-${stepNumber}`, stepNumber,
+        inputChars: 30, outputChars, argsHash: "aaaaaaaaaaaa",
+    });
+
+    return [
+        event("run-v2a", 0, "run_start", { model: "claude-sonnet-5", loginMethod: "biIntel", packageCount: 1, entryPoint: "wizard" }),
+        a(0, "stage_start"),
+        a(200, "phase", { name: "codebase_map", durationMs: 200, category: "setup" }),
+        a(300, "phase", { name: "temp_project", durationMs: 50, category: "setup" }),
+        a(600, "phase", { name: "project_source", durationMs: 250, category: "setup" }),
+        a(700, "stage_context", context("xhigh")),
+        read(a, 3_000, 1, 400, 25_000),
+        step(a, 3_000, { stepNumber: 1, durationMs: 2_000, stepMs: 2_000, ttftMs: 500, modelMs: 1_500, inputTokens: 20_000, cacheWriteTokens: 20_000, outputTokens: 100, toolNames: ["file_read"] }),
+        read(a, 5_000, 2, 300, 1_000),
+        step(a, 5_000, { stepNumber: 2, durationMs: 2_000, stepMs: 2_000, ttftMs: 300, modelMs: 1_600, inputTokens: 46_000, cacheReadTokens: 20_000, cacheWriteTokens: 26_000, outputTokens: 200, toolNames: ["file_read"] }),
+        // Step 3's request goes out six minutes after step 2's, and finds the cache expired.
+        read(a, GAP + 6_000, 3, 200, 900),
+        step(a, GAP + 6_000, { stepNumber: 3, durationMs: GAP + 1_000, stepMs: 1_000, ttftMs: 400, modelMs: 700, inputTokens: 47_000, cacheWriteTokens: 47_000, outputTokens: 150, toolNames: ["file_read"] }),
+        step(a, GAP + 8_000, { stepNumber: 4, durationMs: 2_000, stepMs: 1_500, ttftMs: 900, modelMs: 1_200, inputTokens: 48_000, cacheReadTokens: 47_000, cacheWriteTokens: 1_000, outputTokens: 3_000, finishReason: "length" }),
+        a(GAP + 8_800, "phase", { name: "final_diagnostics", durationMs: 800, category: "teardown" }),
+        a(GAP + 9_100, "phase", { name: "semantic_diff", durationMs: 300, category: "teardown" }),
+        a(GAP + 9_200, "stage_usage", {
+            status: "completed", steps: 4, inputTokens: 161_000, outputTokens: 3_450, cacheReadTokens: 67_000,
+            cacheWriteTokens: 94_000, cacheHitRatio: 0.4161, subagentUsage: {}, estimatedCostUsd: 0.5,
+            finishReason: "length", truncationRetries: 0, partial: false,
+        }),
+        a(GAP + 9_300, "phase", { name: "cleanup", durationMs: 100, category: "teardown" }),
+        a(GAP + 10_000, "stage_end", { status: "completed", durationMs: GAP + 10_000, steps: 4 }),
+        // Follow-up suggestions finish after the stage ended; their stage tag still places them.
+        a(GAP + 10_500, "side_call", { source: "followups", model: "claude-haiku-4-5-20251001", inputTokens: 1_200, outputTokens: 80, durationMs: 900 }),
+        event("run-v2a", GAP + 11_000, "run_end", { status: "completed", durationMs: GAP + 11_000 }),
+
+        event("run-v2b", GAP + 20_000, "run_start", { model: "claude-sonnet-5", loginMethod: "biIntel", packageCount: 1, entryPoint: "wizard" }),
+        b(GAP + 20_000, "stage_start"),
+        b(GAP + 20_100, "stage_context", context("high")),
+        step(b, GAP + 22_000, { stepNumber: 1, durationMs: 1_900, stepMs: 1_800, ttftMs: 300, modelMs: 1_500, inputTokens: 20_000, cacheWriteTokens: 20_000, outputTokens: 100 }),
+        step(b, GAP + 24_000, { stepNumber: 2, durationMs: 2_000, stepMs: 2_000, ttftMs: 300, modelMs: 1_900, inputTokens: 30_000, cacheReadTokens: 20_000, cacheWriteTokens: 10_000, outputTokens: 2_000, finishReason: "stop" }),
+        b(GAP + 24_500, "stage_usage", {
+            status: "completed", steps: 2, inputTokens: 50_000, outputTokens: 2_100, cacheReadTokens: 20_000,
+            cacheWriteTokens: 30_000, cacheHitRatio: 0.4, subagentUsage: {}, estimatedCostUsd: 0.2,
+            finishReason: "stop", truncationRetries: 0, partial: false,
+        }),
+        b(GAP + 30_000, "stage_end", { status: "completed", durationMs: 10_000, steps: 2 }),
+        event("run-v2b", GAP + 30_100, "run_end", { status: "completed", durationMs: 10_100 }),
+    ].join("\n") + "\n";
+}
+
+function newRuns() {
+    const { runs } = report.parseTrace(buildNewTrace());
+    return runs.map((run: unknown) => report.summarizeRun(run));
+}
+
+describe("current traces", () => {
+    it("split a stage's time into setup, model, tools, teardown and what is left over", () => {
+        const [stage] = newRuns()[0].stages;
+
+        // 370 s wall: 0.5 s setup, 5 s model (summed per step), 0.9 s tools, 1.2 s teardown.
+        expect(stage).toMatchObject({
+            wallMs: GAP + 10_000, setupMs: 500, modelMs: 5_000, modelMeasured: true, toolMs: 900, teardownMs: 1_200,
+            otherMs: GAP + 10_000 - 500 - 5_000 - 900 - 1_200,
+        });
+    });
+
+    it("estimate the context every step re-sends, times the steps", () => {
+        const [stage] = newRuns()[0].stages;
+
+        // (40,000 system + 36,000 tools + 4,000 user + 0 history) chars ÷ 4.
+        expect(stage).toMatchObject({ fixedContextTokens: 20_000, fixedTimesSteps: 80_000 });
+    });
+
+    it("flag cache misses, long gaps, repeated calls, large outputs and truncation", () => {
+        const [stage] = newRuns()[0].stages;
+
+        expect(stage).toMatchObject({
+            hitStepCap: false,
+            cacheMissSteps: [3],
+            longGaps: [{ stepNumber: 3, gapMs: GAP + 2_000 }],
+            repeatedCalls: [{ toolName: "file_read", argsHash: "aaaaaaaaaaaa", count: 3 }],
+            largeOutputs: [{ toolName: "file_read", stepNumber: 1, outputChars: 25_000 }],
+            truncatedSteps: [4],
+        });
+    });
+
+    it("place a side call by its stage tag, even one written after the stage ended", () => {
+        const [stage] = newRuns()[0].stages;
+
+        expect(stage.sideCalls).toEqual([expect.objectContaining({ source: "followups", calls: 1, inputTokens: 1_200, outputTokens: 80 })]);
+    });
+
+    it("show the new columns, the flags and the context breakdown in the table", () => {
+        const text: string = report.formatTable([newRuns()[0]]);
+
+        expect(text).toMatch(/Stage\s+Status\s+Wall\s+Setup\s+Model\s+Tools\s+Teardown\s+Other\s+Steps/);
+        expect(text).toMatch(/completed\s+6m 10s\s+500ms\s+5\.0s\s+900ms\s+1\.2s\s+6m 02s\s+4/);
+        expect(text).toMatch(/Fixed×steps\s+Side calls\s+Est\. cost/);
+        expect(text).toMatch(/80,000\s+1\s+\$0\.5000/);
+        expect(text).toContain("fixed context ≈20,000 tokens × 4 steps — system 10.0k, tools 9.0k (22), user 1.0k");
+        expect(text).toContain("side calls: followups 1× — in 1,200");
+        expect(text).toContain("! cache miss at step 3");
+        expect(text).toContain("! long gap before step 3: 6m 02s since the previous model call");
+        expect(text).toContain("! repeated tool call: file_read 3× with identical arguments (args aaaaaaaaaaaa)");
+        expect(text).toContain("! large tool output: file_read 25,000 chars at step 1");
+        expect(text).toContain("! output truncated (finish reason \"length\") at step 4");
+    });
+
+    it("write the new values and flag codes to CSV", () => {
+        const lines: string[] = report.formatCsv([newRuns()[0]]).trim().split("\n");
+
+        expect(lines[1]).toMatch(
+            /,500,1200,362400,true,20000,80000,1,1200,80,cache_miss:3;long_gap:3;repeated:file_read×3;large_output:1;truncated:4$/
+        );
+    });
+});
+
+describe("--steps", () => {
+    it("lists the steps that grew the input most, with the previous step's tool output sizes", () => {
+        const text: string = report.formatSteps([newRuns()[0]]);
+
+        expect(text).toMatch(/Largest input growth[^\n]*\n\s+2: \+26,000 → 46,000 · file_read 25,000 chars/);
+        expect(text).toMatch(/Most output tokens[^\n]*\n\s+4: 3,000 · none/);
+        expect(text).toMatch(/Slowest time to first token[^\n]*\n\s+4: 900ms · 48,000 · 97\.9%/);
+    });
+
+    it("says so when an older trace has no time to first token", () => {
+        const { runs } = report.parseTrace(buildTrace());
+
+        expect(report.formatSteps([report.summarizeRun(runs[1])])).toContain("Slowest time to first token: no ttftMs in this trace");
+    });
+});
+
+describe("--compare", () => {
+    it("pairs the stages of two runs and shows what changed in their settings", () => {
+        const [a, b] = newRuns();
+        const [pair] = report.compareRuns(a, b);
+        const text: string = report.formatCompare(a, b);
+
+        expect(pair.settings).toBe("effort xhigh → high");
+        expect(text).toMatch(/6m 10s\s+10\.0s\s+-6m 00s\s+4\s+2\s+161,000\s+50,000\s+-111,000/);
+        expect(text).toContain("-$0.3000");
+        expect(text).toContain(`${NEW_STAGE}: effort xhigh → high`);
+    });
+
+    it("says a stage is unchanged when its settings match", () => {
+        const [a] = newRuns();
+
+        expect(report.compareRuns(a, a)[0].settings).toBe("same (effort xhigh, step cap 50)");
+    });
+
+    it("writes the pairs to CSV", () => {
+        const [a, b] = newRuns();
+        const lines: string[] = report.formatCompareCsv(a, b).trim().split("\n");
+
+        expect(lines).toHaveLength(2);
+        expect(lines[1]).toBe(`,${NEW_STAGE},run-v2a,run-v2b,${GAP + 10_000},10000,4,2,161000,50000,3450,2100,0.5,0.2,effort xhigh → high`);
     });
 });
 
@@ -255,5 +449,38 @@ describe("main", () => {
     it("rejects an unknown flag with the usage line", () => {
         expect(report.main([projectRoot, "--json"], outStream, errStream)).toBe(2);
         expect(err).toMatch(/^Usage: /);
+    });
+
+    it("adds the step lists with --steps", () => {
+        expect(report.main([projectRoot, "--steps"], outStream, errStream)).toBe(0);
+
+        expect(out).toContain("Steps of run run-new");
+        expect(out).toContain("Largest input growth");
+    });
+
+    describe("--compare", () => {
+        let tracePath: string;
+
+        beforeEach(() => {
+            tracePath = path.join(projectRoot, "new-trace.jsonl");
+            fs.writeFileSync(tracePath, buildNewTrace());
+        });
+
+        it("compares two runs picked by id prefix", () => {
+            expect(report.main([tracePath, "--compare", "run-v2a", "run-v2b"], outStream, errStream)).toBe(0);
+
+            expect(out).toContain("A: run run-v2a");
+            expect(out).toContain("effort xhigh → high");
+        });
+
+        it("refuses a prefix that matches several runs", () => {
+            expect(report.main([tracePath, "--compare", "run-v2", "run-v2b"], outStream, errStream)).toBe(1);
+            expect(err).toBe("run-v2 matches 2 runs; use a longer prefix.\n");
+        });
+
+        it("needs two run ids", () => {
+            expect(report.main([tracePath, "--compare", "run-v2a"], outStream, errStream)).toBe(2);
+            expect(err).toContain("--compare needs two run ids.");
+        });
     });
 });
