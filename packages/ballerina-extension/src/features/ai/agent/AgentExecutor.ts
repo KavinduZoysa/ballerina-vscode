@@ -51,7 +51,8 @@ import {
     dropDanglingToolCalls,
     isResumableTruncation,
 } from './truncation-recovery';
-import { updateAndSaveChat, calculateTotalCost } from '../utils/events';
+import { updateAndSaveChat, calculateTotalCost, ToolModelUsage } from '../utils/events';
+import { describeToolError, StageStatus, summarizeToolOutput } from '../migration/debug-logger';
 import { chatStateStorage } from '../../../views/ai-panel/chatStateStorage';
 import * as path from 'path';
 import { approvalViewManager } from '../state/ApprovalViewManager';
@@ -119,6 +120,9 @@ function supportsCompaction(loginMethod: LoginMethod): boolean {
  * the whole project source each turn; 500K sits well within Claude Sonnet's 1M window.
  */
 export const COMPACT_TRIGGER_TOKENS = 500_000;
+
+/** The model every agent run uses, for callers that report it without importing the provider client. */
+export const AGENT_MODEL = ANTHROPIC_SONNET;
 
 /**
  * Builds providerOptions.anthropic.contextManagement: compaction only, no `clear_tool_uses`
@@ -615,6 +619,19 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
 
                         // Emit per-step token usage for context usage widget + observability
                         onStepFinish: (step) => {
+                            // Migration runs only: the logger tags the step with the current stage.
+                            if (this.config.debugLogger) {
+                                this.config.debugLogger.logStep({
+                                    attempt: truncationRetries,
+                                    inputTokens: step.usage?.inputTokens || 0,
+                                    outputTokens: step.usage?.outputTokens || 0,
+                                    cacheReadTokens: step.usage?.inputTokenDetails?.cacheReadTokens || 0,
+                                    cacheWriteTokens: step.usage?.inputTokenDetails?.cacheWriteTokens || 0,
+                                    finishReason: step.finishReason,
+                                    toolNames: (step.toolCalls ?? []).map(call => call.toolName),
+                                });
+                            }
+
                             // Accumulate tool call/result chars for per-category breakdown estimation
                             accToolCallChars += JSON.stringify(step.toolCalls ?? []).length;
                             accToolResultChars += JSON.stringify(step.toolResults ?? []).length;
@@ -783,9 +800,14 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
                         rawFinishReason: attemptRawFinishReason,
                         truncationRetries,
                     });
+                    this.logTraceUsage("completed", toolModelUsage, attemptFinishReason, truncationRetries);
                     break;
                 }
             } catch (error: any) {
+                this.logTraceUsage(
+                    error.name === 'AbortError' || this.config.abortController.signal.aborted ? "aborted" : "failed",
+                    toolModelUsage, undefined, truncationRetries
+                );
                 // Handle abort specifically
                 if (error.name === 'AbortError' || this.config.abortController.signal.aborted) {
                     console.log("[AgentExecutor] Aborted by user.");
@@ -924,13 +946,8 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
                     const startMs = this._pendingToolCalls.get((part as any).toolCallId);
                     if (startMs !== undefined) {
                         const durationMs = Date.now() - startMs;
-                        const rawResult = (part as any).result;
-                        const raw = typeof rawResult === "string"
-                            ? rawResult
-                            : rawResult === undefined
-                                ? "<no result>"
-                                : JSON.stringify(rawResult) ?? "<no result>";
-                        this.config.debugLogger.logToolCall((part as any).toolName, durationMs, raw);
+                        const { ok, summary } = summarizeToolOutput((part as any).output);
+                        this.config.debugLogger.logToolCall((part as any).toolName, durationMs, summary, ok);
                         this._pendingToolCalls.delete((part as any).toolCallId);
                     }
                 }
@@ -949,6 +966,13 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
                 // tool failure back to the model and the run continues.
                 const failedToolName = (part as any).toolName;
                 const failedToolCallId = (part as any).toolCallId;
+                if (this.config.debugLogger) {
+                    const startMs = this._pendingToolCalls.get(failedToolCallId);
+                    if (startMs !== undefined) {
+                        const threw = describeToolError((part as any).error);
+                        this.config.debugLogger.logToolCall(failedToolName, Date.now() - startMs, `failed (threw ${threw})`, false);
+                    }
+                }
                 this._pendingToolCalls.delete(failedToolCallId);
 
                 // TaskWrite is deliberately excluded. Its tool_result drives the
@@ -975,6 +999,35 @@ Generation stopped by user. The last in-progress task was not saved. Any complet
             default:
                 // All other stream part types (step-finish, etc.) are handled by the SDK.
                 break;
+        }
+    }
+
+    /**
+     * Writes this run's usage summary to the migration trace; a no-op outside migration runs.
+     * The token totals come from the steps the logger already recorded, so the summary also
+     * exists for aborted and failed runs.
+     */
+    private logTraceUsage(
+        status: StageStatus,
+        toolModelUsage: ToolModelUsage,
+        finishReason: string | undefined,
+        truncationRetries: number,
+    ): void {
+        const logger = this.config.debugLogger;
+        if (!logger) {
+            return;
+        }
+        try {
+            const totals = logger.stageTotals();
+            logger.logStageUsage({
+                status,
+                subagentUsage: toolModelUsage,
+                estimatedCostUsd: calculateTotalCost(ANTHROPIC_SONNET, totals, toolModelUsage),
+                finishReason,
+                truncationRetries,
+            });
+        } catch {
+            // Tracing must never affect the run.
         }
     }
 

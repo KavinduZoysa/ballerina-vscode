@@ -21,12 +21,12 @@ import { commands, EventEmitter, Uri, window, workspace } from "vscode";
 import { extension } from "../../../BalExtensionContext";
 import { StateMachine } from "../../../stateMachine";
 import { AIStateMachine, openAIPanelWithPrompt } from "../../../views/ai-panel/aiMachine";
-import { AgentExecutor, COMPACT_TRIGGER_TOKENS } from "../agent/AgentExecutor";
+import { AGENT_MODEL, AgentExecutor, COMPACT_TRIGGER_TOKENS } from "../agent/AgentExecutor";
 import { AICommandConfig } from "../executors/base/AICommandExecutor";
 import { createMigrationEventHandler, createVisualizerMigrationEventHandler, createAIPanelMigrationEventHandler } from "../utils/events";
 import { sendVisualizerMigrationNotification, sendAIPanelNotification, getErrorMessage } from "../utils/ai-utils";
 import { getEnhancementStages, getPerProjectEnhancementStages, getWorkspaceValidationStage, getResumePreamble, EnhancementStage } from "./prompts";
-import { MigrationDebugLogger } from "./debug-logger";
+import { MigrationDebugLogger, RunStatus } from "./debug-logger";
 import { TranscriptWriter } from "./transcript-writer";
 import { copilotName, getWorkspaceTomlValues } from "../../../utils";
 import { setMigrationEnhancementActive } from "../../../utils/source-utils";
@@ -609,6 +609,15 @@ interface StageRunnerOpts {
     totalStagesOverall?: number;
 }
 
+/** The login method for the trace's run header; undefined when the AI state machine can't be read. */
+function currentLoginMethod(): string | undefined {
+    try {
+        return AIStateMachine.context()?.loginMethod;
+    } catch {
+        return undefined;
+    }
+}
+
 /** Maps a verbose enhancement stage name to a short UI label. */
 function shortStageName(name: string): string {
     const stripped = name.replace(/^\[.*?\]\s*/, ""); // remove "[pkgName] " prefix
@@ -694,6 +703,12 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
             }
             : eventHandler;
 
+        // Every trace event until endStage is tagged with this stage and package; the trace
+        // keeps the package apart, so the "[pkgName] " name prefix is dropped.
+        if (debugLogger) {
+            debugLogger.beginStage(stage.name.replace(/^\[.*?\]\s*/, ""), packageRelPath);
+        }
+
         // Checked before startStage so a failed guard leaves a resumable transcript intact.
         const codebaseMapText = await buildMigrationCodebaseMap(packagePath);
         const estimatedPromptTokens = Math.ceil((stages[i].prompt.length + codebaseMapText.length) / 4);
@@ -701,6 +716,7 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
             const reason = `${stage.name} prompt is estimated at ~${estimatedPromptTokens.toLocaleString()} tokens, over the ${MIGRATION_STAGE_PROMPT_BUDGET_TOKENS.toLocaleString()}-token budget — split this project into smaller packages and retry.`;
             if (debugLogger) {
                 debugLogger.logError(stage.name, new Error(reason));
+                debugLogger.endStage("failed");
             }
             recordingHandler({
                 type: "content_block",
@@ -775,13 +791,21 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
         // throwing — it has already surfaced the error to the UI. Without inspecting it, a
         // stage that never ran (a rejected request, say) would be logged as completed and
         // its transcript stamped `_Completed:`, which makes a resumed run skip it for good.
-        const result = await new AgentExecutor(config).run();
+        const result = await new AgentExecutor(config).run().catch((error) => {
+            // `run()` throws only for an abort or a failure before the agent started: record
+            // which, then rethrow unchanged.
+            if (debugLogger) {
+                debugLogger.endStage(abortController.signal.aborted || error?.name === "AbortError" ? "aborted" : "failed");
+            }
+            throw error;
+        });
 
         if (result.error) {
             const reason = getErrorMessage(result.error);
             if (debugLogger) {
                 debugLogger.logError(stage.name, result.error);
                 debugLogger.logMilestone(`${stage.name} — failed: ${reason}`);
+                debugLogger.endStage("failed");
             }
             console.error(`[MigrationEnhancement] ${stage.name} failed:`, result.error);
 
@@ -800,6 +824,7 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
 
         if (debugLogger) {
             debugLogger.logMilestone(`${stage.name} — completed`);
+            debugLogger.endStage("completed");
         }
         console.log(`[MigrationEnhancement] ${stage.name} completed.`);
 
@@ -891,11 +916,19 @@ export async function runMigrationAgent(): Promise<void> {
     _migrationAbortController = new AbortController();
     _userAbortedMigration = false;
     setMigrationEnhancementActive(true);
-    const debugLogger = new MigrationDebugLogger(projectRoot, _selectedModelId);
+    const debugLogger = new MigrationDebugLogger(projectRoot, AGENT_MODEL);
     const transcriptWriter = new TranscriptWriter(projectRoot);
+    // Reported in the trace's run_end; a user abort overrides it there.
+    let runStatus: RunStatus = "failed";
+    let runCounts: Record<string, number> | undefined;
 
     try {
         const packagePaths = await getWorkspacePackagePaths(projectRoot);
+        debugLogger.logRunStart({
+            packageCount: packagePaths?.length || 1,
+            loginMethod: currentLoginMethod(),
+            entryPoint: "migration-panel",
+        });
 
         if (packagePaths && packagePaths.length > 1) {
             // ── Multi-package workspace ──────────────────────────────────
@@ -903,8 +936,8 @@ export async function runMigrationAgent(): Promise<void> {
             const results: PackageEnhancementResult[] = [];
             let resumeInjected = false;
 
-            console.log(`[MigrationEnhancement] Starting migration agent – ${packagePaths.length} packages, model: ${_selectedModelId}`);
-            debugLogger.logMilestone(`Run start — ${packagePaths.length} packages, model: ${_selectedModelId}, projectRoot: ${projectRoot}`);
+            console.log(`[MigrationEnhancement] Starting migration agent – ${packagePaths.length} packages, model: ${AGENT_MODEL}`);
+            debugLogger.logMilestone(`Run start — ${packagePaths.length} packages, model: ${AGENT_MODEL}, projectRoot: ${projectRoot}`);
             eventHandler({
                 type: "content_block",
                 content: `\n\n**Workspace contains ${packagePaths.length} packages.** Enhancing each package individually.\n\n`,
@@ -990,6 +1023,9 @@ export async function runMigrationAgent(): Promise<void> {
                 }
                 emitFinalReport(eventHandler, results);
                 debugLogger.logMilestone(`Run complete — ${results.filter(r => r.success).length}/${results.length} packages succeeded`);
+                const failedPackages = results.filter(r => !r.success).length;
+                runStatus = failedPackages === 0 ? "completed" : "partial";
+                runCounts = { packagesSucceeded: results.length - failedPackages, packagesFailed: failedPackages };
                 // Write summary before marking complete
                 const updatedToml = readEnhanceToml(projectRoot);
                 if (updatedToml) {
@@ -1005,8 +1041,8 @@ export async function runMigrationAgent(): Promise<void> {
             const packagePath = resolveSinglePackagePath(projectRoot, packagePaths);
             const stages = getEnhancementStages(buildMigrationContext(projectRoot));
             injectResumePreamble(projectRoot, stages);
-            console.log(`[MigrationEnhancement] Starting migration agent (${stages.length} stages) – model: ${_selectedModelId}, sourcePath: ${sourcePath ?? 'none'}`);
-            debugLogger.logMilestone(`Run start — single package, model: ${_selectedModelId}, projectRoot: ${projectRoot}, packagePath: ${packagePath}`);
+            console.log(`[MigrationEnhancement] Starting migration agent (${stages.length} stages) – model: ${AGENT_MODEL}, sourcePath: ${sourcePath ?? 'none'}`);
+            debugLogger.logMilestone(`Run start — single package, model: ${AGENT_MODEL}, projectRoot: ${projectRoot}, packagePath: ${packagePath}`);
 
             const singleAbort = createStageAbortController(_migrationAbortController.signal);
             try {
@@ -1023,6 +1059,7 @@ export async function runMigrationAgent(): Promise<void> {
 
             if (!_migrationAbortController.signal.aborted) {
                 debugLogger.logMilestone("Run complete — single package succeeded");
+                runStatus = "completed";
                 // Write summary before marking complete
                 const updatedToml = readEnhanceToml(projectRoot);
                 if (updatedToml) {
@@ -1060,6 +1097,7 @@ export async function runMigrationAgent(): Promise<void> {
             });
         }
     } finally {
+        debugLogger.endRun(_userAbortedMigration ? "aborted" : runStatus, runCounts);
         _migrationAbortController = undefined;
         setMigrationEnhancementActive(false);
     }
@@ -1473,11 +1511,19 @@ export async function runWizardMigrationEnhancement(): Promise<void> {
     _migrationAbortController = new AbortController();
     _userAbortedMigration = false;
     setMigrationEnhancementActive(true);
-    const debugLogger = new MigrationDebugLogger(projectRoot, _selectedModelId);
+    const debugLogger = new MigrationDebugLogger(projectRoot, AGENT_MODEL);
     const transcriptWriter = new TranscriptWriter(projectRoot);
+    // Reported in the trace's run_end; a user abort overrides it there.
+    let runStatus: RunStatus = "failed";
+    let runCounts: Record<string, number> | undefined;
 
     try {
         const packagePaths = await getWorkspacePackagePaths(projectRoot);
+        debugLogger.logRunStart({
+            packageCount: packagePaths?.length || 1,
+            loginMethod: currentLoginMethod(),
+            entryPoint: fromAIChat ? "ai-chat" : "wizard",
+        });
 
         if (packagePaths && packagePaths.length > 1) {
             // ── Multi-package workspace ──────────────────────────────────
@@ -1495,7 +1541,7 @@ export async function runWizardMigrationEnhancement(): Promise<void> {
             };
 
             console.log(`[MigrationEnhancement] Starting wizard migration agent – ${packagePaths.length} packages, projectRoot: ${projectRoot}`);
-            debugLogger.logMilestone(`Run start — ${packagePaths.length} packages (wizard), model: ${_selectedModelId}, projectRoot: ${projectRoot}`);
+            debugLogger.logMilestone(`Run start — ${packagePaths.length} packages (wizard), model: ${AGENT_MODEL}, projectRoot: ${projectRoot}`);
             eventHandler({
                 type: "content_block",
                 content: `\n\n**Workspace contains ${packagePaths.length} packages.** Enhancing each package individually.\n\n`,
@@ -1606,6 +1652,9 @@ export async function runWizardMigrationEnhancement(): Promise<void> {
                     writeEnhanceToml(projectRoot, data.aiFeatureUsed, true, data.sourcePath);
                 }
                 debugLogger.logMilestone(`Run complete — ${results.filter(r => r.success).length}/${results.length} packages succeeded (wizard)`);
+                const failedPackages = results.filter(r => !r.success).length;
+                runStatus = failedPackages === 0 ? "completed" : "partial";
+                runCounts = { packagesSucceeded: results.length - failedPackages, packagesFailed: failedPackages };
                 console.log("[MigrationEnhancement] Wizard migration agent completed all packages successfully.");
                 eventHandler({ type: "stop", command: Command.Agent });
             } else {
@@ -1618,7 +1667,7 @@ export async function runWizardMigrationEnhancement(): Promise<void> {
             const stages = getEnhancementStages(buildMigrationContext(projectRoot));
             injectResumePreamble(projectRoot, stages);
             console.log(`[MigrationEnhancement] Starting wizard migration agent (${stages.length} stages) – projectRoot: ${projectRoot}, packagePath: ${packagePath}, sourcePath: ${sourcePath ?? 'none'}`);
-            debugLogger.logMilestone(`Run start — single package (wizard), model: ${_selectedModelId}, projectRoot: ${projectRoot}, packagePath: ${packagePath}`);
+            debugLogger.logMilestone(`Run start — single package (wizard), model: ${AGENT_MODEL}, projectRoot: ${projectRoot}, packagePath: ${packagePath}`);
 
             // Suppress per-stage "stop" events emitted by AgentExecutor at the end of each
             // stage — without this, the first stage's stop sets terminalRef=true in the webview
@@ -1655,6 +1704,7 @@ export async function runWizardMigrationEnhancement(): Promise<void> {
                     writeEnhanceToml(projectRoot, data.aiFeatureUsed, true, data.sourcePath);
                 }
                 debugLogger.logMilestone("Run complete — single package succeeded (wizard)");
+                runStatus = "completed";
                 console.log("[MigrationEnhancement] Wizard migration agent completed all stages successfully.");
                 eventHandler({ type: 'stop', command: Command.Agent });
             } else {
@@ -1698,6 +1748,7 @@ export async function runWizardMigrationEnhancement(): Promise<void> {
             });
         }
     } finally {
+        debugLogger.endRun(_userAbortedMigration ? "aborted" : runStatus, runCounts);
         _runningFromAIChat = false;
         _migrationAbortController = undefined;
         setMigrationEnhancementActive(false);
