@@ -36,12 +36,15 @@ import {
     describeToolError,
     MigrationDebugLogger,
     reportSideCall,
+    runWithHttpTrace,
     stableStringify,
     StageContext,
     StageUsage,
     StepUsage,
     StreamTracer,
     summarizeToolOutput,
+    tracedFetch,
+    TRACE_VERSION,
 } from "../features/ai/migration/debug-logger";
 
 interface TraceEvent {
@@ -114,7 +117,9 @@ describe("trace.jsonl", () => {
             expect(event.stage).toBe("Stage 1 — Source Inventory & Gap Analysis");
             expect(event.package).toBe("orders");
         }
-        expect(events[0]).toMatchObject({ model: "claude-sonnet-5", loginMethod: "biIntel", packageCount: 2, entryPoint: "wizard" });
+        expect(events[0]).toMatchObject({
+            traceVersion: TRACE_VERSION, model: "claude-sonnet-5", loginMethod: "biIntel", packageCount: 2, entryPoint: "wizard",
+        });
         expect(events[events.length - 1]).not.toHaveProperty("stage");
     });
 
@@ -368,6 +373,50 @@ describe("StreamTracer", () => {
         expect(readTrace().find(e => e.type === "phase")).toMatchObject({ name: "project_source", durationMs: 3_000, category: "setup" });
     });
 
+    it("times a step from its request start: start-step only arrives with the first chunk", () => {
+        const logger = new MigrationDebugLogger(projectRoot, "m");
+        logger.beginStage("Stage 1");
+        const tracer = new StreamTracer(logger);
+        tracer.beginAttempt(0);
+        now = 1_000;
+        tracer.markRequestStart();
+        // The model takes 4 s to start answering.
+        runStep(tracer, { start: 5_000, firstToken: 5_000, toolCall: 5_500, toolResult: 6_000, finish: 6_000 }, { inputTokens: 10, outputTokens: 1 });
+
+        expect(readTrace().find(e => e.type === "step")).toMatchObject({ ttftMs: 4_000, modelMs: 4_500, stepMs: 5_000 });
+    });
+
+    it("matches request starts to steps in order when the stream reader lags behind the SDK", () => {
+        const logger = new MigrationDebugLogger(projectRoot, "m");
+        logger.beginStage("Stage 1");
+        const tracer = new StreamTracer(logger);
+        tracer.beginAttempt(0);
+        now = 1_000;
+        tracer.markRequestStart();
+        now = 3_000;
+        // Step 2's request went out before the reader saw step 1.
+        tracer.markRequestStart();
+        runStep(tracer, { start: 3_100, firstToken: 3_100, toolCall: 3_200, toolResult: 3_300, finish: 3_300 }, { inputTokens: 10, outputTokens: 1 }, "call-1");
+        runStep(tracer, { start: 3_400, firstToken: 3_400, toolCall: 3_500, toolResult: 3_600, finish: 3_600 }, { inputTokens: 20, outputTokens: 1 }, "call-2");
+
+        expect(readTrace().filter(e => e.type === "step").map(e => e.ttftMs)).toEqual([2_100, 400]);
+    });
+
+    it("forgets request starts left over from an attempt that was resumed", () => {
+        const logger = new MigrationDebugLogger(projectRoot, "m");
+        logger.beginStage("Stage 1");
+        const tracer = new StreamTracer(logger);
+        tracer.beginAttempt(0);
+        now = 1_000;
+        tracer.markRequestStart();
+        now = 9_000;
+        tracer.beginAttempt(1);
+        tracer.markRequestStart();
+        runStep(tracer, { start: 9_500, firstToken: 9_500, toolCall: 9_600, toolResult: 9_700, finish: 9_700 }, { inputTokens: 10, outputTokens: 1 });
+
+        expect(readTrace().find(e => e.type === "step")).toMatchObject({ attempt: 1, ttftMs: 500 });
+    });
+
     it("links each tool call to its step, with sizes and an argument hash", () => {
         const logger = new MigrationDebugLogger(projectRoot, "m");
         logger.beginStage("Stage 1");
@@ -528,5 +577,64 @@ describe("side calls", () => {
             reportSideCall({}, { source: "followups", model: "m" });
             reportSideCall(throwing, { source: "followups", model: "m" });
         }).not.toThrow();
+    });
+});
+
+describe("HTTP attempts", () => {
+    const url = "https://copilot.example.com/llm/v1.0/claude/messages?api-key=sk-secret";
+    const init = { method: "POST", body: JSON.stringify({ messages: [{ role: "user", content: "sk-secret prompt" }] }) };
+    const ok = () => Promise.resolve(new Response(null, { status: 200, headers: { "request-id": "req_42" } }));
+
+    it("are traced to the stage the run belongs to: path, status, sizes and timings, never the query or body", async () => {
+        const logger = new MigrationDebugLogger(projectRoot, "m");
+        logger.beginStage("Stage 5", "orders");
+
+        await runWithHttpTrace(logger.httpSink(), async () => {
+            await Promise.resolve();
+            await tracedFetch(url, init, { attempt: 1, tokenMs: 4 }, ok);
+        });
+
+        expect(readTrace().find(e => e.type === "http")).toMatchObject({
+            stage: "Stage 5", package: "orders", method: "POST", path: "/llm/v1.0/claude/messages", attempt: 1,
+            tokenMs: 4, status: 200, ok: true, requestBytes: Buffer.byteLength(init.body), requestId: "req_42",
+        });
+        const written = fs.readFileSync(path.join(projectRoot, MIGRATION_DIR, "trace.jsonl"), "utf8") + readLog();
+        expect(written).not.toContain("sk-secret");
+        expect(readLog()).toMatch(/\[HTTP\] POST \/llm\/v1\.0\/claude\/messages — attempt 1 — status 200 — \d+ms to headers — token 4ms — \d+ bytes — request req_42 — stage: Stage 5/);
+    });
+
+    it("stay with their stage when the request starts after the run returned", async () => {
+        const logger = new MigrationDebugLogger(projectRoot, "m");
+        logger.beginStage("Stage 3");
+        let lateRequest: Promise<unknown> = Promise.resolve();
+        await runWithHttpTrace(logger.httpSink(), async () => {
+            // A fire-and-forget follow-up, like the suggestions scheduled at the end of a stage.
+            lateRequest = new Promise(resolve => setTimeout(resolve, 5)).then(() => tracedFetch(url, init, { attempt: 1 }, ok));
+        });
+        logger.endStage("completed");
+        logger.beginStage("Stage 4");
+        await lateRequest;
+
+        expect(readTrace().find(e => e.type === "http")).toMatchObject({ stage: "Stage 3" });
+    });
+
+    it("record a failed request and pass its error through unchanged", async () => {
+        const logger = new MigrationDebugLogger(projectRoot, "m");
+        logger.beginStage("Stage 3");
+        const failure = new TypeError("fetch failed: sk-secret");
+
+        await expect(runWithHttpTrace(logger.httpSink(), () =>
+            tracedFetch(url, init, { attempt: 2, tokenMs: 30 }, () => Promise.reject(failure)))).rejects.toBe(failure);
+        expect(readTrace().find(e => e.type === "http")).toMatchObject({ attempt: 2, ok: false, error: "TypeError" });
+        expect(readTrace().find(e => e.type === "http")).not.toHaveProperty("status");
+    });
+
+    it("are not traced outside a stage's run, even while a stage is open", async () => {
+        const logger = new MigrationDebugLogger(projectRoot, "m");
+        logger.beginStage("Stage 1");
+        const response = await tracedFetch(url, init, { attempt: 1 }, ok);
+
+        expect(response.status).toBe(200);
+        expect(readTrace().map(e => e.type)).toEqual(["stage_start"]);
     });
 });

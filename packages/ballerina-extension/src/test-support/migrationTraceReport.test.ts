@@ -224,14 +224,15 @@ describe("older traces", () => {
             "run_id,package,stage,status,wall_ms,tool_ms,model_ms,steps,input_tokens,output_tokens," +
             "cache_read_tokens,cache_write_tokens,cache_hit_pct,estimated_cost_usd,partial,hit_step_cap,slowest_tools," +
             "setup_ms,teardown_ms,other_ms,model_ms_measured,fixed_context_tokens,fixed_x_steps," +
-            "side_calls,side_call_input_tokens,side_call_output_tokens,flags"
+            "side_calls,side_call_input_tokens,side_call_output_tokens,flags," +
+            "model_from_request,http_requests,http_failed,http_slowest_ms"
         );
         expect(lines).toHaveLength(5);
         expect(lines[1]).toBe(
             "run-new,orders,Stage 1 — Source Inventory & Gap Analysis,completed,10000,3150,6850,2,4000,200,3000,1000,75.0," +
-            "0.020000,false,false,file_read:2:2500;getCompilationErrors:1:2000;migration_source_read:1:100,,,,false,,,0,0,0,"
+            "0.020000,false,false,file_read:2:2500;getCompilationErrors:1:2000;migration_source_read:1:100,,,,false,,,0,0,0,,false,0,0,"
         );
-        expect(lines[2]).toMatch(/,step_cap$/);
+        expect(lines[2]).toMatch(/,step_cap,false,0,0,$/);
     });
 });
 
@@ -363,7 +364,82 @@ describe("current traces", () => {
         const lines: string[] = report.formatCsv([newRuns()[0]]).trim().split("\n");
 
         expect(lines[1]).toMatch(
-            /,500,1200,362400,true,20000,80000,1,1200,80,cache_miss:3;long_gap:3;repeated:file_read×3;large_output:1;truncated:4$/
+            /,500,1200,362400,true,20000,80000,1,1200,80,cache_miss:3;long_gap:3;repeated:file_read×3;large_output:1;truncated:4,false,0,0,$/
+        );
+    });
+});
+
+/** 17 minutes 16 seconds: the stall seen before a Stage 5 step on 2026-11-03. */
+const SLOW = 17 * 60_000 + 16_000;
+
+/** A version-3 run: steps timed from their request start, and every HTTP attempt traced. */
+function buildV3Trace(): string {
+    const st = inStage("run-v3", "Stage 5 — Final Validation & Documentation");
+    const http = (ms: number, fields: Record<string, unknown>) => st(ms, "http", {
+        method: "POST", path: "/llm/v1.0/claude/messages", attempt: 1, tokenMs: 3, status: 200, ok: true, requestBytes: 480_000, ...fields,
+    });
+    const step = (ms: number, fields: Record<string, unknown>) => st(ms, "step", {
+        attempt: 0, cacheWriteTokens: 0, finishReason: "tool-calls", toolNames: [], ...fields,
+    });
+    return [
+        event("run-v3", 0, "run_start", { traceVersion: 3, model: "claude-sonnet-5", loginMethod: "biIntel", packageCount: 1, entryPoint: "ai-chat" }),
+        st(0, "stage_start"),
+        http(1_200, { durationMs: 1_200, requestId: "req_1" }),
+        step(3_000, { stepNumber: 1, durationMs: 3_000, stepMs: 3_000, ttftMs: 1_200, modelMs: 2_500, inputTokens: 100_000, cacheReadTokens: 95_000, outputTokens: 300 }),
+        // The token had expired: refreshed, then retried.
+        http(3_400, { status: 401, ok: false, durationMs: 400 }),
+        http(3_900, { attempt: 2, tokenMs: 250, durationMs: 250 }),
+        // A server error the SDK retried, then a request that took 17 minutes to answer.
+        http(5_100, { status: 500, ok: false, durationMs: 1_200, requestId: "req_2" }),
+        http(SLOW + 5_100, { durationMs: SLOW, requestId: "req_17" }),
+        step(SLOW + 7_000, { stepNumber: 2, durationMs: SLOW + 4_000, stepMs: SLOW + 2_000, ttftMs: SLOW + 500, modelMs: SLOW + 1_500, inputTokens: 101_000, cacheReadTokens: 33_000, cacheWriteTokens: 68_000, outputTokens: 200, finishReason: "stop" }),
+        st(SLOW + 8_000, "stage_end", { status: "completed", durationMs: SLOW + 8_000, steps: 2 }),
+        // Follow-up suggestions, sent after the stage ended.
+        http(SLOW + 9_000, { durationMs: 900 }),
+        event("run-v3", SLOW + 9_500, "run_end", { status: "completed", durationMs: SLOW + 9_500 }),
+    ].join("\n") + "\n";
+}
+
+function v3Run() {
+    const { runs } = report.parseTrace(buildV3Trace());
+    return report.summarizeRun(runs[0]);
+}
+
+describe("version 3 traces", () => {
+    it("count the wait for the first token as model time", () => {
+        const [stage] = v3Run().stages;
+
+        expect(stage).toMatchObject({ modelFromRequest: true, modelMs: 2_500 + SLOW + 1_500 });
+        expect(report.formatTable([v3Run()])).not.toContain("model time leaves out");
+    });
+
+    it("summarize a stage's HTTP attempts, placing a late one by its stage tag", () => {
+        const [stage] = v3Run().stages;
+
+        expect(stage.http).toMatchObject({ requests: 6, authRetries: 1, tokenMs: 5 * 3 + 250 });
+        expect(stage.http.slowest).toMatchObject({ durationMs: SLOW, requestId: "req_17" });
+        expect(stage.http.failed.map((attempt: { status: number }) => attempt.status)).toEqual([401, 500]);
+    });
+
+    it("flag slow and failed requests", () => {
+        const text: string = report.formatTable([v3Run()]);
+
+        expect(text).toContain("trace v3");
+        expect(text).toContain("http: 6 requests, 1 after a token refresh · slowest 17m 16s to headers · token lookups 265ms");
+        expect(text).toContain("! slow request: POST /llm/v1.0/claude/messages took 17m 16s to response headers (status 200, request req_17)");
+        expect(text).toContain("! failed request: POST /llm/v1.0/claude/messages status 401 after 400ms");
+        expect(text).toContain("! failed request: POST /llm/v1.0/claude/messages status 500 after 1.2s (request req_2)");
+    });
+
+    it("write the request timing and HTTP columns to CSV", () => {
+        const lines: string[] = report.formatCsv([v3Run()]).trim().split("\n");
+
+        expect(lines[1]).toMatch(/,slow_request:1;failed_request:2,true,6,2,1036000$/);
+    });
+
+    it("are told apart from earlier traces, whose model time misses the first-chunk wait", () => {
+        expect(report.formatTable([newRuns()[0]])).toContain(
+            "* model time leaves out each response's wait for its first chunk (trace from before version 3); that wait is in Other"
         );
     });
 });

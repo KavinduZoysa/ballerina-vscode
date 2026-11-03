@@ -26,7 +26,7 @@ import { AICommandConfig } from "../executors/base/AICommandExecutor";
 import { createMigrationEventHandler, createVisualizerMigrationEventHandler, createAIPanelMigrationEventHandler } from "../utils/events";
 import { sendVisualizerMigrationNotification, sendAIPanelNotification, getErrorMessage } from "../utils/ai-utils";
 import { getEnhancementStages, getPerProjectEnhancementStages, getWorkspaceValidationStage, getResumePreamble, EnhancementStage } from "./prompts";
-import { MigrationDebugLogger, RunStatus } from "./debug-logger";
+import { MigrationDebugLogger, RunStatus, runWithHttpTrace } from "./debug-logger";
 import { TranscriptWriter } from "./transcript-writer";
 import { copilotName, getWorkspaceTomlValues } from "../../../utils";
 import { setMigrationEnhancementActive } from "../../../utils/source-utils";
@@ -795,7 +795,9 @@ async function runStagesForPackage(opts: StageRunnerOpts): Promise<void> {
         // throwing — it has already surfaced the error to the UI. Without inspecting it, a
         // stage that never ran (a rejected request, say) would be logged as completed and
         // its transcript stamped `_Completed:`, which makes a resumed run skip it for good.
-        const result = await new AgentExecutor(config).run().catch((error) => {
+        // Every HTTP request made inside the run — subagents' and follow-ups' too — is traced to this stage.
+        const runStage = () => new AgentExecutor(config).run();
+        const result = await (debugLogger ? runWithHttpTrace(debugLogger.httpSink(), runStage) : runStage()).catch((error) => {
             // `run()` throws only for an abort or a failure before the agent started: record
             // which, then rethrow unchanged.
             if (debugLogger) {

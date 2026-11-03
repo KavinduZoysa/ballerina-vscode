@@ -16,11 +16,17 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { AsyncLocalStorage } from "async_hooks";
 import { createHash, randomUUID } from "crypto";
 import { AI_MIGRATION_DIR } from "./types";
 
 const LOG_FILE_NAME = "debug.log";
 const TRACE_FILE_NAME = "trace.jsonl";
+/**
+ * Written on run_start so the report knows what a trace can tell it. 3: steps are timed from
+ * their request start, and HTTP attempts are traced. Earlier traces carry no version.
+ */
+export const TRACE_VERSION = 3;
 const MAX_SUMMARY_LENGTH = 200;
 /** Error text in trace events is capped; the full message and stack stay in debug.log. */
 const MAX_TRACE_ERROR_LENGTH = 500;
@@ -49,11 +55,11 @@ export interface StepUsage {
     noCacheInputTokens?: number;
     finishReason?: string;
     toolNames: string[];
-    /** `start-step` to the step's first model output. */
+    /** Request start to the step's first model output. */
     ttftMs?: number;
-    /** `start-step` to the step's last model output: the model's share of the step. */
+    /** Request start to the step's last model output: the model's share of the step. */
     modelMs?: number;
-    /** `start-step` to `finish-step`, which the SDK holds until the step's tools have returned. */
+    /** Request start to `finish-step`, which the SDK holds until the step's tools have returned. */
     stepMs?: number;
 }
 
@@ -118,6 +124,96 @@ export interface ToolCallDetails {
     inputChars?: number;
     outputChars?: number;
     argsHash?: string;
+}
+
+/** One HTTP request to the model backend: the request line's path and sizes, never headers or bodies. */
+export interface HttpAttempt {
+    method?: string;
+    /** URL path only: no host, query string or fragment. */
+    path?: string;
+    /** 1 for the first request; 2 for the retry after a token refresh. */
+    attempt: number;
+    /** Time spent getting the credentials (or refreshing them) before this request. */
+    tokenMs?: number;
+    status?: number;
+    ok: boolean;
+    /** Request start to response headers; the body streams on after this. */
+    durationMs: number;
+    requestBytes?: number;
+    /** The backend's request id, for matching against its logs. */
+    requestId?: string;
+    /** The error's class name when the request threw. */
+    error?: string;
+}
+
+export type HttpTraceSink = (attempt: HttpAttempt) => void;
+
+const httpTraceStorage = new AsyncLocalStorage<HttpTraceSink>();
+
+/**
+ * Runs `work` with `sink` receiving every traced HTTP attempt made inside it, including by work
+ * it starts that outlives it (a fire-and-forget call stays with the stage that started it).
+ */
+export function runWithHttpTrace<T>(sink: HttpTraceSink, work: () => T): T {
+    return httpTraceStorage.run(sink, work);
+}
+
+/** The sink of the migration stage this code runs in; undefined outside migration. */
+export function currentHttpTraceSink(): HttpTraceSink | undefined {
+    return httpTraceStorage.getStore();
+}
+
+function requestFields(input: unknown, init: { method?: string; body?: unknown } | undefined): Pick<HttpAttempt, "method" | "path" | "requestBytes"> {
+    const request = typeof input === "object" && input !== null && "url" in input ? input as { url: string; method?: string } : undefined;
+    let urlPath: string | undefined;
+    try {
+        urlPath = new URL(request ? request.url : String(input)).pathname;
+    } catch {
+        urlPath = undefined;
+    }
+    return {
+        method: init?.method ?? request?.method ?? "GET",
+        path: urlPath,
+        requestBytes: typeof init?.body === "string" ? Buffer.byteLength(init.body) : undefined,
+    };
+}
+
+/**
+ * Runs one HTTP request, reporting it to the current migration stage's sink when there is one.
+ * The response, or the error, passes through unchanged.
+ */
+export async function tracedFetch<R extends { status: number; ok: boolean; headers: { get(name: string): string | null } }>(
+    input: unknown,
+    init: { method?: string; body?: unknown } | undefined,
+    details: { attempt: number; tokenMs?: number },
+    doFetch: () => Promise<R>,
+): Promise<R> {
+    const sink = currentHttpTraceSink();
+    if (!sink) {
+        return doFetch();
+    }
+    const startMs = Date.now();
+    const report = (fields: Partial<HttpAttempt>) => {
+        try {
+            sink({ ...requestFields(input, init), ...details, ok: false, durationMs: Date.now() - startMs, ...fields });
+        } catch {
+            // Tracing must never affect the request.
+        }
+    };
+    try {
+        const response = await doFetch();
+        let requestId: string | undefined;
+        try {
+            requestId = response.headers.get("request-id") ?? response.headers.get("x-request-id") ?? undefined;
+        } catch {
+            requestId = undefined;
+        }
+        report({ status: response.status, ok: response.ok, requestId });
+        return response;
+    } catch (error) {
+        report({ error: describeToolError(error) });
+        throw error;
+    }
 }
 
 interface TraceScope {
@@ -331,6 +427,7 @@ export class MigrationDebugLogger {
     /** Record the run's shape once the orchestrator knows how many packages it has. */
     logRunStart(info: RunStartInfo): void {
         this._trace("run_start", {
+            traceVersion: TRACE_VERSION,
             model: this.modelId,
             loginMethod: info.loginMethod,
             packageCount: info.packageCount,
@@ -494,6 +591,25 @@ export class MigrationDebugLogger {
         return call => this.logSideCall(call, scope);
     }
 
+    /** Record one HTTP attempt; `scope` pins it to the stage that made it, as for side calls. */
+    logHttp(attempt: HttpAttempt, scope?: TraceScope): void {
+        const where = scope ? scope : { stage: this.stage, package: this.packageName };
+        const outcome = attempt.error ? `threw ${attempt.error}` : `status ${attempt.status ?? "?"}`;
+        const token = attempt.tokenMs !== undefined ? ` — token ${attempt.tokenMs}ms` : "";
+        this._write(
+            `[${this._ts()}] [HTTP] ${attempt.method ?? "?"} ${attempt.path ?? "?"} — attempt ${attempt.attempt} — ` +
+            `${outcome} — ${attempt.durationMs}ms to headers${token} — ${attempt.requestBytes ?? "?"} bytes` +
+            `${attempt.requestId ? ` — request ${attempt.requestId}` : ""} — stage: ${where.stage ?? "(none)"}`
+        );
+        this._trace("http", { ...attempt }, where);
+    }
+
+    /** A sink for `runWithHttpTrace` that reports HTTP attempts against the current stage. */
+    httpSink(): HttpTraceSink {
+        const scope = { stage: this.stage, package: this.packageName };
+        return attempt => this.logHttp(attempt, scope);
+    }
+
     /** The current stage's totals so far, for the executor's cost estimate. */
     stageTotals(): StageTotals {
         return { ...this.totals };
@@ -617,10 +733,19 @@ const MODEL_OUTPUT_PARTS = new Set([
  *
  * Steps are logged from the consumer side of the stream (`finish-step`), not `onStepFinish`, so
  * a step is always logged after its own tool events and before the next step's.
+ *
+ * Steps are timed from their request start (`markRequestStart`, from `prepareStep`), not from
+ * `start-step`: the SDK emits `start-step` with the response's first chunk, so timing from it
+ * would leave out the wait for the model to start answering.
  */
 export class StreamTracer {
     private attempt = 0;
     private stepNumber = 0;
+    /**
+     * Request starts not yet matched to a `start-step`, oldest first. The SDK can start the next
+     * request before the stream reader has seen the previous step finish.
+     */
+    private readonly requestStarts: number[] = [];
     private stepStartMs: number | undefined;
     private firstOutputMs: number | undefined;
     private lastOutputMs: number | undefined;
@@ -642,7 +767,18 @@ export class StreamTracer {
     beginAttempt(attempt: number): void {
         try {
             this.attempt = attempt;
+            // A previous attempt's unmatched request starts belong to steps that never streamed.
+            this.requestStarts.length = 0;
             this.logger.markModelStart();
+        } catch {
+            // Tracing must never affect the run.
+        }
+    }
+
+    /** Call from `prepareStep`, which the SDK runs right before sending each step's request. */
+    markRequestStart(): void {
+        try {
+            this.requestStarts.push(Date.now());
         } catch {
             // Tracing must never affect the run.
         }
@@ -659,7 +795,8 @@ export class StreamTracer {
             switch (part.type) {
                 case "start-step":
                     this.stepNumber = this.logger.nextStepNumber();
-                    this.stepStartMs = now;
+                    // Arrives with the response's first chunk; the step began when its request went out.
+                    this.stepStartMs = this.requestStarts.shift() ?? now;
                     this.firstOutputMs = undefined;
                     this.lastOutputMs = undefined;
                     this.stepToolNames = [];

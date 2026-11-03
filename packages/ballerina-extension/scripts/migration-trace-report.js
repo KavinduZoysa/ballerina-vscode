@@ -40,6 +40,8 @@ const path = require("path");
 
 /** The executor's step cap per `streamText` attempt, for traces without a stage_context event. */
 const STEP_CAP = 50;
+/** From this trace version on, steps are timed from their request start and HTTP attempts are traced. */
+const REQUEST_TIMING_VERSION = 3;
 const TRACE_RELATIVE_PATH = path.join(".ballerina-ai-migration", "trace.jsonl");
 const USAGE = "Usage: node scripts/migration-trace-report.js <trace.jsonl | project dir> " +
     "[--all] [--csv] [--steps] [--compare <runIdA> <runIdB>]";
@@ -49,6 +51,7 @@ const CACHE_MISS_RATIO = 0.5;
 const LONG_GAP_MS = 5 * 60 * 1000;
 const REPEATED_CALLS = 3;
 const LARGE_OUTPUT_CHARS = 20_000;
+const SLOW_REQUEST_MS = 2 * 60 * 1000;
 const TOP_STEPS = 10;
 /** Rough characters per token, for sizes the trace records in characters. */
 const CHARS_PER_TOKEN = 4;
@@ -139,6 +142,19 @@ function sideCallTotals(sideCalls) {
     return [...bySource.values()];
 }
 
+/** A stage's HTTP attempts: how many, the slowest, and the ones that failed or were slow. */
+function httpSummary(attempts) {
+    const slowest = attempts.reduce((max, attempt) => (!max || (attempt.durationMs || 0) > (max.durationMs || 0) ? attempt : max), undefined);
+    return {
+        requests: attempts.length,
+        authRetries: attempts.filter(attempt => attempt.attempt > 1).length,
+        tokenMs: sumOf(attempts, "tokenMs"),
+        slowest,
+        slow: attempts.filter(attempt => (attempt.durationMs || 0) > SLOW_REQUEST_MS),
+        failed: attempts.filter(attempt => attempt.error || (attempt.status !== undefined && attempt.status >= 400)),
+    };
+}
+
 /** When the step's model request started; only traces with `stepMs` know it. */
 function stepStartMs(step) {
     return step.stepMs !== undefined ? Date.parse(step.ts) - step.stepMs : undefined;
@@ -206,8 +222,8 @@ function fixedContextTokens(context) {
     return Math.round(chars / CHARS_PER_TOKEN);
 }
 
-function stageRow(stage) {
-    const { start, end, steps, tools, usage, context, phases, sideCalls } = stage;
+function stageRow(stage, traceVersion) {
+    const { start, end, steps, tools, usage, context, phases, sideCalls, http } = stage;
     const startMs = Date.parse(start.ts);
     const seenMs = [...steps, ...tools, ...phases, ...(usage ? [usage] : [])].map(event => Date.parse(event.ts));
     // A stage cut off by a crash has no stage_end; its last event bounds it.
@@ -221,6 +237,8 @@ function stageRow(stage) {
     const teardownMs = phaseMs("teardown");
     // Older traces have no per-step model time; there the model gets whatever the tools did not use.
     const modelMeasured = steps.some(step => step.modelMs !== undefined);
+    // Before version 3, steps were timed from the response's first chunk, not the request.
+    const modelFromRequest = modelMeasured && (traceVersion || 0) >= REQUEST_TIMING_VERSION;
     const modelMs = modelMeasured ? sumOf(steps, "modelMs") : Math.max(0, wallMs - toolMs);
     const otherMs = modelMeasured
         ? Math.max(0, wallMs - (setupMs || 0) - modelMs - toolMs - (teardownMs || 0))
@@ -244,6 +262,7 @@ function stageRow(stage) {
         setupMs,
         modelMs,
         modelMeasured,
+        modelFromRequest,
         toolMs,
         teardownMs,
         otherMs,
@@ -262,6 +281,7 @@ function stageRow(stage) {
         ...flags,
         slowestTools: slowestTools(tools, 3),
         sideCalls: sideCallTotals(sideCalls),
+        http: httpSummary(http),
         context,
         // Kept for --steps.
         stepEvents: steps,
@@ -278,15 +298,20 @@ function summarizeRun(run) {
     const runEnd = run.events.filter(event => event.type === "run_end").pop();
     const stages = [];
     const unplacedSideCalls = [];
+    const unplacedHttp = [];
     let current;
+    const ownerOf = event => [...stages].reverse()
+        .find(stage => stage.start.stage === event.stage && (stage.start.package || "") === (event.package || ""));
     for (const event of run.events) {
         if (event.type === "stage_start") {
-            current = { start: event, end: undefined, steps: [], tools: [], phases: [], sideCalls: [], usage: undefined, context: undefined };
+            current = { start: event, end: undefined, steps: [], tools: [], phases: [], sideCalls: [], http: [], usage: undefined, context: undefined };
             stages.push(current);
         } else if (event.type === "side_call") {
-            const owner = [...stages].reverse()
-                .find(stage => stage.start.stage === event.stage && (stage.start.package || "") === (event.package || ""));
+            const owner = ownerOf(event);
             (owner ? owner.sideCalls : unplacedSideCalls).push(event);
+        } else if (event.type === "http") {
+            const owner = ownerOf(event);
+            (owner ? owner.http : unplacedHttp).push(event);
         } else if (current) {
             if (event.type === "step") {
                 current.steps.push(event);
@@ -304,8 +329,10 @@ function summarizeRun(run) {
             }
         }
     }
+    const traceVersion = runStart ? runStart.traceVersion : undefined;
     return {
         runId: run.runId,
+        traceVersion,
         startedAt: (runStart || run.events[0]).ts,
         model: runStart ? runStart.model : undefined,
         loginMethod: runStart ? runStart.loginMethod : undefined,
@@ -315,8 +342,9 @@ function summarizeRun(run) {
         durationMs: runEnd ? runEnd.durationMs : undefined,
         packagesSucceeded: runEnd ? runEnd.packagesSucceeded : undefined,
         packagesFailed: runEnd ? runEnd.packagesFailed : undefined,
-        stages: stages.map(stageRow),
+        stages: stages.map(stage => stageRow(stage, traceVersion)),
         unplacedSideCalls: sideCallTotals(unplacedSideCalls),
+        unplacedHttp: httpSummary(unplacedHttp),
     };
 }
 
@@ -442,6 +470,11 @@ function noteLines(row) {
         notes.push(`side calls: ${call.source} ${call.calls}× — in ${formatInt(call.inputTokens)} ` +
             `(cache read ${formatInt(call.cacheReadTokens)}), out ${formatInt(call.outputTokens)}, ${formatDuration(call.durationMs)}`);
     }
+    if (row.http.requests > 0) {
+        const retries = row.http.authRetries > 0 ? `, ${row.http.authRetries} after a token refresh` : "";
+        notes.push(`http: ${row.http.requests} requests${retries} · slowest ${formatDuration(row.http.slowest.durationMs)} to headers · ` +
+            `token lookups ${formatDuration(row.http.tokenMs)}`);
+    }
     const cap = row.context?.stepCap ?? STEP_CAP;
     if (row.hitStepCap) {
         notes.push(`! reached ${cap} steps in one attempt: stopped by AgentExecutor's stepCountIs(${cap}), not this stage's agentLimits`);
@@ -462,6 +495,14 @@ function noteLines(row) {
     if (row.truncatedSteps.length > 0) {
         notes.push(`! output truncated (finish reason "length") at step ${row.truncatedSteps.join(", ")}`);
     }
+    for (const attempt of row.http.slow) {
+        notes.push(`! slow request: ${requestLabel(attempt)} took ${formatDuration(attempt.durationMs)} to response headers ` +
+            `(${attempt.error ? `threw ${attempt.error}` : `status ${attempt.status}`}${attempt.requestId ? `, request ${attempt.requestId}` : ""})`);
+    }
+    for (const attempt of row.http.failed) {
+        notes.push(`! failed request: ${requestLabel(attempt)} ${attempt.error ? `threw ${attempt.error}` : `status ${attempt.status}`} ` +
+            `after ${formatDuration(attempt.durationMs)}${attempt.requestId ? ` (request ${attempt.requestId})` : ""}`);
+    }
     if (row.tokensFromSteps && row.steps > 0) {
         notes.push("* no stage_usage event: tokens summed from step events, no cost estimate");
     }
@@ -470,9 +511,13 @@ function noteLines(row) {
     }
     if (!row.modelMeasured && row.steps > 0) {
         notes.push("* no per-step model time in this trace: ≈Model is wall time minus tool time");
+    } else if (row.modelMeasured && !row.modelFromRequest) {
+        notes.push("* model time leaves out each response's wait for its first chunk (trace from before version 3); that wait is in Other");
     }
     return notes;
 }
+
+const requestLabel = attempt => `${attempt.method ?? "?"} ${attempt.path ?? "?"}${attempt.attempt > 1 ? ` (attempt ${attempt.attempt})` : ""}`;
 
 function runHeader(summary) {
     const packages = summary.packagesSucceeded !== undefined
@@ -481,6 +526,7 @@ function runHeader(summary) {
     return [
         `Run ${summary.runId}  started ${summary.startedAt}`,
         `Model ${summary.model || "?"} · login ${summary.loginMethod || "?"} · entry ${summary.entryPoint || "?"} · ` +
+        `trace v${summary.traceVersion ?? "1–2"} · ` +
         `${summary.packageCount ?? "?"} package(s) · ${summary.status}${packages} · ${formatDuration(summary.durationMs)}`,
     ];
 }
@@ -501,10 +547,13 @@ function formatTable(summaries) {
         out.push("Time", ...renderTable(TIME_COLUMNS, rows, grouped), "");
         out.push("Tokens", ...renderTable(TOKEN_COLUMNS, rows, grouped), "");
         const notes = rows.map(row => ({ row, lines: noteLines(row) })).filter(entry => entry.lines.length > 0);
-        if (notes.length > 0 || summary.unplacedSideCalls.length > 0) {
+        if (notes.length > 0 || summary.unplacedSideCalls.length > 0 || summary.unplacedHttp.requests > 0) {
             out.push("Notes");
             for (const { row, lines } of notes) {
                 out.push(`  ${stageLabel(row)}`, ...lines.map(line => `      ${line}`));
+            }
+            if (summary.unplacedHttp.requests > 0) {
+                out.push(`  (no stage) http: ${summary.unplacedHttp.requests} requests`);
             }
             for (const call of summary.unplacedSideCalls) {
                 out.push(`  (no stage) side calls: ${call.source} ${call.calls}× — in ${formatInt(call.inputTokens)}, out ${formatInt(call.outputTokens)}`);
@@ -677,6 +726,8 @@ function flagCodes(row) {
     if (row.repeatedCalls.length > 0) { codes.push(`repeated:${row.repeatedCalls.map(call => `${call.toolName}×${call.count}`).join(" ")}`); }
     if (row.largeOutputs.length > 0) { codes.push(`large_output:${row.largeOutputs.length}`); }
     if (row.truncatedSteps.length > 0) { codes.push(`truncated:${row.truncatedSteps.join(" ")}`); }
+    if (row.http.slow.length > 0) { codes.push(`slow_request:${row.http.slow.length}`); }
+    if (row.http.failed.length > 0) { codes.push(`failed_request:${row.http.failed.length}`); }
     return codes.join(";");
 }
 
@@ -686,6 +737,7 @@ const CSV_HEADER = [
     "estimated_cost_usd", "partial", "hit_step_cap", "slowest_tools",
     "setup_ms", "teardown_ms", "other_ms", "model_ms_measured", "fixed_context_tokens", "fixed_x_steps",
     "side_calls", "side_call_input_tokens", "side_call_output_tokens", "flags",
+    "model_from_request", "http_requests", "http_failed", "http_slowest_ms",
 ];
 
 /** Renders runs as CSV, one row per stage; `slowest_tools` is `name:calls:totalMs` joined by `;`. */
@@ -707,6 +759,8 @@ function formatCsv(summaries) {
                 row.sideCalls.reduce((n, call) => n + call.inputTokens, 0),
                 row.sideCalls.reduce((n, call) => n + call.outputTokens, 0),
                 flagCodes(row),
+                row.modelFromRequest, row.http.requests, row.http.failed.length,
+                row.http.slowest ? row.http.slowest.durationMs : "",
             ].map(csvField).join(","));
         }
     }

@@ -642,7 +642,10 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
                             // Anthropic requires tool_use.input to be an object; an unparseable or schema-invalid
                             // streamed input is left as a non-object on the tool-call part and 400s every later request.
                             sanitizeMessages(stepMessages);
-                            return { messages: addCacheControlToMessages({ messages: stepMessages, model, providerOptions: historyCacheOptions as any }) };
+                            const preparedMessages = addCacheControlToMessages({ messages: stepMessages, model, providerOptions: historyCacheOptions as any });
+                            // Migration runs only: the step's request goes out right after this returns.
+                            this.streamTracer?.markRequestStart();
+                            return { messages: preparedMessages };
                         },
 
                         // Emit per-step token usage for context usage widget + observability

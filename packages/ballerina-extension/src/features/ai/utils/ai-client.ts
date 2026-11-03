@@ -23,6 +23,7 @@ import { getAccessToken, getLoginMethod, getRefreshedAccessToken, getAwsBedrockC
 import { AIStateMachine } from "../../../views/ai-panel/aiMachine";
 import { BACKEND_URL } from "../utils";
 import { LLM_API_BASE_PATH } from "../constants";
+import { tracedFetch } from "../migration/debug-logger";
 import { AIMachineEventType, AnthropicKeySecrets, AnthropicAwsSecrets, LoginMethod, BIIntelSecrets } from "@wso2/ballerina-core";
 
 export const ANTHROPIC_HAIKU = "claude-haiku-4-5-20251001";
@@ -74,7 +75,9 @@ let cachedBaseUrl: string | null = null;
  */
 export async function fetchWithAuth(input: string | URL | Request, options: RequestInit = {}): Promise<Response> {
     try {
+        const tokenStartMs = Date.now();
         const credentials = await getAccessToken();
+        const tokenMs = Date.now() - tokenStartMs;
         const loginMethod = credentials.loginMethod;
 
         const headers: Record<string, string> = {
@@ -98,7 +101,8 @@ export async function fetchWithAuth(input: string | URL | Request, options: Requ
             ...headers,
         };
 
-        let response = await fetch(input, options);
+        // Migration runs only: each request is traced to the stage that made it.
+        let response = await tracedFetch(input, options, { attempt: 1, tokenMs }, () => fetch(input, options));
         console.log("Response status: ", response.status);
 
         // Handle token expiration for BI_INTEL method with tiered refresh
@@ -109,7 +113,9 @@ export async function fetchWithAuth(input: string | URL | Request, options: Requ
                 try {
                     // Tiered refresh: STS token re-exchange via platform extension
                     const urlBeforeRefresh = BACKEND_URL;
+                    const refreshStartMs = Date.now();
                     const newToken = await getRefreshedAccessToken();
+                    const refreshMs = Date.now() - refreshStartMs;
                     if (newToken) {
                         console.log("Token refreshed via STS exchange");
                         options.headers = {
@@ -120,7 +126,7 @@ export async function fetchWithAuth(input: string | URL | Request, options: Requ
                         if (typeof input === 'string' && BACKEND_URL !== urlBeforeRefresh) {
                             input = input.replace(urlBeforeRefresh, BACKEND_URL);
                         }
-                        response = await fetch(input, options);
+                        response = await tracedFetch(input, options, { attempt: 2, tokenMs: refreshMs }, () => fetch(input, options));
 
                         // If still 401 after refresh, logout
                         if (response.status === 401) {
